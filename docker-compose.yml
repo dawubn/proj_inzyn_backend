@@ -1,0 +1,104 @@
+services:
+  api:
+    build:
+      context: .
+      target: final
+    container_name: doc_analyzer_api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - doc_analyzer_net
+
+  worker:
+    build:
+      context: .
+      target: final
+    container_name: doc_analyzer_worker
+    env_file: .env
+    volumes:
+      - ./storage:/app/storage
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    networks:
+      - doc_analyzer_net
+
+  beat:
+    build:
+      context: .
+      target: final
+    container_name: doc_analyzer_beat
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    networks:
+      - doc_analyzer_net
+
+  db:
+    image: postgres:16-alpine
+    container_name: doc_analyzer_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-docanalyzer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docanalyzer}
+      POSTGRES_DB: ${POSTGRES_DB:-doc_analyzer}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docanalyzer} -d ${POSTGRES_DB:-doc_analyzer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - doc_analyzer_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: doc_analyzer_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - doc_analyzer_net
+
+  flower:
+    image: mher/flower:2.0
+    container_name: doc_analyzer_flower
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - doc_analyzer_net
+
+volumes:
+  postgres_data:
+
+networks:
+  doc_analyzer_net:
+    driver: bridge
