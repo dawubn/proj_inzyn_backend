@@ -18,9 +18,9 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str
-    POSTGRES_USER: str = "docanalyzer"
-    POSTGRES_PASSWORD: str = "docanalyzer"
-    POSTGRES_DB: str = "doc_analyzer"
+    POSTGRES_USER: str = "cerberdoc"
+    POSTGRES_PASSWORD: str = "cerberdoc"
+    POSTGRES_DB: str = "cerber_doc"
     POSTGRES_HOST: str = "db"
     POSTGRES_PORT: int = 5432
 

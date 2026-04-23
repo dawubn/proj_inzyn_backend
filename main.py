@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="Document Analyzer API",
+    title="CerberDoc API",
     description="REST API for document completeness analysis using OCR",
     version="0.1.0",
     docs_url="/docs" if settings.APP_DEBUG else None,

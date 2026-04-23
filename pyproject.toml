@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 packages = ["app"]
 
 [project]
-name = "doc-analyzer-backend"
+name = "cerber_doc_backend"
 version = "0.1.0"
 description = "Document completeness analysis backend with OCR"
 requires-python = ">=3.12"

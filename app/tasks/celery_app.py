@@ -3,7 +3,7 @@ from celery import Celery
 from app.core.config import settings
 
 celery_app = Celery(
-    "doc_analyzer",
+    "cerber_doc",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
     include=["app.tasks.ocr", "app.tasks.analysis"],

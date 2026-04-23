@@ -1,6 +1,5 @@
 import asyncio
 from collections.abc import AsyncGenerator
-
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -10,7 +9,7 @@ from sqlalchemy.pool import NullPool
 from app.db.session import Base, get_db
 from main import app
 
-TEST_DATABASE_URL = "postgresql+asyncpg://docanalyzer:docanalyzer@localhost:5432/doc_analyzer_test"
+TEST_DATABASE_URL = "postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test"
 
 engine_test = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 TestingSessionLocal = async_sessionmaker(bind=engine_test, class_=AsyncSession, expire_on_commit=False)
