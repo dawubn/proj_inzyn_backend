@@ -1,6 +1,7 @@
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.config import settings
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_token
 from app.db.session import AsyncSession, get_db
@@ -22,6 +23,17 @@ async def get_current_user(
 
     if payload.get("type") != "access":
         raise UnauthorizedError("Not an access token")
+
+    # --- MOCK: szuka usera w pliku JSON zamiast bazy ---
+    if settings.APP_ENV == "development" and settings.APP_DEBUG:
+        from app.core.mock_users import MOCK_USERS
+
+        user = next((u for u, _ in MOCK_USERS.values() if str(u.id) == payload.get("sub")), None)
+        if user is not None:
+            if not user.is_active:
+                raise UnauthorizedError("User not found or deactivated")
+            return user
+    # --- koniec MOCK ---
 
     user_repo = UserRepository(db)
     user = await user_repo.get_by_id(payload["sub"])

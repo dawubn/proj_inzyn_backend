@@ -1,0 +1,20 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "email": "admin@example.com",
+    "password": "admin123",
+    "full_name": "Admin User",
+    "role": "admin",
+    "is_active": true,
+    "is_verified": true
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "email": "user@example.com",
+    "password": "user123",
+    "full_name": "Business User",
+    "role": "business_user",
+    "is_active": true,
+    "is_verified": true
+  }
+]
