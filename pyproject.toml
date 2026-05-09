@@ -55,6 +55,9 @@ src = ["app", "tests"]
 select = ["E", "F", "W", "I", "N", "UP", "ANN", "S", "B", "A", "COM", "C4", "ISC", "PIE", "T20", "RET", "SIM", "ARG", "PTH", "ERA", "PL", "TRY", "RUF"]
 ignore = ["TRY003", "TRY301", "RUF012", "COM812", "ISC001", "B008"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S105", "ANN", "ARG", "PLR2004", "PLC0415"]
 "alembic/**/*.py" = ["ANN", "ERA001", "N999"]
