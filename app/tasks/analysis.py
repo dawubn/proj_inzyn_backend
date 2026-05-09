@@ -13,7 +13,7 @@ from app.tasks.celery_app import celery_app
 logger = structlog.get_logger(__name__)
 
 
-@celery_app.task(  # type: ignore[misc]
+@celery_app.task(  # type: ignore[untyped-decorator]
     bind=True,
     name="app.tasks.analysis.run_analysis_task",
     max_retries=3,

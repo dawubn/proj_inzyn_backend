@@ -24,7 +24,7 @@ class ValidationRuleResponse(UUIDSchema, TimestampSchema):
     description: str | None
     rule_type: str
     field_name: str | None
-    rule_config: dict
+    rule_config: dict[str, Any]
     severity: ValidationSeverity
     is_active: bool
     order: int
