@@ -67,6 +67,7 @@ class AzureOCRAdapter:
 
     def _map_result(self, azure_result: object) -> OCRResult:
         """Map Azure SDK result to internal OCRResult."""
+
         def get_value(source: object, name: str, default: object = None) -> object:
             if isinstance(source, dict):
                 return source.get(name, default)
@@ -104,9 +105,7 @@ class AzureOCRAdapter:
                             total_confidence += float(word_confidence)
                             confidence_count += 1
 
-            confidence = (
-                total_confidence / confidence_count if confidence_count else None
-            )
+            confidence = total_confidence / confidence_count if confidence_count else None
         else:
             confidence = float(confidence)
 

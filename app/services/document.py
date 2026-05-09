@@ -61,9 +61,7 @@ class DocumentService:
 
     def _validate_file(self, filename: str, size: int) -> None:
         if size > settings.max_upload_size_bytes:
-            raise FileTooLargeError(
-                f"File exceeds limit of {settings.MAX_UPLOAD_SIZE_MB} MB"
-            )
+            raise FileTooLargeError(f"File exceeds limit of {settings.MAX_UPLOAD_SIZE_MB} MB")
         ext = Path(filename).suffix.lstrip(".").lower()
         if ext not in settings.ALLOWED_EXTENSIONS:
             raise UnsupportedFileTypeError(f"Extension .{ext} is not supported")

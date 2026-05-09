@@ -85,7 +85,5 @@ class RuleEngineService:
             )
         return None
 
-    def _check_date_range(
-        self, _rule: ValidationRule, _fields: dict
-    ) -> ValidationIssue | None:
+    def _check_date_range(self, _rule: ValidationRule, _fields: dict) -> ValidationIssue | None:
         return None

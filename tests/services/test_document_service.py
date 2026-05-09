@@ -28,6 +28,7 @@ async def test_upload_creates_document(
     monkeypatch,
 ) -> None:
     from app.core import config as cfg_module
+
     monkeypatch.setattr(cfg_module.settings, "STORAGE_PATH", str(tmp_path))
     monkeypatch.setattr(cfg_module.settings, "MAX_UPLOAD_SIZE_MB", 10)
     monkeypatch.setattr(cfg_module.settings, "ALLOWED_EXTENSIONS", ["pdf"])
@@ -60,6 +61,7 @@ async def test_upload_creates_document(
 async def test_upload_rejects_large_file(document_service: DocumentService, monkeypatch) -> None:
     from app.core import config as cfg_module
     from app.core.exceptions import FileTooLargeError
+
     monkeypatch.setattr(cfg_module.settings, "MAX_UPLOAD_SIZE_MB", 1)
     monkeypatch.setattr(cfg_module.settings, "ALLOWED_EXTENSIONS", ["pdf"])
 

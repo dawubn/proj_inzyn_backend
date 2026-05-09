@@ -1,13 +1,15 @@
 import uuid
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import BaseModel
 
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
-class BaseRepository[ModelT: BaseModel]:
+
+class BaseRepository(Generic[ModelT]):
     model: type[ModelT]
 
     def __init__(self, session: AsyncSession) -> None:
@@ -17,9 +19,7 @@ class BaseRepository[ModelT: BaseModel]:
         return await self.session.get(self.model, record_id)
 
     async def get_all(self, *, offset: int = 0, limit: int = 20) -> list[ModelT]:
-        result = await self.session.execute(
-            select(self.model).offset(offset).limit(limit)
-        )
+        result = await self.session.execute(select(self.model).offset(offset).limit(limit))
         return list(result.scalars().all())
 
     async def count(self) -> int:
