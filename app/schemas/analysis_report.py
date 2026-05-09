@@ -25,4 +25,4 @@ class AnalysisReportResponse(UUIDSchema, TimestampSchema):
     warning_count: int
     is_complete: bool | None
     completeness_score: float | None
-    summary: dict | None
+    summary: dict[str, Any] | None

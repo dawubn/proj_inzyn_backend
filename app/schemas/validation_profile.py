@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from pydantic import Field
 
@@ -12,7 +13,7 @@ class ValidationRuleCreate(OrmBase):
     description: str | None = None
     rule_type: str = Field(min_length=1, max_length=100)
     field_name: str | None = None
-    rule_config: dict = Field(default_factory=dict)
+    rule_config: dict[str, Any] = Field(default_factory=dict)
     severity: ValidationSeverity = ValidationSeverity.ERROR
     order: int = 0
 

@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from app.enums.analysis import AnalysisStatus
 from app.schemas.common import OrmBase, TimestampSchema, UUIDSchema
@@ -11,7 +12,7 @@ class DocumentAnalysisResponse(UUIDSchema, TimestampSchema):
     ocr_provider: str | None
     detected_document_type: str | None
     classification_confidence: float | None
-    extracted_fields: dict | None
+    extracted_fields: dict[str, Any] | None
     error_message: str | None
 
 

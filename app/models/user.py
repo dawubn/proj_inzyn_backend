@@ -1,8 +1,15 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.enums.analysis import UserRole
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.document import Document
 
 
 class User(BaseModel):
@@ -17,7 +24,7 @@ class User(BaseModel):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    documents: Mapped[list["Document"]] = relationship(back_populates="owner", lazy="noload")
+    documents: Mapped[list[Document]] = relationship(back_populates="owner", lazy="noload")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email} role={self.role}>"

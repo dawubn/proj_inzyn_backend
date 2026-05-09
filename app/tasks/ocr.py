@@ -5,6 +5,7 @@ After OCR succeeds, chains into the analysis task.
 """
 
 import uuid
+from typing import Any
 
 import structlog
 from celery import Task
@@ -27,13 +28,13 @@ def _get_db_session() -> Session:
     return sessionmaker(bind=engine)()
 
 
-@celery_app.task(
+@celery_app.task(  # type: ignore[misc]
     bind=True,
     name="app.tasks.ocr.run_ocr_task",
     max_retries=3,
     default_retry_delay=30,
 )
-def run_ocr_task(self: Task, analysis_id: str) -> dict:
+def run_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
     """
     Run OCR for a given DocumentAnalysis record.
 

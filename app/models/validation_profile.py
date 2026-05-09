@@ -1,8 +1,15 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Boolean, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.enums.document import DocumentType
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.validation_rule import ValidationRule
 
 
 class ValidationProfile(BaseModel):
@@ -13,7 +20,7 @@ class ValidationProfile(BaseModel):
     document_type: Mapped[DocumentType] = mapped_column(String(50), nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    rules: Mapped[list["ValidationRule"]] = relationship(
+    rules: Mapped[list[ValidationRule]] = relationship(
         back_populates="profile", lazy="noload", cascade="all, delete-orphan"
     )
 

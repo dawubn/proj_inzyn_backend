@@ -8,6 +8,7 @@ Add concrete rule evaluators in the _evaluate_rule method.
 
 import re
 from collections.abc import Callable
+from typing import Any
 
 import structlog
 
@@ -27,7 +28,7 @@ class RuleEngineService:
     def run(
         self,
         rules: list[ValidationRule],
-        extracted_fields: dict,
+        extracted_fields: dict[str, Any],
     ) -> list[ValidationIssue]:
         issues: list[ValidationIssue] = []
 
@@ -40,7 +41,9 @@ class RuleEngineService:
 
         return issues
 
-    def _evaluate_rule(self, rule: ValidationRule, fields: dict) -> ValidationIssue | None:
+    def _evaluate_rule(
+        self, rule: ValidationRule, fields: dict[str, Any]
+    ) -> ValidationIssue | None:
         """Dispatch to concrete rule evaluators based on rule_type."""
         evaluator = self._get_evaluator(rule.rule_type)
         if evaluator is None:
@@ -50,15 +53,17 @@ class RuleEngineService:
 
     def _get_evaluator(
         self, rule_type: str
-    ) -> Callable[[ValidationRule, dict], ValidationIssue | None] | None:
-        mapping: dict[str, Callable[[ValidationRule, dict], ValidationIssue | None]] = {
+    ) -> Callable[[ValidationRule, dict[str, Any]], ValidationIssue | None] | None:
+        mapping: dict[str, Callable[[ValidationRule, dict[str, Any]], ValidationIssue | None]] = {
             "required_field": self._check_required_field,
             "regex_match": self._check_regex_match,
             "date_range": self._check_date_range,
         }
         return mapping.get(rule_type)
 
-    def _check_required_field(self, rule: ValidationRule, fields: dict) -> ValidationIssue | None:
+    def _check_required_field(
+        self, rule: ValidationRule, fields: dict[str, Any]
+    ) -> ValidationIssue | None:
         field = rule.field_name
         if not field or fields.get(field):
             return None
@@ -69,7 +74,9 @@ class RuleEngineService:
             message=f"Required field '{field}' is missing or empty",
         )
 
-    def _check_regex_match(self, rule: ValidationRule, fields: dict) -> ValidationIssue | None:
+    def _check_regex_match(
+        self, rule: ValidationRule, fields: dict[str, Any]
+    ) -> ValidationIssue | None:
         field = rule.field_name
         pattern = rule.rule_config.get("pattern")
         if not field or not pattern:
@@ -85,5 +92,7 @@ class RuleEngineService:
             )
         return None
 
-    def _check_date_range(self, _rule: ValidationRule, _fields: dict) -> ValidationIssue | None:
+    def _check_date_range(
+        self, _rule: ValidationRule, _fields: dict[str, Any]
+    ) -> ValidationIssue | None:
         return None

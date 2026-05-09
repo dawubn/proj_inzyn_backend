@@ -1,9 +1,10 @@
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.security import decode_token
-from app.db.session import AsyncSession, get_db
+from app.db.session import get_db
 from app.enums.analysis import UserRole
 from app.models.user import User
 from app.repositories.user import UserRepository

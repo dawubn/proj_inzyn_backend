@@ -3,6 +3,7 @@ Celery task: classify document type and run validation after OCR.
 """
 
 import uuid
+from typing import Any
 
 import structlog
 from celery import Task
@@ -12,13 +13,13 @@ from app.tasks.celery_app import celery_app
 logger = structlog.get_logger(__name__)
 
 
-@celery_app.task(
+@celery_app.task(  # type: ignore[misc]
     bind=True,
     name="app.tasks.analysis.run_analysis_task",
     max_retries=3,
     default_retry_delay=30,
 )
-def run_analysis_task(self: Task, analysis_id: str) -> dict:
+def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
     """
     Classify document and run rule-based validation.
 

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -6,6 +9,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.enums.document import DocumentStatus, DocumentType, FileExtension
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.document_analysis import DocumentAnalysis
+    from app.models.user import User
 
 
 class Document(BaseModel):
@@ -27,8 +34,8 @@ class Document(BaseModel):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    owner: Mapped["User"] = relationship(back_populates="documents", lazy="noload")
-    analyses: Mapped[list["DocumentAnalysis"]] = relationship(
+    owner: Mapped[User] = relationship(back_populates="documents", lazy="noload")
+    analyses: Mapped[list[DocumentAnalysis]] = relationship(
         back_populates="document", lazy="noload", cascade="all, delete-orphan"
     )
 

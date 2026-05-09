@@ -5,6 +5,8 @@ Wraps the Azure SDK to provide a clean interface for the rest of the application
 Replace the TODO sections with real implementation once credentials are configured.
 """
 
+from typing import Any
+
 import structlog
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
@@ -20,7 +22,7 @@ class OCRResult:
 
     def __init__(
         self,
-        raw: dict,
+        raw: dict[str, Any],
         text_content: str,
         pages: int,
         confidence: float | None,
@@ -65,10 +67,10 @@ class AzureOCRAdapter:
             log.exception("Azure OCR failed")
             raise OCRServiceError(f"Azure OCR error: {exc}") from exc
 
-    def _map_result(self, azure_result: object) -> OCRResult:
+    def _map_result(self, azure_result: Any) -> OCRResult:
         """Map Azure SDK result to internal OCRResult."""
 
-        def get_value(source: object, name: str, default: object = None) -> object:
+        def get_value(source: Any, name: str, default: Any = None) -> Any:
             if isinstance(source, dict):
                 return source.get(name, default)
             return getattr(source, name, default)

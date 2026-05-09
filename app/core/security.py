@@ -20,17 +20,21 @@ def create_access_token(subject: str | int, extra_claims: dict[str, Any] | None 
     payload: dict[str, Any] = {"sub": str(subject), "exp": expire, "type": "access"}
     if extra_claims:
         payload.update(extra_claims)
-    return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return str(jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=settings.JWT_ALGORITHM))
 
 
 def create_refresh_token(subject: str | int) -> str:
     expire = datetime.now(UTC) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     payload: dict[str, Any] = {"sub": str(subject), "exp": expire, "type": "refresh"}
-    return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return str(jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=settings.JWT_ALGORITHM))
 
 
 def decode_token(token: str) -> dict[str, Any]:
     try:
-        return jwt.decode(token, settings.APP_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        decoded: dict[str, Any] = jwt.decode(
+            token, settings.APP_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
     except JWTError as exc:
         raise ValueError("Invalid or expired token") from exc
+    else:
+        return decoded

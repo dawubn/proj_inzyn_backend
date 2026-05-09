@@ -58,4 +58,4 @@ class Settings(BaseSettings):
         return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
-settings = Settings()  # type: ignore[call-arg]
+settings = Settings()

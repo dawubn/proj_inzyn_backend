@@ -65,7 +65,7 @@ known-first-party = ["app"]
 "app/db/base.py" = ["F821"]
 "app/tasks/*.py" = ["PLC0415"]
 "app/core/config.py" = ["S105"]
-"app/adapters/azure_ocr.py" = ["PLR0912"]
+"app/adapters/azure_ocr.py" = ["PLR0912", "ANN401"]
 "app/repositories/base.py" = ["UP046"]
 "app/api/**/*.py" = ["ARG001"]
 

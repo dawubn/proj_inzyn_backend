@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 import structlog
 
@@ -24,7 +25,7 @@ class ReportService:
         self._analyses = analysis_repo
         self._engine = rule_engine
 
-    async def build_report(self, analysis_id: uuid.UUID, rules: list) -> AnalysisReport:
+    async def build_report(self, analysis_id: uuid.UUID, rules: list[Any]) -> AnalysisReport:
         analysis = await self._analyses.get_by_id(analysis_id)
         if not analysis:
             raise NotFoundError("Analysis not found")
@@ -52,7 +53,7 @@ class ReportService:
         )
         return await self._reports.create(report)
 
-    def _compute_score(self, rules: list, errors: list[ValidationIssue]) -> float:
+    def _compute_score(self, rules: list[Any], errors: list[ValidationIssue]) -> float:
         if not rules:
             return 1.0
         return round(1.0 - len(errors) / len(rules), 4)
