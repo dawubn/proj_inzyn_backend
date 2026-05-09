@@ -1,4 +1,5 @@
 import uuid
+
 from sqlalchemy import Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,7 +12,10 @@ class DocumentAnalysis(BaseModel):
     __tablename__ = "document_analyses"
 
     document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     task_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     status: Mapped[AnalysisStatus] = mapped_column(
@@ -38,4 +42,7 @@ class DocumentAnalysis(BaseModel):
     )
 
     def __repr__(self) -> str:
-        return f"<DocumentAnalysis id={self.id} document_id={self.document_id} status={self.status}>"
+        return (
+            f"<DocumentAnalysis id={self.id}"
+            f" document_id={self.document_id} status={self.status}>"
+        )

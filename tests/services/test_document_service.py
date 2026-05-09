@@ -1,5 +1,5 @@
-from unittest.mock import AsyncMock, MagicMock
 import uuid
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -22,7 +22,12 @@ def document_service(mock_repo: MagicMock) -> DocumentService:
 
 
 @pytest.mark.asyncio
-async def test_upload_creates_document(document_service: DocumentService, mock_repo: MagicMock, tmp_path, monkeypatch) -> None:
+async def test_upload_creates_document(
+    document_service: DocumentService,
+    mock_repo: MagicMock,
+    tmp_path,
+    monkeypatch,
+) -> None:
     from app.core import config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "STORAGE_PATH", str(tmp_path))
     monkeypatch.setattr(cfg_module.settings, "MAX_UPLOAD_SIZE_MB", 10)

@@ -1,12 +1,12 @@
+from app.enums.analysis import AnalysisStatus, ReportStatus, UserRole, ValidationSeverity
 from app.enums.document import DocumentStatus, DocumentType, FileExtension
-from app.enums.analysis import AnalysisStatus, ValidationSeverity, ReportStatus, UserRole
 
 __all__ = [
+    "AnalysisStatus",
     "DocumentStatus",
     "DocumentType",
     "FileExtension",
-    "AnalysisStatus",
-    "ValidationSeverity",
     "ReportStatus",
     "UserRole",
+    "ValidationSeverity",
 ]

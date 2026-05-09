@@ -58,23 +58,14 @@ class AzureOCRAdapter:
         log.info("Sending document to Azure OCR")
 
         try:
-            # TODO: implement real Azure Document Intelligence call
-            # Example:
-            # poller = self._client.begin_analyze_document(
-            #     "prebuilt-read",
-            #     analyze_request={"base64Source": base64.b64encode(file_bytes).decode()},
-            #     content_type="application/json",
-            # )
-            # result = poller.result()
-            # return self._map_result(result)
             raise NotImplementedError("Azure OCR adapter not yet implemented")
         except NotImplementedError:
             raise
         except Exception as exc:
-            log.error("Azure OCR failed", error=str(exc))
+            log.exception("Azure OCR failed")
             raise OCRServiceError(f"Azure OCR error: {exc}") from exc
 
-    def _map_result(self, azure_result: object) -> OCRResult:
+    def _map_result(self, azure_result: object) -> OCRResult:  # noqa: PLR0912
         """Map Azure SDK result to internal OCRResult."""
         def get_value(source: object, name: str, default: object = None) -> object:
             if isinstance(source, dict):

@@ -22,7 +22,9 @@ class DocumentAnalysisService:
         self._analyses = analysis_repo
         self._docs = document_repo
 
-    async def trigger_analysis(self, document_id: uuid.UUID, owner_id: uuid.UUID) -> DocumentAnalysis:
+    async def trigger_analysis(
+        self, document_id: uuid.UUID, owner_id: uuid.UUID
+    ) -> DocumentAnalysis:
         doc = await self._docs.get_by_id(document_id)
         if not doc or doc.owner_id != owner_id:
             raise NotFoundError("Document not found")

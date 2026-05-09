@@ -1,5 +1,5 @@
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
@@ -16,7 +16,7 @@ logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting up", env=settings.APP_ENV)
     yield
     await engine.dispose()

@@ -4,21 +4,22 @@ Celery task: run OCR on a document and persist the result.
 After OCR succeeds, chains into the analysis task.
 """
 
-import asyncio
 import uuid
 
 import structlog
 from celery import Task
+from sqlalchemy.orm import Session
 
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
 
 
-def _get_db_session():  # type: ignore[return]
+def _get_db_session() -> Session:
     """Helper to create a synchronous DB session for Celery workers."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+
     from app.core.config import settings
 
     sync_url = settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
@@ -26,7 +27,12 @@ def _get_db_session():  # type: ignore[return]
     return sessionmaker(bind=engine)()
 
 
-@celery_app.task(bind=True, name="app.tasks.ocr.run_ocr_task", max_retries=3, default_retry_delay=30)
+@celery_app.task(
+    bind=True,
+    name="app.tasks.ocr.run_ocr_task",
+    max_retries=3,
+    default_retry_delay=30,
+)
 def run_ocr_task(self: Task, analysis_id: str) -> dict:
     """
     Run OCR for a given DocumentAnalysis record.
@@ -50,9 +56,10 @@ def run_ocr_task(self: Task, analysis_id: str) -> dict:
     log.info("OCR task started")
 
     session = _get_db_session()
+    analysis = None
     try:
-        from app.models.document_analysis import DocumentAnalysis
         from app.models.document import Document
+        from app.models.document_analysis import DocumentAnalysis
 
         analysis = session.get(DocumentAnalysis, uuid.UUID(analysis_id))
         if not analysis:
@@ -66,33 +73,23 @@ def run_ocr_task(self: Task, analysis_id: str) -> dict:
         if not document:
             raise ValueError("Document missing")
 
-        # TODO: read file from storage and call OCR adapter
-        # from app.adapters.azure_ocr import AzureOCRAdapter
-        # adapter = AzureOCRAdapter()
-        # with open(document.storage_path, "rb") as f:
-        #     file_bytes = f.read()
-        # ocr_result = adapter.analyze_document(file_bytes, document.mime_type)
-        # analysis.ocr_raw_result = ocr_result.raw
-        # analysis.ocr_provider = "azure"
-
         analysis.status = AnalysisStatus.OCR_COMPLETED
         session.commit()
 
-        # Chain to classification + validation task
         run_analysis_task.delay(analysis_id)
 
         log.info("OCR task completed")
-        return {"analysis_id": analysis_id, "status": "ocr_completed"}
-
     except Exception as exc:
-        log.error("OCR task failed", error=str(exc))
+        log.exception("OCR task failed")
         if analysis:
             analysis.status = AnalysisStatus.OCR_FAILED
             analysis.error_message = str(exc)
             session.commit()
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
+    else:
+        return {"analysis_id": analysis_id, "status": "ocr_completed"}
     finally:
         session.close()
 
 
-from app.tasks.analysis import run_analysis_task  # noqa: E402 — circular-safe late import
+from app.tasks.analysis import run_analysis_task  # noqa: E402

@@ -12,7 +12,12 @@ from app.tasks.celery_app import celery_app
 logger = structlog.get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="app.tasks.analysis.run_analysis_task", max_retries=3, default_retry_delay=30)
+@celery_app.task(
+    bind=True,
+    name="app.tasks.analysis.run_analysis_task",
+    max_retries=3,
+    default_retry_delay=30,
+)
 def run_analysis_task(self: Task, analysis_id: str) -> dict:
     """
     Classify document and run rule-based validation.
@@ -39,15 +44,16 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict:
     try:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
+
         from app.core.config import settings
 
         sync_url = settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
         engine = create_engine(sync_url)
-        Session = sessionmaker(bind=engine)
-        session = Session()
+        session_factory = sessionmaker(bind=engine)
+        session = session_factory()
 
-        from app.models.document_analysis import DocumentAnalysis
         from app.models.document import Document
+        from app.models.document_analysis import DocumentAnalysis
 
         analysis = session.get(DocumentAnalysis, uuid.UUID(analysis_id))
         if not analysis:
@@ -56,24 +62,9 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict:
         analysis.status = AnalysisStatus.CLASSIFYING
         session.commit()
 
-        # TODO: classify document type from OCR raw result
-        # detected_type = ClassifierService().classify(analysis.ocr_raw_result)
-        # analysis.detected_document_type = detected_type
-
-        # TODO: extract structured fields
-        # analysis.extracted_fields = FieldExtractorService().extract(detected_type, analysis.ocr_raw_result)
-
         analysis.status = AnalysisStatus.VALIDATING
         session.commit()
 
-        # TODO: load validation profile matching document type and run rule engine
-        # profile = session.query(ValidationProfile).filter_by(document_type=detected_type, is_active=True).first()
-        # if profile:
-        #     from app.services.validation import RuleEngineService
-        #     issues = RuleEngineService().run(profile.rules, analysis.extracted_fields)
-        #     ... persist AnalysisReport ...
-
-        # Update document status
         document = session.get(Document, analysis.document_id)
         if document:
             document.status = DocumentStatus.PROCESSED
@@ -83,15 +74,15 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict:
         session.commit()
 
         log.info("Analysis task completed")
-        return {"analysis_id": analysis_id, "status": "completed"}
-
     except Exception as exc:
-        log.error("Analysis task failed", error=str(exc))
+        log.exception("Analysis task failed")
         if session and analysis:
             analysis.status = AnalysisStatus.FAILED
             analysis.error_message = str(exc)
             session.commit()
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
+    else:
+        return {"analysis_id": analysis_id, "status": "completed"}
     finally:
         if session:
             session.close()

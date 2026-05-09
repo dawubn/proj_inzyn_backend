@@ -5,7 +5,6 @@ import structlog
 from app.core.exceptions import NotFoundError
 from app.enums.analysis import ReportStatus, ValidationSeverity
 from app.models.analysis_report import AnalysisReport
-from app.models.document_analysis import DocumentAnalysis
 from app.repositories.analysis_report import AnalysisReportRepository
 from app.repositories.document_analysis import DocumentAnalysisRepository
 from app.schemas.analysis_report import ValidationIssue

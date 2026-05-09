@@ -2,10 +2,17 @@ import pytest
 from httpx import AsyncClient
 
 
-async def _get_auth_headers(client: AsyncClient, email: str = "doc_user@example.com") -> dict[str, str]:
+async def _get_auth_headers(
+    client: AsyncClient, email: str = "doc_user@example.com"
+) -> dict[str, str]:
     await client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "Str0ngPass!", "full_name": "Doc User", "role": "business_user"},
+        json={
+            "email": email,
+            "password": "Str0ngPass!",
+            "full_name": "Doc User",
+            "role": "business_user",
+        },
     )
     resp = await client.post(
         "/api/v1/auth/login",

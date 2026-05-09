@@ -5,11 +5,12 @@ Revises:
 Create Date: 2026-01-01 00:00:00.000000
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0001"
 down_revision: str | None = None
@@ -37,7 +38,12 @@ def upgrade() -> None:
     op.create_table(
         "documents",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("owner_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "owner_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("original_filename", sa.String(500), nullable=False),
         sa.Column("storage_path", sa.String(1000), nullable=False),
         sa.Column("file_extension", sa.String(10), nullable=False),
@@ -56,7 +62,12 @@ def upgrade() -> None:
     op.create_table(
         "document_analyses",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("document_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("documents.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "document_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("documents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("task_id", sa.String(255), nullable=True),
         sa.Column("status", sa.String(50), nullable=False, server_default="pending"),
         sa.Column("ocr_raw_result", postgresql.JSONB(), nullable=True),
@@ -84,13 +95,20 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.UniqueConstraint("name", name="uq_validation_profiles_name"),
     )
-    op.create_index("ix_validation_profiles_document_type", "validation_profiles", ["document_type"])
+    op.create_index(
+        "ix_validation_profiles_document_type", "validation_profiles", ["document_type"]
+    )
 
     # validation_rules
     op.create_table(
         "validation_rules",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("profile_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("validation_profiles.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "profile_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("validation_profiles.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("rule_type", sa.String(100), nullable=False),
@@ -108,7 +126,12 @@ def upgrade() -> None:
     op.create_table(
         "analysis_reports",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("analysis_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("document_analyses.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "analysis_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("document_analyses.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("status", sa.String(50), nullable=False, server_default="pending"),
         sa.Column("errors", postgresql.JSONB(), nullable=False, server_default="[]"),
         sa.Column("warnings", postgresql.JSONB(), nullable=False, server_default="[]"),

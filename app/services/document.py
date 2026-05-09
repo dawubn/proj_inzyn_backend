@@ -9,7 +9,7 @@ from app.core.exceptions import FileTooLargeError, NotFoundError, UnsupportedFil
 from app.enums.document import DocumentStatus, FileExtension
 from app.models.document import Document
 from app.repositories.document import DocumentRepository
-from app.schemas.document import DocumentCreate, DocumentResponse
+from app.schemas.document import DocumentCreate
 
 logger = structlog.get_logger(__name__)
 

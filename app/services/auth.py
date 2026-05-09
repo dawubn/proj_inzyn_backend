@@ -1,7 +1,13 @@
 import structlog
 
 from app.core.exceptions import ConflictError, UnauthorizedError
-from app.core.security import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    verify_password,
+)
 from app.models.user import User
 from app.repositories.user import UserRepository
 from app.schemas.auth import LoginRequest, TokenResponse

@@ -1,15 +1,13 @@
 import uuid
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import BaseModel
 
-ModelT = TypeVar("ModelT", bound=BaseModel)
 
-
-class BaseRepository(Generic[ModelT]):
+class BaseRepository[ModelT: BaseModel]:
     model: type[ModelT]
 
     def __init__(self, session: AsyncSession) -> None:

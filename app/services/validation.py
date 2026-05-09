@@ -6,9 +6,11 @@ extracted document fields. Rules are evaluated in order.
 Add concrete rule evaluators in the _evaluate_rule method.
 """
 
+import re
+from collections.abc import Callable
+
 import structlog
 
-from app.enums.analysis import ValidationSeverity
 from app.models.validation_rule import ValidationRule
 from app.schemas.analysis_report import ValidationIssue
 
@@ -46,12 +48,13 @@ class RuleEngineService:
             return None
         return evaluator(rule, fields)
 
-    def _get_evaluator(self, rule_type: str):  # type: ignore[return]
-        mapping = {
+    def _get_evaluator(
+        self, rule_type: str
+    ) -> Callable[[ValidationRule, dict], ValidationIssue | None] | None:
+        mapping: dict[str, Callable[[ValidationRule, dict], ValidationIssue | None]] = {
             "required_field": self._check_required_field,
             "regex_match": self._check_regex_match,
             "date_range": self._check_date_range,
-            # TODO: add more evaluators (min_length, allowed_values, cross_field, etc.)
         }
         return mapping.get(rule_type)
 
@@ -67,7 +70,6 @@ class RuleEngineService:
         )
 
     def _check_regex_match(self, rule: ValidationRule, fields: dict) -> ValidationIssue | None:
-        import re
         field = rule.field_name
         pattern = rule.rule_config.get("pattern")
         if not field or not pattern:
@@ -83,6 +85,7 @@ class RuleEngineService:
             )
         return None
 
-    def _check_date_range(self, rule: ValidationRule, fields: dict) -> ValidationIssue | None:
-        # TODO: implement date range validation
+    def _check_date_range(
+        self, _rule: ValidationRule, _fields: dict
+    ) -> ValidationIssue | None:
         return None

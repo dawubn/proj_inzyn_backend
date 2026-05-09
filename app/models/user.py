@@ -11,7 +11,9 @@ class User(BaseModel):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(String(50), nullable=False, default=UserRole.BUSINESS_USER)
+    role: Mapped[UserRole] = mapped_column(
+        String(50), nullable=False, default=UserRole.BUSINESS_USER
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
