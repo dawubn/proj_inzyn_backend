@@ -65,7 +65,7 @@ class AzureOCRAdapter:
             log.exception("Azure OCR failed")
             raise OCRServiceError(f"Azure OCR error: {exc}") from exc
 
-    def _map_result(self, azure_result: object) -> OCRResult:  # noqa: PLR0912
+    def _map_result(self, azure_result: object) -> OCRResult:
         """Map Azure SDK result to internal OCRResult."""
         def get_value(source: object, name: str, default: object = None) -> object:
             if isinstance(source, dict):

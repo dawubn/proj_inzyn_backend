@@ -3,12 +3,11 @@ from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
+from app.db.session import Base, get_db
 from httpx import ASGITransport, AsyncClient
+from main import app
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
-
-from app.db.session import Base, get_db
-from main import app
 
 TEST_DATABASE_URL = "postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test"
 

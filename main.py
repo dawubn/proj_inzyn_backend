@@ -2,14 +2,13 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.db.session import engine
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 configure_logging()
 logger = structlog.get_logger(__name__)
