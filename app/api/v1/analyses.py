@@ -18,7 +18,7 @@ def _analysis_service(db: AsyncSession = Depends(get_db)) -> DocumentAnalysisSer
     return DocumentAnalysisService(DocumentAnalysisRepository(db), DocumentRepository(db))
 
 
-@router.post("", response_model=TriggerAnalysisResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("", response_model=TriggerAnalysisResponse, status_code=status.HTTP_202_ACCEPTED)  # type: ignore[misc]
 async def trigger_analysis(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -32,7 +32,7 @@ async def trigger_analysis(
     )
 
 
-@router.get("/{analysis_id}", response_model=DocumentAnalysisResponse)
+@router.get("/{analysis_id}", response_model=DocumentAnalysisResponse)  # type: ignore[misc]
 async def get_analysis(
     document_id: uuid.UUID,
     analysis_id: uuid.UUID,

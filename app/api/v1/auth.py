@@ -14,17 +14,17 @@ def _auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(UserRepository(db))
 
 
-@router.post("/register", response_model=UserResponse, status_code=201)
+@router.post("/register", response_model=UserResponse, status_code=201)  # type: ignore[misc]
 async def register(data: UserCreate, svc: AuthService = Depends(_auth_service)) -> UserResponse:
     user = await svc.register(data)
     return UserResponse.model_validate(user)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse)  # type: ignore[misc]
 async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -> TokenResponse:
     return await svc.login(data)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse)  # type: ignore[misc]
 async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service)) -> TokenResponse:
     return await svc.refresh(data.refresh_token)

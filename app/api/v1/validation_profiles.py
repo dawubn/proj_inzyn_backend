@@ -7,7 +7,7 @@ from app.schemas.validation_profile import ValidationProfileCreate, ValidationPr
 router = APIRouter()
 
 
-@router.post("", response_model=ValidationProfileResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ValidationProfileResponse, status_code=status.HTTP_201_CREATED)  # type: ignore[misc]
 async def create_profile(
     data: ValidationProfileCreate,
     _: User = Depends(require_admin),
@@ -16,7 +16,7 @@ async def create_profile(
     raise NotImplementedError
 
 
-@router.get("", response_model=list[ValidationProfileResponse])
+@router.get("", response_model=list[ValidationProfileResponse])  # type: ignore[misc]
 async def list_profiles(_: User = Depends(require_admin)) -> list[ValidationProfileResponse]:
     # TODO: implement via ValidationProfileService
     raise NotImplementedError

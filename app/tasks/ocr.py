@@ -28,7 +28,7 @@ def _get_db_session() -> Session:
     return sessionmaker(bind=engine)()
 
 
-@celery_app.task(  # type: ignore[untyped-decorator]
+@celery_app.task(  # type: ignore[misc]
     bind=True,
     name="app.tasks.ocr.run_ocr_task",
     max_retries=3,

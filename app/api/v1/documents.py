@@ -19,7 +19,7 @@ def _document_service(db: AsyncSession = Depends(get_db)) -> DocumentService:
     return DocumentService(DocumentRepository(db))
 
 
-@router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)  # type: ignore[misc]
 async def upload_document(
     file: UploadFile = File(...),
     description: str | None = Form(default=None),
@@ -37,7 +37,7 @@ async def upload_document(
     return DocumentResponse.model_validate(doc)
 
 
-@router.get("", response_model=PaginatedResponse[DocumentResponse])
+@router.get("", response_model=PaginatedResponse[DocumentResponse])  # type: ignore[misc]
 async def list_documents(
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
@@ -56,7 +56,7 @@ async def list_documents(
     )
 
 
-@router.get("/{document_id}", response_model=DocumentResponse)
+@router.get("/{document_id}", response_model=DocumentResponse)  # type: ignore[misc]
 async def get_document(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

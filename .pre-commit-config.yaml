@@ -39,7 +39,8 @@ repos:
           - sqlalchemy>=2.0.36
           - types-passlib
           - types-aiofiles
-        args: ["--ignore-missing-imports"]
+        args: ["--ignore-missing-imports", "--exclude", "alembic/"]
+        exclude: ^alembic/
 
   - repo: local
     hooks:
