@@ -1,4 +1,4 @@
-# Document Analyzer Backend
+# CerberDoc Backend
 
 REST API backend for document completeness analysis using Azure AI Document Intelligence (OCR).
 
@@ -21,7 +21,7 @@ REST API backend for document completeness analysis using Azure AI Document Inte
 ### 2. Clone & configure
 
 ```bash
-git clone <repo-url> && cd doc-analyzer-backend
+git clone <repo-url> && cd proj_inzyn_backend
 cp .env.example .env
 # Edit .env — set APP_SECRET_KEY, AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, AZURE_DOCUMENT_INTELLIGENCE_KEY
 ```
