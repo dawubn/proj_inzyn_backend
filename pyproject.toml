@@ -66,8 +66,9 @@ known-first-party = ["app"]
 "app/tasks/*.py" = ["PLC0415"]
 "app/core/config.py" = ["S105"]
 "app/adapters/azure_ocr.py" = ["PLR0912", "ANN401"]
-"app/repositories/base.py" = ["UP046"]
 "app/api/**/*.py" = ["ARG001"]
+"app/repositories/base.py" = ["UP046"]
+"app/schemas/common.py" = ["UP046"]
 
 [tool.black]
 line-length = 100
@@ -82,7 +83,25 @@ src_paths = ["app", "tests"]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+exclude = ["alembic/"]
 plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+
+# Tests
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+# Alembic
+[[tool.mypy.overrides]]
+module = "alembic.*"
+ignore_errors = true
+
+# pydantic-settings
+[[tool.mypy.overrides]]
+module = "app.core.config"
+disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

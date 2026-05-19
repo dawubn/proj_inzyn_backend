@@ -9,7 +9,7 @@ from app.schemas.analysis_report import AnalysisReportResponse
 router = APIRouter()
 
 
-@router.get("/{analysis_id}", response_model=AnalysisReportResponse)
+@router.get("/{analysis_id}", response_model=AnalysisReportResponse)  # type: ignore[misc]
 async def get_report(
     analysis_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

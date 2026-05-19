@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import bcrypt
 from jose import JWTError, jwt
@@ -8,11 +8,11 @@ from app.core.config import settings
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return cast(str, bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode())
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
+    return cast(bool, bcrypt.checkpw(plain.encode(), hashed.encode()))
 
 
 def create_access_token(subject: str | int, extra_claims: dict[str, Any] | None = None) -> str:

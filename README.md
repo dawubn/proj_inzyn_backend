@@ -1,4 +1,4 @@
-# Document Analyzer Backend
+# CerberDoc Backend
 
 REST API backend for document completeness analysis using Azure AI Document Intelligence (OCR).
 
@@ -21,12 +21,22 @@ REST API backend for document completeness analysis using Azure AI Document Inte
 ### 2. Clone & configure
 
 ```bash
-git clone <repo-url> && cd doc-analyzer-backend
+git clone <repo-url> && cd proj_inzyn_backend
 cp .env.example .env
 # Edit .env — set APP_SECRET_KEY, AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, AZURE_DOCUMENT_INTELLIGENCE_KEY
 ```
 
-### 3. Start services
+### 3. Install pre-commit hooks (jednorazowo, każdy developer)
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type commit-msg
+```
+
+Od tej chwili przy każdym `git commit` automatycznie uruchamia się lint, formatowanie i sprawdzanie formatu wiadomości commita.
+
+### 4. Start services
 
 ```bash
 docker compose up --build
@@ -36,13 +46,13 @@ The API will be available at http://localhost:8000
 Interactive docs: http://localhost:8000/docs
 Celery Flower: http://localhost:5555
 
-### 4. Run migrations
+### 5. Run migrations
 
 ```bash
 docker compose exec api alembic upgrade head
 ```
 
-### 5. Health check
+### 6. Health check
 
 ```bash
 curl http://localhost:8000/health
@@ -117,9 +127,53 @@ app/
 └── tasks/         # Celery tasks
 ```
 
-## Coding Conventions
+## Git Workflow
 
-See `CONVENTIONS.md` for team coding guidelines.
+Pracujemy w modelu: **`main` = tylko stabilny kod**. Każda zmiana idzie przez osobny branch i Pull Request.
+
+### 1. Zaktualizuj main lokalnie
+
+Zanim zaczniesz nową funkcję:
+
+```bash
+git checkout main
+git pull origin main
+```
+
+### 2. Stwórz branch od main
+
+Wzór nazwy: `typ/jira_task/opis-zadania`
+
+| Typ | Przykład |
+|-----|---------|
+| `feature` | `feature/PP-1/auth-ui` |
+| `fix` | `fix/PP-3/login-validation` |
+| `chore` | `chore/PP-4/setup-i18n` |
+
+```bash
+git checkout -b feature/PP-1/auth-ui
+```
+
+### 3. Commituj zmiany
+
+Commity zgodne z **Conventional Commits**. Wzór: `typ:JIRA_TASK: opis`
+
+```bash
+git add .
+git commit -m "feat:PP-1: add language switch"
+```
+
+Dostępne typy: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`
+
+### 4. Wypchnij branch na GitHuba
+
+```bash
+git push -u origin feature/PP-1/auth-ui
+```
+
+### 5. Otwórz Pull Request
+
+Na GitHubie otwórz PR z brancha do `main`. PR wymaga review przed mergem.
 
 ## Environment Variables
 

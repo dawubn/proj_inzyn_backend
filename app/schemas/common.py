@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
+
+T = TypeVar("T")
 
 
 class OrmBase(BaseModel):
@@ -17,7 +20,7 @@ class TimestampSchema(OrmBase):
     updated_at: datetime
 
 
-class PaginatedResponse[T](BaseModel):
+class PaginatedResponse(BaseModel, Generic[T]):
     items: list[T]
     total: int
     page: int

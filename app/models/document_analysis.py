@@ -43,6 +43,5 @@ class DocumentAnalysis(BaseModel):
 
     def __repr__(self) -> str:
         return (
-            f"<DocumentAnalysis id={self.id}"
-            f" document_id={self.document_id} status={self.status}>"
+            f"<DocumentAnalysis id={self.id} document_id={self.document_id} status={self.status}>"
         )
