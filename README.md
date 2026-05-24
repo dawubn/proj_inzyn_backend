@@ -105,6 +105,7 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/documents` | Upload a document (PDF/JPG/PNG) |
 | GET | `/api/v1/documents` | List your documents (paginated) |
 | GET | `/api/v1/documents/{id}` | Get document details |
+| POST | `/api/v1/redactions` | Upload a document and receive a redacted copy |
 | POST | `/api/v1/documents/{id}/analyses` | Trigger OCR analysis |
 | GET | `/api/v1/documents/{id}/analyses/{aid}` | Get analysis status & results |
 | POST | `/api/v1/validation-profiles` | Create validation profile (admin) |
@@ -178,3 +179,48 @@ Na GitHubie otwórz PR z brancha do `main`. PR wymaga review przed mergem.
 ## Environment Variables
 
 See `.env.example` for all required and optional variables.
+
+## Sensitive Data Redaction
+
+The `POST /api/v1/redactions` endpoint accepts an authenticated multipart upload and
+returns a redacted copy of the uploaded file. The file is processed in temporary storage
+only; neither the original nor the redacted output is saved in the database or application
+storage.
+
+Supported input formats follow the standard upload configuration: PDF, JPG, JPEG and PNG.
+PDF output is returned as PDF, and image output keeps the source image format.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/redactions \
+  -H "Authorization: Bearer <access_token>" \
+  -F "file=@document.pdf" \
+  -o document_redacted.pdf
+```
+
+The response body is the redacted file. Summary metadata is returned in HTTP headers:
+
+- `X-Redaction-Findings-Count`
+- `X-Redaction-Boxes-Count`
+- `X-Redaction-Pages`
+- `X-Redaction-Types`
+
+Supported sensitive data types in v1: PESEL, NIP/VAT, REGON, IBAN, e-mail address,
+phone number, date, postal code, Polish ID card number, passport number, contextual
+person names, organization/company names, addresses, contact fields and signature areas.
+Redacted regions are flattened into the returned PDF/image and labelled with the
+detected data type.
+
+The redaction rules are regex-first. Besides exact regex matches, the service redacts a
+bounded number of value words after common Polish and international labels such as
+`Name`, `Full Name`, `Address`, `Adresse`, `Company`, `Organization`, `Email`, `Phone`,
+`VAT` and `Signature`. It also masks common first-name + surname combinations and
+company names with suffixes such as `Sp. z o.o.`, `S.A.`, `Ltd`, `LLC`, `GmbH`, `Inc`
+and `Corp`.
+
+Limitations: detection is based on OCR plus deterministic regular expressions. It does
+not use machine-learning NER in v1, so unusual free-form personal data can still be
+missed, while malformed OCR text can occasionally create false positives. OCR quality
+depends on scan resolution, document rotation, language data available to Tesseract and
+the readability of the source file.
