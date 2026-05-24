@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -10,7 +11,8 @@ from sqlalchemy.pool import NullPool
 
 from app.db.session import Base, get_db
 
-TEST_DATABASE_URL = "postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test"
+_default_url = "postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test"
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", _default_url)
 
 engine_test = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 TestingSessionLocal = async_sessionmaker(
@@ -25,7 +27,7 @@ def event_loop():
     loop.close()
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session")
 async def create_tables():
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -35,7 +37,7 @@ async def create_tables():
 
 
 @pytest_asyncio.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
+async def db_session(create_tables: None) -> AsyncGenerator[AsyncSession, None]:
     async with TestingSessionLocal() as session:
         yield session
         await session.rollback()

@@ -10,6 +10,7 @@ class DocumentAnalysisResponse(UUIDSchema, TimestampSchema):
     task_id: str | None
     status: AnalysisStatus
     ocr_provider: str | None
+    ocr_raw_result: dict[str, Any] | None
     detected_document_type: str | None
     classification_confidence: float | None
     extracted_fields: dict[str, Any] | None

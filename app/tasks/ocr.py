@@ -1,5 +1,5 @@
 """
-Celery task: run OCR on a document and persist the result.
+Celery task: run OCR on a document and hold the result.
 
 After OCR succeeds, chains into the analysis task.
 """
@@ -17,7 +17,7 @@ logger = structlog.get_logger(__name__)
 
 
 def _get_db_session() -> Session:
-    """Helper to create a synchronous DB session for Celery workers."""
+    """Create a synchronous DB session for Celery workers."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -39,25 +39,19 @@ def run_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
     Run OCR for a given DocumentAnalysis record.
 
     Steps:
-    1. Load analysis + document from DB
-    2. Read file from storage
-    3. Call Azure OCR adapter
-    4. Persist OCR raw result
-    5. Trigger next task: classify + validate
-
-    Args:
-        analysis_id: UUID string of the DocumentAnalysis row.
-
-    Returns:
-        dict with analysis_id and status.
+    1. Load DocumentAnalysis + Document from DB
+    2. Read file bytes from storage
+    3. Call AzureOCRAdapter
+    4. Hold OCR raw result and extracted text
+    5. Trigger run_analysis_task
     """
     from app.enums.analysis import AnalysisStatus
 
     log = logger.bind(analysis_id=analysis_id, task_id=self.request.id)
     log.info("OCR task started")
-
     session = _get_db_session()
     analysis = None
+
     try:
         from app.models.document import Document
         from app.models.document_analysis import DocumentAnalysis
@@ -72,14 +66,36 @@ def run_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         document = session.get(Document, analysis.document_id)
         if not document:
-            raise ValueError("Document missing")
+            raise ValueError(f"Document {analysis.document_id} not found in DB")
 
+        # Read file from storage
+        from pathlib import Path
+
+        file_path = Path(document.storage_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        file_bytes = file_path.read_bytes()
+
+        # Call Azure OCR
+        from app.adapters.azure_ocr import AzureOCRAdapter
+
+        adapter = AzureOCRAdapter()
+        ocr_result = adapter.analyze_document(file_bytes, document.mime_type)
+
+        # Hold results
+        analysis.ocr_raw_result = ocr_result.raw
+        analysis.ocr_provider = ocr_result.provider
         analysis.status = AnalysisStatus.OCR_COMPLETED
         session.commit()
 
+        # Chain to classification + validation
+        from app.tasks.analysis import run_analysis_task
+
         run_analysis_task.delay(analysis_id)
 
-        log.info("OCR task completed")
+        log.info("OCR task completed", page_count=ocr_result.page_count)
+
     except Exception as exc:
         log.exception("OCR task failed")
         if analysis:
@@ -87,10 +103,9 @@ def run_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
             analysis.error_message = str(exc)
             session.commit()
         raise self.retry(exc=exc) from exc
+
     else:
         return {"analysis_id": analysis_id, "status": "ocr_completed"}
+
     finally:
         session.close()
-
-
-from app.tasks.analysis import run_analysis_task  # noqa: E402
