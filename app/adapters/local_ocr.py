@@ -77,7 +77,7 @@ def _ocr_page(image_bytes: bytes) -> tuple[list[WordDict], Image.Image]:
     orig = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     bordered = ImageOps.expand(orig, border=_BORDER_PX, fill="white")
 
-    data: dict[str, Any] = pytesseract.image_to_data(  # type: ignore[assignment]
+    data: dict[str, Any] = pytesseract.image_to_data(
         bordered,
         lang=settings.LOCAL_OCR_LANG,
         config=_TESSERACT_CONFIG,

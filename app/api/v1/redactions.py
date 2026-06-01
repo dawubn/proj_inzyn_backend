@@ -27,7 +27,7 @@ def _redaction_service() -> RedactionService:
     return RedactionService()
 
 
-@router.post("", status_code=status.HTTP_200_OK)
+@router.post("", status_code=status.HTTP_200_OK)  # type: ignore[misc]
 async def redact_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),

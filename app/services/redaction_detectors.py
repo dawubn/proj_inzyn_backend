@@ -16,14 +16,32 @@ logger = structlog.get_logger(__name__)
 
 WordDict = dict[str, Any]
 
-try:
-    _nlp_pl = spacy.load("pl_core_news_lg")
-    _nlp_en = spacy.load("en_core_web_lg")
-    logger.info("spaCy models loaded")
-except OSError as exc:
-    raise RuntimeError(
-        "spaCy models not found — run: python -m spacy download pl_core_news_lg en_core_web_lg"
-    ) from exc
+# spaCy models are loaded lazily on first use so the module imports cleanly
+# even in environments without the models (e.g. CI without the large downloads).
+_nlp_pl: Any = None
+_nlp_en: Any = None
+_spacy_loaded = False
+
+
+def _load_spacy() -> bool:
+    """Load spaCy models once. Returns True if models are available."""
+    global _nlp_pl, _nlp_en, _spacy_loaded  # noqa: PLW0603
+    if _spacy_loaded:
+        return _nlp_pl is not None
+    _spacy_loaded = True
+    try:
+        _nlp_pl = spacy.load("pl_core_news_lg")
+        _nlp_en = spacy.load("en_core_web_lg")
+    except OSError:
+        logger.warning(
+            "spaCy models not found — NLP detection disabled",
+            hint="python -m spacy download pl_core_news_lg en_core_web_lg",
+        )
+        return False
+    else:
+        logger.info("spaCy models loaded")
+        return True
+
 
 _PESEL_RE = re.compile(r"\b\d{11}\b")
 _DATE_RE = re.compile(r"\b\d{4}[-./]\d{2}[-./]\d{2}\b|\b\d{2}[-./]\d{2}[-./]\d{4}\b")
@@ -41,9 +59,7 @@ _DATE_PL_RE = re.compile(
     r")\.?\s+\d{2,4}(?!\d)",
     re.IGNORECASE,
 )
-_PHONE_RE = re.compile(
-    r"(?<!\d)(?:\+?48[\s\-]?)?([4-9]\d{2})[\s\-]?(\d{3})[\s\-]?(\d{3})(?!\d)"
-)
+_PHONE_RE = re.compile(r"(?<!\d)(?:\+?48[\s\-]?)?([4-9]\d{2})[\s\-]?(\d{3})[\s\-]?(\d{3})(?!\d)")
 
 # Polish model (pl_core_news_lg) uses lowercase labels; English uses uppercase
 _NLP_LABELS: dict[str, str] = {
@@ -95,7 +111,7 @@ def find_personal_data(words: list[WordDict]) -> list[WordDict]:
                         item["rodzaj_danych"] = "[UTAJNIONO: DATA]"
                         found.append(item)
 
-    if len(full_text.strip()) < _MIN_TEXT_LEN_FOR_NLP:
+    if len(full_text.strip()) < _MIN_TEXT_LEN_FOR_NLP or not _load_spacy():
         return found
 
     try:

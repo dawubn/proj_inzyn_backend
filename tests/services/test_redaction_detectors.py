@@ -1,9 +1,12 @@
 """Unit tests for redaction detectors — no OCR engine required."""
+
+from typing import Any
+
 from app.api.v1.redactions import ALLOWED_CONTENT_TYPES
 from app.services.redaction_detectors import _PESEL_RE, find_personal_data
 
 
-def _words(*texts: str) -> list[dict]:
+def _words(*texts: str) -> list[dict[str, Any]]:
     return [
         {"tekst": t, "x": i * 120, "y": 0, "szerokosc": 100, "wysokosc": 20}
         for i, t in enumerate(texts)
@@ -48,9 +51,4 @@ def test_detect_polish_date() -> None:
 
 
 def test_allowed_content_types() -> None:
-    assert ALLOWED_CONTENT_TYPES == {
-        "application/pdf",
-        "image/png",
-        "image/jpeg",
-        "image/jpg",
-    }
+    assert {"application/pdf", "image/png", "image/jpeg", "image/jpg"} == ALLOWED_CONTENT_TYPES
