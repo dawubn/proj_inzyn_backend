@@ -64,7 +64,7 @@ curl http://localhost:8000/health
 
 ## Local Development (without Docker)
 
-Install system dependencies first:
+Additional dependencies for local OCR/redaction:
 
 ```bash
 # macOS
@@ -73,6 +73,8 @@ brew install tesseract tesseract-lang
 # Debian/Ubuntu
 sudo apt-get install tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng
 ```
+
+Docker installs these dependencies automatically. They are required only when running the app locally without Docker.
 
 Then set up the project:
 
