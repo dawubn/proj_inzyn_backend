@@ -7,7 +7,7 @@ from sqlalchemy import Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums.analysis import AnalysisStatus
+from app.enums.analysis import AnalysisStatus, ProcessingStage
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
@@ -28,12 +28,17 @@ class DocumentAnalysis(BaseModel):
     status: Mapped[AnalysisStatus] = mapped_column(
         String(50), nullable=False, default=AnalysisStatus.PENDING, index=True
     )
+    processing_stage: Mapped[ProcessingStage] = mapped_column(
+        String(50), nullable=False, default=ProcessingStage.PENDING, index=True
+    )
+    processing_step: Mapped[int] = mapped_column(nullable=False, default=0)
 
     ocr_raw_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     ocr_provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
     detected_document_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     classification_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     extracted_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    legal_analysis_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     document: Mapped[Document] = relationship(back_populates="analyses", lazy="noload")

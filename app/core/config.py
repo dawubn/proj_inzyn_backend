@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: str
     AZURE_DOCUMENT_INTELLIGENCE_KEY: str
 
+    # Azure OpenAI (for legal analysis)
+    AZURE_OPENAI_ENDPOINT: str | None = None
+    AZURE_OPENAI_KEY: str | None = None
+
     # File storage
     STORAGE_PATH: str = "/app/storage"
     MAX_UPLOAD_SIZE_MB: int = 20

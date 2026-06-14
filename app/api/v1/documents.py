@@ -37,16 +37,37 @@ async def upload_document(
     return DocumentResponse.model_validate(doc)
 
 
-@router.get("", response_model=PaginatedResponse[DocumentResponse])  # type: ignore[misc]
-async def list_documents(
-    pagination: PaginationParams = Depends(),
+@router.get("/{document_id}", response_model=DocumentResponse)  # type: ignore[misc]
+async def get_document(
+    document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     svc: DocumentService = Depends(_document_service),
+) -> DocumentResponse:
+    from app.enums.analysis import UserRole
+
+    # Admin can access any document, non-admin can only access their own
+    owner_id = current_user.id if current_user.role != UserRole.ADMIN else None
+    doc = await svc.get_or_raise(document_id, owner_id)
+    return DocumentResponse.model_validate(doc)
+
+
+@router.get("/admin/all", response_model=PaginatedResponse[DocumentResponse])  # type: ignore[misc]
+async def list_all_documents_admin(
+    pagination: PaginationParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[DocumentResponse]:
-    docs, total = await svc.list_for_owner(
-        current_user.id, page=pagination.page, page_size=pagination.page_size
-    )
-    pages = -(-total // pagination.page_size)  # ceiling division
+    # List ALL documents (admin only).
+    from app.core.exceptions import ForbiddenError
+    from app.enums.analysis import UserRole
+
+    if current_user.role != UserRole.ADMIN:
+        raise ForbiddenError("Only admins can access this endpoint")
+
+    repo = DocumentRepository(db)
+    offset = (pagination.page - 1) * pagination.page_size
+    docs, total = await repo.list_all(offset=offset, limit=pagination.page_size)
+    pages = -(-total // pagination.page_size)
     return PaginatedResponse(
         items=[DocumentResponse.model_validate(d) for d in docs],
         total=total,
@@ -56,11 +77,18 @@ async def list_documents(
     )
 
 
-@router.get("/{document_id}", response_model=DocumentResponse)  # type: ignore[misc]
-async def get_document(
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)  # type: ignore[misc]
+async def delete_document(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    svc: DocumentService = Depends(_document_service),
-) -> DocumentResponse:
-    doc = await svc.get_or_raise(document_id, current_user.id)
-    return DocumentResponse.model_validate(doc)
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    # Delete a document by ID. Only owner can delete.
+    repo = DocumentRepository(db)
+    doc = await repo.get_by_id(document_id)
+    if not doc or doc.owner_id != current_user.id:
+        from app.core.exceptions import NotFoundError
+
+        raise NotFoundError("Document not found")
+
+    await repo.delete(doc)

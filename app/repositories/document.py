@@ -24,6 +24,10 @@ class DocumentRepository(BaseRepository[Document]):
         )
         return await self._paginate(stmt, offset=offset, limit=limit)
 
+    async def list_all(self, *, offset: int = 0, limit: int = 20) -> tuple[list[Document], int]:
+        stmt = select(Document).order_by(Document.created_at.desc())
+        return await self._paginate(stmt, offset=offset, limit=limit)
+
     async def update_status(self, document: Document, status: DocumentStatus) -> Document:
         document.status = status
         await self.session.flush()
