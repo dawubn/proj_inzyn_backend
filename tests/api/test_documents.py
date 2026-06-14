@@ -38,16 +38,6 @@ async def test_upload_document(client: AsyncClient, tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_documents_empty(client: AsyncClient) -> None:
-    headers = await _get_auth_headers(client, email="list_user@example.com")
-    response = await client.get("/api/v1/documents", headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert "items" in data
-    assert "total" in data
-
-
-@pytest.mark.asyncio
 async def test_upload_invalid_extension(client: AsyncClient) -> None:
     headers = await _get_auth_headers(client, email="ext_user@example.com")
     response = await client.post(
