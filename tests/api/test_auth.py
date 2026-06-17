@@ -46,10 +46,17 @@ async def test_login_success(client: AsyncClient) -> None:
         json={"email": reg_payload["email"], "password": reg_payload["password"]},
     )
     assert response.status_code == 200
+    # Check user info in response body
     data = response.json()
-    assert "access_token" in data
-    assert "refresh_token" in data
-    assert data["token_type"] == "bearer"
+    assert data["email"] == reg_payload["email"]
+    assert "id" in data
+    # Check secure cookies
+    assert "access_token" in client.cookies
+    assert "refresh_token" in client.cookies
+    # Verify cookie properties
+    cookies = response.cookies
+    assert cookies["access_token"]  # Should be set
+    assert cookies["refresh_token"]  # Should be set
 
 
 @pytest.mark.asyncio
