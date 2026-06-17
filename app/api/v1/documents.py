@@ -14,6 +14,13 @@ from app.services.document import DocumentService
 
 router = APIRouter()
 
+# Common error responses for authenticated endpoints
+COMMON_RESPONSES = {
+    401: {"description": "Unauthorized - missing or invalid access token"},
+    403: {"description": "Forbidden - insufficient permissions (admin only)"},
+    404: {"description": "Not found - document does not exist or access denied"},
+}
+
 
 def _document_service(db: AsyncSession = Depends(get_db)) -> DocumentService:
     return DocumentService(DocumentRepository(db))
@@ -26,6 +33,11 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
     svc: DocumentService = Depends(_document_service),
 ) -> DocumentResponse:
+    """Upload document (PDF, PNG, JPG/JPEG).
+
+    Returns document metadata with ID and status.
+    Supports up to 20 MB files.
+    """
     content = await file.read()
     doc = await svc.upload(
         owner_id=current_user.id,
@@ -37,12 +49,17 @@ async def upload_document(
     return DocumentResponse.model_validate(doc)
 
 
-@router.get("/{document_id}", response_model=DocumentResponse)  # type: ignore[misc]
+@router.get("/{document_id}", response_model=DocumentResponse, responses=COMMON_RESPONSES)  # type: ignore[misc]
 async def get_document(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     svc: DocumentService = Depends(_document_service),
 ) -> DocumentResponse:
+    """Get document details by ID.
+
+    Only document owner or admin can access.
+    Returns document metadata including filename, size, MIME type, and timestamps.
+    """
     from app.enums.analysis import UserRole
 
     # Admin can access any document, non-admin can only access their own
@@ -51,13 +68,20 @@ async def get_document(
     return DocumentResponse.model_validate(doc)
 
 
-@router.get("/admin/all", response_model=PaginatedResponse[DocumentResponse])  # type: ignore[misc]
+@router.get(
+    "/admin/all",
+    response_model=PaginatedResponse[DocumentResponse],
+    responses={401: COMMON_RESPONSES[401], 403: COMMON_RESPONSES[403]},
+)  # type: ignore[misc]
 async def list_all_documents_admin(
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[DocumentResponse]:
-    # List ALL documents (admin only).
+    """List all documents across all users (admin only).
+
+    Returns paginated list of all documents ordered by creation date (newest first).
+    """
     from app.core.exceptions import ForbiddenError
     from app.enums.analysis import UserRole
 
@@ -77,13 +101,17 @@ async def list_all_documents_admin(
     )
 
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)  # type: ignore[misc]
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT, responses=COMMON_RESPONSES)  # type: ignore[misc]
 async def delete_document(
     document_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    # Delete a document by ID. Only owner can delete.
+    """Delete a document by ID.
+
+    Only document owner can delete their documents.
+    Deletes document and all associated analyses.
+    """
     repo = DocumentRepository(db)
     doc = await repo.get_by_id(document_id)
     if not doc or doc.owner_id != current_user.id:

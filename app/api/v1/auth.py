@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -21,14 +22,29 @@ async def register(data: UserCreate, svc: AuthService = Depends(_auth_service)) 
     return UserResponse.model_validate(user)
 
 
-@router.post("/login", response_model=UserResponse)  # type: ignore[misc]
-async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -> Response:
-    """Login and set secure cookies for tokens."""
-    import json
+@router.post(
+    "/login",
+    status_code=204,
+    responses={
+        204: {
+            "description": "User logged in. Tokens set in secure HTTP-only cookies "
+            "(access_token with SameSite=Lax, refresh_token with SameSite=Strict)."
+        },
+        401: {"description": "Invalid credentials"},
+    },
+)  # type: ignore[misc]
+async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -> JSONResponse:
+    """Login and set secure cookies for tokens.
 
+    Tokens are set in secure HTTP-only cookies:
+    - access_token: expires in 15 minutes, SameSite=Lax
+    - refresh_token: expires in 7 days, SameSite=Strict
+
+    Use GET /api/v1/users/me to fetch user info after login.
+    """
     user, tokens = await svc.login(data)
 
-    response = Response(status_code=200)
+    response = JSONResponse(content=None, status_code=204)
 
     # Set access token cookie (HttpOnly, Secure, SameSite=Lax)
     response.set_cookie(
@@ -50,20 +66,28 @@ async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -
         max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
     )
 
-    # Return user info in response body
-    response.headers["content-type"] = "application/json"
-    response.body = json.dumps(UserResponse.model_validate(user).model_dump()).encode()
     return response
 
 
-@router.post("/refresh", response_model=UserResponse)  # type: ignore[misc]
-async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service)) -> Response:
-    """Refresh tokens and set secure cookies."""
-    import json
+@router.post(
+    "/refresh",
+    status_code=204,
+    responses={
+        204: {
+            "description": "Tokens refreshed. New tokens set in secure HTTP-only cookies "
+            "(access_token with SameSite=Lax, refresh_token with SameSite=Strict)."
+        },
+        401: {"description": "Invalid or expired refresh token"},
+    },
+)  # type: ignore[misc]
+async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service)) -> JSONResponse:
+    """Refresh tokens and set secure cookies.
 
+    Takes refresh_token (from cookie or request body) and returns new tokens in secure cookies.
+    """
     user, tokens = await svc.refresh(data.refresh_token)
 
-    response = Response(status_code=200)
+    response = JSONResponse(content=None, status_code=204)
 
     # Set access token cookie
     response.set_cookie(
@@ -85,16 +109,13 @@ async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service
         max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
     )
 
-    # Return user info
-    response.headers["content-type"] = "application/json"
-    response.body = json.dumps(UserResponse.model_validate(user).model_dump()).encode()
     return response
 
 
 @router.post("/logout", status_code=204)  # type: ignore[misc]
-async def logout() -> Response:
+async def logout() -> JSONResponse:
     """Logout by clearing secure cookies."""
-    response = Response(status_code=204)
+    response = JSONResponse(content=None, status_code=204)
     response.delete_cookie(key="access_token", secure=settings.APP_ENV == "production")
     response.delete_cookie(key="refresh_token", secure=settings.APP_ENV == "production")
     return response

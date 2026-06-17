@@ -31,6 +31,13 @@ ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset(
     {"application/pdf", "image/png", "image/jpeg", "image/jpg"}
 )
 
+# Common error responses for authenticated endpoints
+COMMON_RESPONSES = {
+    401: {"description": "Unauthorized - missing or invalid access token"},
+    403: {"description": "Forbidden - insufficient permissions (admin only)"},
+    404: {"description": "Not found - analysis/document does not exist or access denied"},
+}
+
 
 def _redaction_service() -> RedactionService:
     return RedactionService()
@@ -307,7 +314,11 @@ async def trigger_legal_analysis(
     )
 
 
-@router.get("", response_model=list[DocumentAnalysisResponse])  # type: ignore[misc]
+@router.get(
+    "",
+    response_model=list[DocumentAnalysisResponse],
+    responses={401: COMMON_RESPONSES[401]},
+)  # type: ignore[misc]
 async def list_redactions(
     current_user: User = Depends(get_current_user),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
@@ -333,7 +344,11 @@ async def list_redactions(
     return [DocumentAnalysisResponse.model_validate(a) for a in analyses]
 
 
-@router.get("/admin/all", response_model=list[DocumentAnalysisResponse])  # type: ignore[misc]
+@router.get(
+    "/admin/all",
+    response_model=list[DocumentAnalysisResponse],
+    responses={401: COMMON_RESPONSES[401], 403: COMMON_RESPONSES[403]},
+)  # type: ignore[misc]
 async def list_all_redactions_admin(
     current_user: User = Depends(get_current_user),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
@@ -356,7 +371,7 @@ async def list_all_redactions_admin(
     return [DocumentAnalysisResponse.model_validate(a) for a in analyses]
 
 
-@router.get("/{analysis_id}", response_model=DocumentAnalysisResponse)  # type: ignore[misc]
+@router.get("/{analysis_id}", response_model=DocumentAnalysisResponse, responses=COMMON_RESPONSES)  # type: ignore[misc]
 async def get_redaction(
     analysis_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
@@ -373,7 +388,7 @@ async def get_redaction(
     return DocumentAnalysisResponse.model_validate(analysis)
 
 
-@router.delete("/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT)  # type: ignore[misc]
+@router.delete("/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT, responses=COMMON_RESPONSES)  # type: ignore[misc]
 async def delete_redaction(
     analysis_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
