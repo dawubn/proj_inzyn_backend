@@ -66,12 +66,32 @@ curl http://localhost:8000/health
 
 Additional dependencies for local OCR/redaction:
 
-```bash
-# macOS
-brew install tesseract tesseract-lang
+The commands below are only examples. The project does not require any specific package manager or installation method.
 
-# Debian/Ubuntu
-sudo apt-get install tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng
+MacOS with Homebrew:
+```bash
+brew install tesseract tesseract-lang
+```
+
+MacOS with Conda:
+```bash
+conda install -c conda-forge tesseract
+```
+
+Debian/Ubuntu:
+```bash
+sudo apt-get update
+sudo apt-get install -y tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng
+```
+
+Windows with winget:
+```powershell
+winget install UB-Mannheim.TesseractOCR
+```
+
+Verify installation:
+```bash
+tesseract --version
 ```
 
 Docker installs these dependencies automatically. They are required only when running the app locally without Docker.
