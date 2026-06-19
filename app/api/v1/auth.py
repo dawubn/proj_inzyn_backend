@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -33,7 +33,7 @@ async def register(data: UserCreate, svc: AuthService = Depends(_auth_service)) 
         401: {"description": "Invalid credentials"},
     },
 )  # type: ignore[misc]
-async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -> JSONResponse:
+async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -> Response:
     """Login and set secure cookies for tokens.
 
     Tokens are set in secure HTTP-only cookies:
@@ -44,7 +44,7 @@ async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -
     """
     user, tokens = await svc.login(data)
 
-    response = JSONResponse(content=None, status_code=204)
+    response = Response(status_code=204)
 
     # Set access token cookie (HttpOnly, Secure, SameSite=Lax)
     response.set_cookie(
@@ -80,14 +80,14 @@ async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -
         401: {"description": "Invalid or expired refresh token"},
     },
 )  # type: ignore[misc]
-async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service)) -> JSONResponse:
+async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service)) -> Response:
     """Refresh tokens and set secure cookies.
 
     Takes refresh_token (from cookie or request body) and returns new tokens in secure cookies.
     """
     user, tokens = await svc.refresh(data.refresh_token)
 
-    response = JSONResponse(content=None, status_code=204)
+    response = Response(status_code=204)
 
     # Set access token cookie
     response.set_cookie(
@@ -113,9 +113,9 @@ async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service
 
 
 @router.post("/logout", status_code=204)  # type: ignore[misc]
-async def logout() -> JSONResponse:
+async def logout() -> Response:
     """Logout by clearing secure cookies."""
-    response = JSONResponse(content=None, status_code=204)
+    response = Response(status_code=204)
     response.delete_cookie(key="access_token", secure=settings.APP_ENV == "production")
     response.delete_cookie(key="refresh_token", secure=settings.APP_ENV == "production")
     return response

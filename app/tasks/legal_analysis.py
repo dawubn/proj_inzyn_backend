@@ -76,7 +76,8 @@ Odpowiedź sformatuj jako JSON z dokładnie tymi kluczami:
 WAŻNE:
 - text_reference MUSI być dokładnym fragmentem z dokumentu
 - Jeśli brakuje czegoś (np. daty), wpisz "brak" lub wskaż gdzie powinna być
-- Odpowiadaj TYLKO poprawnym JSON, bez dodatkowego tekstu"""
+- Odpowiadaj TYLKO poprawnym JSON, bez dodatkowego tekstu
+- Dokument zawiera elementy utajnione (np. [UTAJNIONO]), które oznaczają usunięte dane wrażliwe. Nie uwzględniaj tego w analizie błędów."""
 
 
 @celery_app.task(  # type: ignore[misc]

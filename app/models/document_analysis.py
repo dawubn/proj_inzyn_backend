@@ -35,6 +35,7 @@ class DocumentAnalysis(BaseModel):
 
     ocr_raw_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     ocr_provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ocr_scale: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     detected_document_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     classification_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     extracted_fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
