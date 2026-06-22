@@ -18,7 +18,11 @@ from app.models.document_analysis import DocumentAnalysis
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.document_analysis import DocumentAnalysisRepository
-from app.schemas.document_analysis import DocumentAnalysisResponse, TriggerAnalysisResponse
+from app.schemas.document_analysis import (
+    DocumentAnalysisListResponse,
+    DocumentAnalysisResponse,
+    TriggerAnalysisResponse,
+)
 from app.services.document import DocumentService
 from app.services.document_analysis import DocumentAnalysisService
 from app.services.redaction_service import RedactionService
@@ -316,13 +320,13 @@ async def trigger_legal_analysis(
 
 @router.get(
     "",
-    response_model=list[DocumentAnalysisResponse],
+    response_model=list[DocumentAnalysisListResponse],
     responses={401: COMMON_RESPONSES[401]},
 )  # type: ignore[misc]
 async def list_redactions(
     current_user: User = Depends(get_current_user),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
-) -> list[DocumentAnalysisResponse]:
+) -> list[DocumentAnalysisListResponse]:
     """
     List all redactions/analyses for current user.
     """
@@ -341,7 +345,7 @@ async def list_redactions(
     result = await analysis_svc._analyses.session.execute(stmt)
     analyses = list(result.scalars().all())
 
-    return [DocumentAnalysisResponse.model_validate(a) for a in analyses]
+    return [DocumentAnalysisListResponse.model_validate(a) for a in analyses]
 
 
 @router.get(

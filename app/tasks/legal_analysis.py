@@ -12,6 +12,7 @@ Steps:
 """
 
 import shutil
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -20,9 +21,86 @@ import structlog
 from celery import Task
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import OCRServiceError
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
+
+
+def _extract_tesseract_words(pdf_path: Path) -> list[dict[str, Any]]:
+    """Extract Tesseract words with bounding boxes from PDF (per-page, memory-efficient)."""
+    import fitz
+
+    from app.adapters.local_ocr import LocalOCRAdapter
+
+    adapter = LocalOCRAdapter()
+    all_words = []
+    word_id = 0
+
+    try:
+        doc = fitz.open(str(pdf_path))
+        page_count = len(doc)
+
+        for page_num in range(page_count):
+            page = doc[page_num]
+            pix = page.get_pixmap(matrix=fitz.Matrix(1, 1))
+            png_bytes = pix.tobytes("png")
+
+            # Save to temp file for local_ocr to process
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                tmp.write(png_bytes)
+                tmp_path = Path(tmp.name)
+
+            try:
+                # Extract words for this page
+                words_per_page, _ = adapter.ocr_image(tmp_path)
+                for words in words_per_page:
+                    for word in words:
+                        all_words.append(
+                            {
+                                "id": f"w{word_id}",
+                                "text": word["tekst"],
+                                "bbox": {
+                                    "x": word["x"],
+                                    "y": word["y"],
+                                    "width": word["szerokosc"],
+                                    "height": word["wysokosc"],
+                                },
+                                "page": page_num + 1,
+                            }
+                        )
+                        word_id += 1
+            finally:
+                tmp_path.unlink(missing_ok=True)
+
+        doc.close()
+    except Exception as exc:
+        raise OCRServiceError(f"Tesseract extraction failed: {exc}") from exc
+
+    return all_words
+
+
+_FUZZY_MATCH_THRESHOLD = 0.7
+
+
+def _map_error_to_bbox(
+    text_reference: str, tesseract_words: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Find Tesseract bbox for error text_reference (fuzzy matching)."""
+    from difflib import SequenceMatcher
+
+    text_ref_lower = text_reference.lower()
+    best_match = None
+    best_ratio = 0.0
+
+    # Try to find matching words
+    for word in tesseract_words:
+        ratio = SequenceMatcher(None, text_ref_lower, word["text"].lower()).ratio()
+        if ratio > best_ratio and ratio > _FUZZY_MATCH_THRESHOLD:
+            best_ratio = ratio
+            best_match = word
+
+    return best_match
 
 
 def _get_db_session() -> Session:
@@ -166,6 +244,14 @@ def run_legal_analysis_task(  # noqa: PLR0915
         document.storage_path = str(redacted_storage_path)
         session.commit()
 
+        # 5.5 Extract Tesseract words with bounding boxes
+        log.info("Extracting Tesseract words")
+        tesseract_words = _extract_tesseract_words(redacted_storage_path)
+        analysis.tesseract_words = tesseract_words
+        session.commit()
+
+        log.info("Tesseract extraction completed", word_count=len(tesseract_words))
+
         # 6. Run Azure OCR on redacted file - AZURE OCR (step 3/4)
         analysis.processing_stage = ProcessingStage.AZURE_OCR
         analysis.processing_step = 3
@@ -195,11 +281,24 @@ def run_legal_analysis_task(  # noqa: PLR0915
         # 9. Send to Azure LLM for legal analysis
         legal_analysis = _perform_legal_analysis(ocr_text, document.original_filename, log)
 
-        # 10. Save legal analysis results and mark as completed
+        # 10. Map LLM errors to Tesseract bbox
+        errors_with_bbox = []
+        for error in legal_analysis.get("errors", []):
+            error_copy = error.copy()
+            text_ref = error.get("text_reference", "")
+            if text_ref:
+                bbox_match = _map_error_to_bbox(text_ref, tesseract_words)
+                if bbox_match:
+                    error_copy["bbox"] = bbox_match["bbox"]
+                    error_copy["word_id"] = bbox_match["id"]
+                    error_copy["page"] = bbox_match["page"]
+            errors_with_bbox.append(error_copy)
+
+        # 11. Save legal analysis results and mark as completed
         analysis.legal_analysis_result = {
             "prompt": _build_legal_analysis_prompt(ocr_text, document.original_filename),
             "summary": legal_analysis.get("summary", ""),
-            "errors": legal_analysis.get("errors", []),
+            "errors": errors_with_bbox,
             "applicable_laws": legal_analysis.get("applicable_laws", []),
         }
         analysis.status = AnalysisStatus.COMPLETED
