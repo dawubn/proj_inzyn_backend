@@ -64,16 +64,37 @@ curl http://localhost:8000/health
 
 ## Local Development (without Docker)
 
-Install system dependencies first:
+Additional dependencies for local OCR/redaction:
 
+The commands below are only examples. The project does not require any specific package manager or installation method.
+
+MacOS with Homebrew:
 ```bash
-# macOS
 brew install tesseract tesseract-lang
-
-# Debian/Ubuntu
-sudo apt-get install tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng
 ```
 
+MacOS with Conda:
+```bash
+conda install -c conda-forge tesseract
+```
+
+Debian/Ubuntu:
+```bash
+sudo apt-get update
+sudo apt-get install -y tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng
+```
+
+Windows with winget:
+```powershell
+winget install UB-Mannheim.TesseractOCR
+```
+
+Verify installation:
+```bash
+tesseract --version
+```
+
+Docker installs these dependencies automatically. They are required only when running the app locally without Docker.
 Then set up the project:
 
 ```bash
@@ -240,7 +261,6 @@ curl -X GET http://localhost:8000/api/v1/redactions/$ANALYSIS_ID \
 - **Non-admin users**: Can only access their own documents and analyses
 - **Admin users**: Full access to all documents and analyses across all users
 - **Attempting unauthorized access**: Returns 404 NotFound (not 403 for security)
-
 Docker handles all OCR dependencies automatically during `docker compose up --build`.
 
 ## Project Structure
