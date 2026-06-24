@@ -1,0 +1,135 @@
+name: Backend Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: dawubn/proj_inzyn_backend
+
+jobs:
+  test:
+    name: Test backend
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cerberdoc
+          POSTGRES_PASSWORD: cerberdoc
+          POSTGRES_DB: cerber_doc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_ENV: test
+      APP_DEBUG: "true"
+      APP_SECRET_KEY: test-secret-key-do-not-use-in-prod
+      APP_ALLOWED_HOSTS: '["*"]'
+
+      POSTGRES_USER: cerberdoc
+      POSTGRES_PASSWORD: cerberdoc
+      POSTGRES_DB: cerber_doc_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test
+
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/1
+
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+
+      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: https://mock.cognitiveservices.azure.com/
+      AZURE_DOCUMENT_INTELLIGENCE_KEY: mock-key
+
+      STORAGE_PATH: /tmp/test_storage
+      MAX_UPLOAD_SIZE_MB: 20
+      ALLOWED_EXTENSIONS: '["pdf","jpg","jpeg","png"]'
+      LOG_LEVEL: INFO
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest
+
+  build-and-deploy:
+    name: Build image and deploy backend
+    runs-on: ubuntu-latest
+    needs: test
+
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          target: final
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+      - name: Run migrations on production (optional)
+        if: ${{ secrets.PROD_DATABASE_URL != '' }}
+        run: |
+          echo "Running migrations against production database"
+          docker run --rm \
+            -e DATABASE_URL="${{ secrets.PROD_DATABASE_URL }}" \
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            sh -c "alembic upgrade head"
+
+      - name: Deploy backend to Coolify
+        run: |
+          # Notify Coolify to deploy the newly pushed image. IMAGE_TAG is passed as query param so the deploy target
+          # can pull the exact image tag instead of relying on latest.
+          curl --fail --request GET "${{ secrets.COOLIFY_BACKEND_WEBHOOK }}?image_tag=${{ env.IMAGE_TAG }}" \
+            --header "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
