@@ -1,13 +1,14 @@
 # CerberDoc Backend
 
-REST API backend for document completeness analysis using Azure AI Document Intelligence (OCR).
+REST API backend for document completeness analysis and local anonymisation.
 
 ## Stack
 
 - **Python 3.12** + **FastAPI** — async REST API
 - **SQLAlchemy 2.0** + **Alembic** — ORM & migrations (PostgreSQL)
 - **Celery** + **Redis** — async task queue
-- **Azure AI Document Intelligence** — OCR provider
+- **Azure AI Document Intelligence** — cloud OCR provider
+- **Tesseract OCR** + **spaCy** + **PyMuPDF** — local OCR and anonymisation
 - **JWT** — authentication
 - **Docker Compose** — local development
 
@@ -42,8 +43,11 @@ Od tej chwili przy każdym `git commit` automatycznie uruchamia się lint, forma
 docker compose up --build
 ```
 
+> **Note:** The first build downloads spaCy language models (~1 GB) and takes 10–15 minutes.
+> Subsequent builds use Docker layer cache and are fast.
+
 The API will be available at http://localhost:8000
-Interactive docs: http://localhost:8000/docs
+Interactive docs (DEBUG mode): http://localhost:8000/docs
 Celery Flower: http://localhost:5555
 
 ### 5. Run migrations
@@ -60,10 +64,48 @@ curl http://localhost:8000/health
 
 ## Local Development (without Docker)
 
+Additional dependencies for local OCR/redaction:
+
+The commands below are only examples. The project does not require any specific package manager or installation method.
+
+MacOS with Homebrew:
+```bash
+brew install tesseract tesseract-lang
+```
+
+MacOS with Conda:
+```bash
+conda install -c conda-forge tesseract
+```
+
+Debian/Ubuntu:
+```bash
+sudo apt-get update
+sudo apt-get install -y tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng
+```
+
+Windows with winget:
+```powershell
+winget install UB-Mannheim.TesseractOCR
+```
+
+Verify installation:
+```bash
+tesseract --version
+```
+
+Docker installs these dependencies automatically. They are required only when running the app locally without Docker.
+
+Then set up the project:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+
+# Download spaCy language models (~1 GB, one-time)
+python -m spacy download pl_core_news_lg
+python -m spacy download en_core_web_lg
 
 # Start DB + Redis separately (e.g. via Docker)
 docker compose up db redis -d
@@ -110,13 +152,37 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/validation-profiles` | Create validation profile (admin) |
 | GET | `/api/v1/validation-profiles` | List validation profiles (admin) |
 | GET | `/api/v1/reports/{analysis_id}` | Get analysis report |
+| POST | `/api/v1/redactions` | Locally anonymise a document — PDF or image in, masked file out |
+
+## Local Redaction
+
+`POST /api/v1/redactions` accepts `multipart/form-data` with field `file` (PDF, PNG, JPG/JPEG).
+Runs OCR locally via Tesseract, detects sensitive data with regex + spaCy NER, and returns the
+file with all detected fields masked by black rectangles. Nothing is stored in the database.
+
+Detected types: PESEL (any 11-digit sequence), e-mail, phone (Polish mobile), numeric dates,
+Polish descriptive dates (`27 stycznia 1975`), person names, places, English-style addresses.
+
+```bash
+# PDF
+curl -X POST http://localhost:8000/api/v1/redactions \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "file=@sample.pdf" --output anonymized_sample.pdf
+
+# Image
+curl -X POST http://localhost:8000/api/v1/redactions \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "file=@scan.jpg" --output anonymized_scan.png
+```
+
+Docker handles all OCR dependencies automatically during `docker compose up --build`.
 
 ## Project Structure
 
 ```
 app/
 ├── api/           # FastAPI routers & dependencies
-├── adapters/      # External service adapters (Azure OCR)
+├── adapters/      # External service adapters (Azure OCR, local Tesseract OCR)
 ├── core/          # Config, security, exceptions, logging
 ├── db/            # DB engine, session, model registration
 ├── enums/         # StrEnum definitions

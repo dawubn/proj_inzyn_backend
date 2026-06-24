@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # Local OCR / Redaction
+    LOCAL_OCR_LANG: str = "pol+eng"
+    LOCAL_OCR_DPI: int = 300
+    LOCAL_OCR_MIN_CONFIDENCE: float = 30.0
+    REDACTION_BOX_PADDING_PX: int = 8
+    REDACTION_TIMEOUT_SECONDS: int = 120
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:

@@ -10,11 +10,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    tesseract-ocr \
+    tesseract-ocr-pol \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 COPY pyproject.toml .
-RUN pip install --upgrade pip && pip install -e ".[dev]"
+RUN pip install --upgrade pip && pip install -e ".[dev]" && \
+    python -m spacy download pl_core_news_lg && \
+    python -m spacy download en_core_web_lg
 
 FROM deps AS final
 COPY . .

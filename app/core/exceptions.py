@@ -50,6 +50,11 @@ class OCRServiceError(AppError):
     detail = "OCR service unavailable"
 
 
+class ProcessingTimeoutError(AppError):
+    status_code = status.HTTP_408_REQUEST_TIMEOUT
+    detail = "Processing timed out"
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)  # type: ignore[misc]
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:

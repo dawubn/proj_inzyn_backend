@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import analyses, auth, documents, reports, users, validation_profiles
+from app.api.v1 import analyses, auth, documents, redactions, reports, users, validation_profiles
 
 api_router = APIRouter()
 
@@ -18,3 +18,4 @@ api_router.include_router(
     tags=["validation-profiles"],
 )
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
+api_router.include_router(redactions.router, prefix="/redactions", tags=["redactions"])
