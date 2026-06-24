@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - feat/PI-138/prod-configuration
+      - develop
   workflow_dispatch:
 
 env:
