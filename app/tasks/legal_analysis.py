@@ -179,9 +179,17 @@ def run_legal_analysis_task(  # noqa: PLR0915
     6. Send to Azure LLM for legal analysis
     7. Save legal_analysis_result to DB
     """
-    from app.enums.analysis import AnalysisStatus, ProcessingStage
+    from app.enums.analysis import AnalysisStatus, ProcessingStage, ValidationSeverity
     from app.models.document import Document
     from app.models.document_analysis import DocumentAnalysis
+    from app.schemas.analysis_report import ValidationIssue
+    from app.services.formal_validation import FormalDocumentExtractor
+    from app.services.validation import RuleEngineService
+    from app.tasks.analysis import (
+        _coerce_document_type,
+        _load_rules_for_document_type,
+        _upsert_report,
+    )
 
     log = logger.bind(analysis_id=analysis_id, document_id=document_id, task_id=self.request.id)
     log.info("Legal analysis task started")
@@ -270,6 +278,47 @@ def run_legal_analysis_task(  # noqa: PLR0915
         session.commit()
 
         log.info("Azure OCR completed", page_count=ocr_result.page_count)
+
+        extraction = FormalDocumentExtractor().extract(
+            ocr_result.raw,
+            fallback_document_type=_coerce_document_type(document.document_type),
+        )
+        analysis.detected_document_type = extraction.document_type.value
+        analysis.classification_confidence = extraction.confidence
+        analysis.extracted_fields = extraction.fields
+        document.document_type = extraction.document_type
+
+        profile_name, rules = _load_rules_for_document_type(session, extraction.document_type)
+        issues = RuleEngineService().run(rules, extraction.fields)
+        if not extraction.fields.get("has_text"):
+            issues.insert(
+                0,
+                ValidationIssue(
+                    rule_name="Tekst dokumentu",
+                    field_name="has_text",
+                    severity=ValidationSeverity.ERROR,
+                    message="Nie udało się odczytać tekstu dokumentu.",
+                    details={"expected_field": "has_text"},
+                ),
+            )
+        _upsert_report(
+            session=session,
+            analysis_id=analysis.id,
+            issues=issues,
+            total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
+            summary={
+                "document_type": extraction.document_type.value,
+                "classification_confidence": extraction.confidence,
+                "profile_name": profile_name,
+                "total_rules": len(rules),
+                "issues": len(issues),
+                "checked_fields": {
+                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
+                },
+                "detected_sections": extraction.fields.get("detected_sections", []),
+            },
+        )
+        session.commit()
 
         # 8. Use OCR text for legal analysis - LLM ANALYSIS (step 4/4)
         analysis.processing_stage = ProcessingStage.LLM_ANALYSIS
