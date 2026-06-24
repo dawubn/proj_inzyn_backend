@@ -54,4 +54,5 @@ jobs:
         run: |
           curl --fail --show-error --silent \
             --request POST \
+            --header "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
             "${{ secrets.COOLIFY_BACKEND_WEBHOOK }}"
