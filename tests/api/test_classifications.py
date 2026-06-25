@@ -25,12 +25,11 @@ async def _get_auth_headers(
             "role": "business_user",
         },
     )
-    resp = await client.post(
+    await client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": "Str0ngPass!"},
     )
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return {}
 
 
 @pytest.mark.asyncio
