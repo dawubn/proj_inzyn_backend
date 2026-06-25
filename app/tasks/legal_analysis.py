@@ -164,7 +164,7 @@ WAŻNE:
     max_retries=3,
     default_retry_delay=30,
 )
-def run_legal_analysis_task(  # noqa: PLR0915
+def run_legal_analysis_task(  # noqa: PLR0912, PLR0915
     self: Task, analysis_id: str, document_id: str
 ) -> dict[str, Any]:
     """
