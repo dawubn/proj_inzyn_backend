@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.document import DocumentStatus
+from app.enums.document import DocumentStatus, DocumentType
 from app.models.document import Document
 from app.repositories.base import BaseRepository
 
@@ -32,3 +32,9 @@ class DocumentRepository(BaseRepository[Document]):
         document.status = status
         await self.session.flush()
         return document
+
+    async def update_document_type(
+        self, document: Document, document_type: DocumentType
+    ) -> Document:
+        document.document_type = document_type
+        return await self.update(document)
