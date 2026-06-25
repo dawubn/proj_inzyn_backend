@@ -164,9 +164,7 @@ WAŻNE:
     max_retries=3,
     default_retry_delay=30,
 )
-def run_legal_analysis_task(  # noqa: PLR0915
-    self: Task, analysis_id: str, document_id: str
-) -> dict[str, Any]:
+def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> dict[str, Any]:
     """
     Complete OCR pipeline + legal analysis: local OCR, redaction, Azure OCR, LLM analysis.
 
