@@ -100,7 +100,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         analysis.classification_confidence = classification_confidence
         analysis.extracted_fields = extraction.fields
         if document:
-            document.document_type = document_type
+            document.suggested_document_type = document_type
         session.commit()
 
         analysis.status = AnalysisStatus.VALIDATING

@@ -20,6 +20,7 @@ class DocumentResponse(UUIDSchema, TimestampSchema):
     mime_type: str
     status: DocumentStatus
     document_type: DocumentType
+    suggested_document_type: DocumentType | None
     description: str | None
 
 
@@ -27,5 +28,6 @@ class DocumentListResponse(UUIDSchema):
     original_filename: str
     status: DocumentStatus
     document_type: DocumentType
+    suggested_document_type: DocumentType | None
     file_size_bytes: int
     created_at: str
