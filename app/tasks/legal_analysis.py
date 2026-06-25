@@ -22,6 +22,7 @@ from celery import Task
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import OCRServiceError
+from app.enums.document import DocumentType
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
@@ -158,6 +159,32 @@ WAŻNE:
 - Dokument zawiera elementy utajnione (np. [UTAJNIONO]), które oznaczają usunięte dane wrażliwe. Nie uwzględniaj tego w analizie błędów."""
 
 
+def _classify_document(
+    text_content: str,
+    fallback_type: "DocumentType",
+    fallback_confidence: float,
+    log: structlog.PrintLogger,
+) -> "tuple[DocumentType, float]":
+    """Run TF-IDF + LR classifier; fall back to extraction result on failure."""
+    if not text_content:
+        return fallback_type, fallback_confidence
+
+    from app.services.classification import ClassificationService
+
+    try:
+        document_type, confidence, _ = ClassificationService().classify(text_content)
+        log.info(
+            "Document classified",
+            document_type=document_type,
+            confidence=round(confidence, 4),
+        )
+    except Exception as exc:
+        log.warning("Classification fallback used", reason=str(exc))
+        return fallback_type, fallback_confidence
+    else:
+        return document_type, confidence
+
+
 @celery_app.task(  # type: ignore[misc]
     bind=True,
     name="app.tasks.legal_analysis.run_legal_analysis_task",
@@ -281,12 +308,19 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
             ocr_result.raw,
             fallback_document_type=_coerce_document_type(document.document_type),
         )
-        analysis.detected_document_type = extraction.document_type.value
-        analysis.classification_confidence = extraction.confidence
-        analysis.extracted_fields = extraction.fields
-        document.document_type = extraction.document_type
 
-        profile_name, rules = _load_rules_for_document_type(session, extraction.document_type)
+        # Classify document type using TF-IDF + Logistic Regression
+        text_content = str(extraction.fields.get("document_text", "")).strip()
+        document_type, classification_confidence = _classify_document(
+            text_content, extraction.document_type, extraction.confidence, log
+        )
+
+        analysis.detected_document_type = document_type.value
+        analysis.classification_confidence = classification_confidence
+        analysis.extracted_fields = extraction.fields
+        document.document_type = document_type
+
+        profile_name, rules = _load_rules_for_document_type(session, document_type)
         issues = RuleEngineService().run(rules, extraction.fields)
         if not extraction.fields.get("has_text"):
             issues.insert(
@@ -305,8 +339,8 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
             issues=issues,
             total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
             summary={
-                "document_type": extraction.document_type.value,
-                "classification_confidence": extraction.confidence,
+                "document_type": document_type.value,
+                "classification_confidence": classification_confidence,
                 "profile_name": profile_name,
                 "total_rules": len(rules),
                 "issues": len(issues),

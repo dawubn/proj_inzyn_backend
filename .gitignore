@@ -32,14 +32,9 @@ htmlcov/
 .env
 *.env.local
 
-# Storage
+# Storage — keep only the gitkeep marker; all generated files are ignored.
 storage/*
 !storage/.gitkeep
-# Keep classifier training data layout, but not the actual documents.
-!storage/classifier_training/
-!storage/classifier_training/**/
-!storage/classifier_training/README.md
-!storage/classifier_training/**/.gitkeep
 
 # IDEs
 .idea/

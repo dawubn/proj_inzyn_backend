@@ -273,9 +273,9 @@ Uses a TF-IDF + Logistic Regression pipeline trained on the DocLayNet dataset. T
 accepts the normalised payload (`text_content`), Azure-style alias (`content`), or the full raw
 OCR payload (`ocr_raw_result.content`).
 
-Detected types: `financial_report`, `government_tender`, `law_and_regulation`, `manual`,
-`patent`, `scientific_article`, `invoice`, `contract`, `id_card`, `passport`,
-`bank_statement`, `tax_form`.
+Detected types: `invoice`, `contract`, `id_card`, `passport`, `bank_statement`, `tax_form`,
+`financial_report`, `government_tender`, `law_and_regulation`, `manual`, `patent`,
+`scientific_article`, `lawsuit`, `power_of_attorney`, `application`.
 
 The same classifier runs automatically after every OCR analysis — its result is stored on the
 analysis (`detected_document_type`, `classification_confidence`) and on the document
@@ -291,28 +291,26 @@ curl -X POST http://localhost:8000/api/v1/classify \
 Train (or retrain) the model with:
 
 ```bash
+# 1. Generate synthetic training data (creates storage/classifier_training/)
+python scripts/generate_synthetic_training_data.py --train 200 --valid 60
+
+# 2. Train the model (writes storage/classifier_model.joblib)
 python scripts/train_classifier.py
 ```
 
 Training data lives under `storage/classifier_training/{train,valid}/<class_name>/*.txt`
-(folder name = class label). The class folders are checked in empty — see
-`storage/classifier_training/README.md` for the format and how to populate them.
+(folder name = class label). Both the training files and the model are **gitignored** —
+they are generated automatically and do not need to be committed to the repository.
+
 Model output path is configurable via the `CLASSIFIER_MODEL_PATH` env variable.
 
-For classes without a public corpus (invoices, contracts, ID/passport, bank
-statements, tax forms) the repo ships a synthetic data generator that produces
-text samples from realistic vocabulary templates:
-
-```bash
-python scripts/generate_synthetic_training_data.py --train 200 --valid 60
-```
-
-Synthetic data is a "cold start" — replace it with real OCR text whenever
-available to improve real-world accuracy.
+> **Synthetic vs real data:** The generator produces vocabulary-template samples as a
+> "cold start". Replace generated `.txt` files with real OCR output to improve
+> real-world accuracy.
 
 The classifier model is trained automatically during `docker compose up --build`
-(see the `RUN python scripts/train_classifier.py` step in `Dockerfile`), so a
-freshly built image ships with a ready-to-use `classifier_model.joblib`. After
+(the Dockerfile runs `generate_synthetic_training_data.py` then `train_classifier.py`),
+so a freshly built image ships with a ready-to-use `classifier_model.joblib`. After
 retraining locally, restart the API and worker so they pick the new file up:
 
 ```bash
@@ -325,29 +323,19 @@ confirm the type instead of trusting a weak guess.
 
 ### Adding new document types
 
-The classifier picks up new classes automatically from the training dataset — no code change in
-the endpoint or schemas is required. To add a new type:
+To add a new document type:
 
-1. Add the value to `DocumentType` in `app/enums/document.py` (e.g. `INVOICE = "invoice"`).
-2. Collect labelled OCR text (one `.txt` per document) in the following layout — folder name = class label:
-   ```
-   storage/classifier_training/
-   ├── train/
-   │   ├── invoices/         # ~200+ samples per class recommended
-   │   ├── contracts/
-   │   └── ...
-   └── valid/
-       ├── invoices/         # ~60+ samples per class
-       ├── contracts/
-       └── ...
-   ```
+1. Add the value to `DocumentType` in `app/enums/document.py` (e.g. `DEED = "deed"`).
+2. Add a template entry for the new class in `scripts/generate_synthetic_training_data.py`
+   (`_CLASS_TEMPLATES` dict — folder name = class label, e.g. `"deeds": {...}`).
 3. Map the folder name to the enum value in `_LABEL_TO_DOCUMENT_TYPE` in
-   `app/services/classification.py` (e.g. `"invoices": DocumentType.INVOICE`).
-4. Retrain the model:
+   `app/services/classification.py` (e.g. `"deeds": DocumentType.DEED`).
+4. Regenerate training data and retrain the model:
    ```bash
+   python scripts/generate_synthetic_training_data.py
    python scripts/train_classifier.py
    ```
-5. Restart the API container so the new model is loaded:
+5. Restart the API and worker so they pick up the new model:
    ```bash
    docker compose restart api worker
    ```
