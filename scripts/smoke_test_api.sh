@@ -51,5 +51,3 @@ classify "PIT-37 podatnik Urzad Skarbowy podatek dochod zaliczka zwrot ZUS dekla
 echo ""
 echo "=== Confidence threshold -> UNKNOWN ==="
 classify "hello world test" "gibberish"
-
-
