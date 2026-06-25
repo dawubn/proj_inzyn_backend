@@ -283,12 +283,30 @@ def run_legal_analysis_task(  # noqa: PLR0915
             ocr_result.raw,
             fallback_document_type=_coerce_document_type(document.document_type),
         )
-        analysis.detected_document_type = extraction.document_type.value
-        analysis.classification_confidence = extraction.confidence
-        analysis.extracted_fields = extraction.fields
-        document.document_type = extraction.document_type
 
-        profile_name, rules = _load_rules_for_document_type(session, extraction.document_type)
+        text_content = str(extraction.fields.get("document_text", "")).strip()
+        document_type = extraction.document_type
+        classification_confidence = extraction.confidence
+        if text_content:
+            from app.services.classification import ClassificationService
+
+            classifier = ClassificationService()
+            try:
+                document_type, classification_confidence, _ = classifier.classify(text_content)
+                log.info(
+                    "Document classified",
+                    document_type=document_type,
+                    confidence=round(classification_confidence, 4),
+                )
+            except Exception as cls_exc:
+                log.warning("Classification fallback used", reason=str(cls_exc))
+
+        analysis.detected_document_type = document_type.value
+        analysis.classification_confidence = classification_confidence
+        analysis.extracted_fields = extraction.fields
+        document.document_type = document_type
+
+        profile_name, rules = _load_rules_for_document_type(session, document_type)
         issues = RuleEngineService().run(rules, extraction.fields)
         if not extraction.fields.get("has_text"):
             issues.insert(
@@ -307,8 +325,8 @@ def run_legal_analysis_task(  # noqa: PLR0915
             issues=issues,
             total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
             summary={
-                "document_type": extraction.document_type.value,
-                "classification_confidence": extraction.confidence,
+                "document_type": document_type.value,
+                "classification_confidence": classification_confidence,
                 "profile_name": profile_name,
                 "total_rules": len(rules),
                 "issues": len(issues),
