@@ -25,13 +25,13 @@ if TYPE_CHECKING:
     max_retries=3,
     default_retry_delay=30,
 )
-def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:  # noqa: PLR0915
+def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
     """
     Classify document and run rule-based validation.
 
     Steps:
     1. Load analysis + OCR result
-    2. Classify document type
+    2. Classify document type using TF-IDF + Logistic Regression
     3. Extract MVP formal fields
     4. Load matching ValidationProfile
     5. Run RuleEngineService
@@ -79,17 +79,34 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:  # noqa: 
             fallback_document_type=fallback_type,
         )
 
-        analysis.detected_document_type = extraction.document_type.value
-        analysis.classification_confidence = extraction.confidence
+        text_content = str(extraction.fields.get("document_text", "")).strip()
+        document_type = extraction.document_type
+        classification_confidence = extraction.confidence
+        if text_content:
+            from app.services.classification import ClassificationService
+
+            classifier = ClassificationService()
+            try:
+                document_type, classification_confidence, _ = classifier.classify(text_content)
+                log.info(
+                    "Document classified",
+                    document_type=document_type,
+                    confidence=round(classification_confidence, 4),
+                )
+            except Exception as cls_exc:
+                log.warning("Classification fallback used", reason=str(cls_exc))
+
+        analysis.detected_document_type = document_type.value
+        analysis.classification_confidence = classification_confidence
         analysis.extracted_fields = extraction.fields
         if document:
-            document.document_type = extraction.document_type
+            document.document_type = document_type
         session.commit()
 
         analysis.status = AnalysisStatus.VALIDATING
         session.commit()
 
-        profile_name, rules = _load_rules_for_document_type(session, extraction.document_type)
+        profile_name, rules = _load_rules_for_document_type(session, document_type)
         issues = RuleEngineService().run(rules, extraction.fields)
 
         if not extraction.fields.get("has_text"):
@@ -110,8 +127,8 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:  # noqa: 
             issues=issues,
             total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
             summary={
-                "document_type": extraction.document_type.value,
-                "classification_confidence": extraction.confidence,
+                "document_type": document_type.value,
+                "classification_confidence": classification_confidence,
                 "profile_name": profile_name,
                 "total_rules": len(rules),
                 "issues": len(issues),
@@ -121,7 +138,6 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:  # noqa: 
                 "detected_sections": extraction.fields.get("detected_sections", []),
             },
         )
-
         if document:
             document.status = DocumentStatus.PROCESSED
 

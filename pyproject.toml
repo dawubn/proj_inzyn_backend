@@ -35,6 +35,7 @@ dependencies = [
     "pymupdf>=1.24.0",
     "spacy>=3.7.0",
     "langdetect>=1.0.9",
+    "scikit-learn>=1.5.0",
 ]
 
 [project.optional-dependencies]
@@ -66,10 +67,11 @@ known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S105", "ANN", "ARG", "PLR2004", "PLC0415"]
+"scripts/**/*.py" = ["T201", "PTH", "N806", "S311", "PLR2004", "E501"]
 "alembic/**/*.py" = ["ANN", "ERA001", "N999"]
 "app/models/*.py" = ["F821"]
 "app/db/base.py" = ["F821"]
-"app/tasks/*.py" = ["PLC0415"]
+"app/tasks/*.py" = ["PLC0415", "PLR0915"]
 "app/tasks/legal_analysis.py" = ["E501"]
 "app/core/config.py" = ["S105"]
 "app/adapters/azure_ocr.py" = ["PLR0912", "ANN401"]
@@ -116,6 +118,9 @@ disallow_subclassing_any = false
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--cov=app --cov-report=term-missing --cov-report=xml"
+markers = [
+    "slow: integration tests that load the real trained classifier model",
+]
 
 [tool.coverage.run]
 source = ["app"]
