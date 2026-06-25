@@ -1,4 +1,4 @@
-from fastapi import Depends
+from fastapi import Cookie, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,15 +9,29 @@ from app.enums.analysis import UserRole
 from app.models.user import User
 from app.repositories.user import UserRepository
 
-bearer_scheme = HTTPBearer()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    access_token: str | None = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    """Get current user from Authorization header or access_token cookie."""
+    token = None
+
+    # Priority 1: Authorization Bearer token
+    if credentials:
+        token = credentials.credentials
+    # Priority 2: access_token cookie
+    elif access_token:
+        token = access_token
+    else:
+        raise UnauthorizedError("Missing access token")
+
     try:
-        payload = decode_token(credentials.credentials)
+        payload = decode_token(token)
     except ValueError as exc:
         raise UnauthorizedError("Invalid or expired token") from exc
 

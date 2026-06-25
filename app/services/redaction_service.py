@@ -54,16 +54,11 @@ class RedactionService:
         logger.info("Entities detected", total=total, file=original_filename)
 
         stem = Path(original_filename).stem
-        if is_pdf:
-            return RedactionResult(
-                output_path=self._save_as_pdf(masked),
-                media_type=_PDF_CONTENT_TYPE,
-                filename=f"anonymized_{stem}.pdf",
-            )
+        # Save all pages as multi-page TIFF
         return RedactionResult(
-            output_path=self._save_as_png(masked[0]),
-            media_type="image/png",
-            filename=f"anonymized_{stem}.png",
+            output_path=self._save_as_multipage_tiff(masked),
+            media_type="image/tiff",
+            filename=f"anonymized_{stem}.tiff",
         )
 
     def _apply_masks(self, image: Image.Image, items: list[WordDict]) -> Image.Image:
@@ -108,4 +103,19 @@ class RedactionService:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             path = Path(f.name)
         image.convert("RGB").save(str(path), format="PNG")
+        return path
+
+    def _save_as_multipage_tiff(self, images: list[Image.Image]) -> Path:
+        with tempfile.NamedTemporaryFile(suffix=".tiff", delete=False) as f:
+            path = Path(f.name)
+
+        rgb_images = [img.convert("RGB") for img in images]
+        if rgb_images:
+            rgb_images[0].save(
+                str(path),
+                format="TIFF",
+                save_all=True,
+                append_images=rgb_images[1:] if len(rgb_images) > 1 else [],
+                compression="tiff_adobe_deflate",
+            )
         return path

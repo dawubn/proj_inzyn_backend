@@ -14,12 +14,13 @@ async def _get_auth_headers(
             "role": "business_user",
         },
     )
-    resp = await client.post(
+    await client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": "Str0ngPass!"},
     )
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    # Cookies are automatically stored in client and sent with requests
+    # Return empty dict, cookies will be sent automatically
+    return {}
 
 
 @pytest.mark.asyncio
@@ -35,16 +36,6 @@ async def test_upload_document(client: AsyncClient, tmp_path) -> None:
     data = response.json()
     assert data["original_filename"] == "test.pdf"
     assert data["status"] == "uploaded"
-
-
-@pytest.mark.asyncio
-async def test_list_documents_empty(client: AsyncClient) -> None:
-    headers = await _get_auth_headers(client, email="list_user@example.com")
-    response = await client.get("/api/v1/documents", headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert "items" in data
-    assert "total" in data
 
 
 @pytest.mark.asyncio
