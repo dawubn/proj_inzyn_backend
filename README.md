@@ -95,7 +95,6 @@ tesseract --version
 ```
 
 Docker installs these dependencies automatically. They are required only when running the app locally without Docker.
-
 Then set up the project:
 
 ```bash
@@ -141,44 +140,130 @@ pytest tests/api/test_auth.py -v
 
 ## API Endpoints
 
+### Authentication
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/v1/auth/register` | Register a new user |
 | POST | `/api/v1/auth/login` | Login, get JWT tokens |
 | POST | `/api/v1/auth/refresh` | Refresh access token |
 | GET | `/api/v1/users/me` | Get current user profile |
-| POST | `/api/v1/documents` | Upload a document (PDF/JPG/PNG) |
-| GET | `/api/v1/documents` | List your documents (paginated) |
-| GET | `/api/v1/documents/{id}` | Get document details |
-| POST | `/api/v1/documents/{id}/analyses` | Trigger OCR analysis |
-| GET | `/api/v1/documents/{id}/analyses/{aid}` | Get analysis status & results |
-| POST | `/api/v1/validation-profiles` | Create validation profile (admin) |
-| GET | `/api/v1/validation-profiles` | List validation profiles (admin) |
-| GET | `/api/v1/reports/{analysis_id}` | Get analysis report |
-| POST | `/api/v1/classify` | Classify document type from Azure OCR payload |
-| POST | `/api/v1/redactions` | Locally anonymise a document — PDF or image in, masked file out |
 
-## Local Redaction
+### Documents
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| POST | `/api/v1/documents` | Upload a document (PDF/JPG/PNG) | Owner |
+| GET | `/api/v1/documents/{document_id}` | Get document details | Owner, Admin |
+| DELETE | `/api/v1/documents/{document_id}` | Delete document | Owner |
+| GET | `/api/v1/documents/admin/all` | List all documents (paginated) | Admin only |
 
-`POST /api/v1/redactions` accepts `multipart/form-data` with field `file` (PDF, PNG, JPG/JPEG).
+### Redactions & OCR Analysis
+| Method | Path | Description | Response | Access |
+|--------|------|-------------|----------|--------|
+| POST | `/api/v1/redactions` | Inline local OCR + redaction (returns file) | PDF/PNG file (HTTP 200) | Owner |
+| POST | `/api/v1/redactions/local-ocr` | Async local OCR (Tesseract) | Analysis ID (HTTP 202) | Owner |
+| POST | `/api/v1/redactions/full-ocr` | Async full OCR pipeline: local → redaction → Azure | Analysis ID (HTTP 202) | Owner |
+| POST | `/api/v1/redactions/azure-ocr` | Async Azure OCR only | Analysis ID (HTTP 202) | Owner |
+| POST | `/api/v1/redactions/legal-analysis` | Async full pipeline + legal analysis (LLM) | Analysis ID (HTTP 202) | Owner |
+| GET | `/api/v1/redactions` | List user's analyses | Analyses list | Owner |
+| GET | `/api/v1/redactions/{analysis_id}` | Get analysis status & results | Analysis details | Owner, Admin |
+| DELETE | `/api/v1/redactions/{analysis_id}` | Delete analysis | HTTP 204 | Owner |
+| GET | `/api/v1/redactions/admin/all` | List all analyses (all users) | Analyses list | Admin only |
+
+### Synchronous Redaction (`POST /api/v1/redactions`)
+
+Accepts `multipart/form-data` with field `file` (PDF, PNG, JPG/JPEG).
 Runs OCR locally via Tesseract, detects sensitive data with regex + spaCy NER, and returns the
-file with all detected fields masked by black rectangles. Nothing is stored in the database.
+file with all detected fields masked by black rectangles. **Nothing is stored in database.**
 
-Detected types: PESEL (any 11-digit sequence), e-mail, phone (Polish mobile), numeric dates,
+Detected types: PESEL (11-digit), e-mail, phone (Polish mobile), numeric dates,
 Polish descriptive dates (`27 stycznia 1975`), person names, places, English-style addresses.
 
 ```bash
-# PDF
+# PDF — returns anonymized PDF
 curl -X POST http://localhost:8000/api/v1/redactions \
   -H "Authorization: Bearer <TOKEN>" \
-  -F "file=@sample.pdf" --output anonymized_sample.pdf
+  -F "file=@sample.pdf" --output anonymized.pdf
 
-# Image
+# Image — returns anonymized PNG
 curl -X POST http://localhost:8000/api/v1/redactions \
   -H "Authorization: Bearer <TOKEN>" \
-  -F "file=@scan.jpg" --output anonymized_scan.png
+  -F "file=@scan.jpg" --output anonymized.png
 ```
 
+### Asynchronous Redaction & Analysis
+
+All async endpoints accept either:
+- **`document_id`** (query param) — existing document (reads from storage)
+- **`file`** (multipart upload) — new file to process
+
+All return `202 Accepted` with analysis ID and task ID:
+```json
+{
+  "analysis_id": "uuid",
+  "task_id": "celery-task-id",
+  "message": "Pipeline queued"
+}
+```
+
+Use `GET /api/v1/redactions/{analysis_id}` to poll analysis status.
+
+#### Legal Analysis (`POST /api/v1/redactions/legal-analysis`)
+
+Full pipeline: **local OCR → redaction → Azure OCR → LLM legal analysis**
+
+Returns structured legal analysis (when completed):
+```json
+{
+  "legal_analysis_result": {
+    "prompt": "Legal analysis prompt (Polish)",
+    "summary": "Document summary",
+    "errors": [
+      {
+        "issue": "Missing signature",
+        "text_reference": "Exact text from document",
+        "severity": "critical|high|medium"
+      }
+    ],
+    "applicable_laws": [
+      {
+        "law": "Ustawa o ochronie danych",
+        "description": "Application description",
+        "reference": "Art. 5"
+      }
+    ]
+  },
+  "processing_stage": "completed|pending|local_ocr|redaction|azure_ocr|llm_analysis",
+  "processing_step": 0-4
+}
+```
+
+Requires `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY` in `.env`.
+
+#### Processing Status Tracking
+
+All async analyses track progress:
+- `processing_stage`: enum (pending → local_ocr → redaction → azure_ocr → llm_analysis → completed)
+- `processing_step`: 0-4 (calculate progress: `step / 4 * 100%`)
+- `status`: PENDING | IN_PROGRESS | COMPLETED | OCR_FAILED
+
+#### Example: Track Legal Analysis
+
+```bash
+# Start analysis
+ANALYSIS_ID=$(curl -X POST http://localhost:8000/api/v1/redactions/legal-analysis \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "file=@contract.pdf" | jq -r '.analysis_id')
+
+# Poll status
+curl -X GET http://localhost:8000/api/v1/redactions/$ANALYSIS_ID \
+  -H "Authorization: Bearer <TOKEN>" | jq '.processing_stage, .processing_step'
+```
+
+### Access Control
+
+- **Non-admin users**: Can only access their own documents and analyses
+- **Admin users**: Full access to all documents and analyses across all users
+- **Attempting unauthorized access**: Returns 404 NotFound (not 403 for security)
 Docker handles all OCR dependencies automatically during `docker compose up --build`.
 
 ## Document Classification
@@ -287,22 +372,22 @@ app/
 
 ## Git Workflow
 
-Pracujemy w modelu: **`main` = tylko stabilny kod**. Każda zmiana idzie przez osobny branch i Pull Request.
+We work in the model: main = stable code only. Every change goes through a separate branch and Pull Request.
 
-### 1. Zaktualizuj main lokalnie
+### 1. Update local main.
 
-Zanim zaczniesz nową funkcję:
+Before starting a new feature:
 
 ```bash
 git checkout main
 git pull origin main
 ```
 
-### 2. Stwórz branch od main
+### 2. Create a branch from main.
 
-Wzór nazwy: `typ/jira_task/opis-zadania`
+Naming pattern: `typ/jira_task/opis-zadania`
 
-| Typ | Przykład |
+| Type | Example |
 |-----|---------|
 | `feature` | `feature/PP-1/auth-ui` |
 | `fix` | `fix/PP-3/login-validation` |
@@ -312,27 +397,62 @@ Wzór nazwy: `typ/jira_task/opis-zadania`
 git checkout -b feature/PP-1/auth-ui
 ```
 
-### 3. Commituj zmiany
+### 3. Commit changes.
 
-Commity zgodne z **Conventional Commits**. Wzór: `typ:JIRA_TASK: opis`
+Commits should follow **Conventional Commits**. Pattern: `typ:JIRA_TASK: opis`
 
 ```bash
 git add .
 git commit -m "feat:PP-1: add language switch"
 ```
 
-Dostępne typy: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`
+Available types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`
 
-### 4. Wypchnij branch na GitHuba
+### 4. Push the branch to GitHub.
 
 ```bash
 git push -u origin feature/PP-1/auth-ui
 ```
 
-### 5. Otwórz Pull Request
+### 5. Open a Pull Request
 
-Na GitHubie otwórz PR z brancha do `main`. PR wymaga review przed mergem.
+On GitHub, open a PR from the branch to `main`. The PR requires a review before merging.
 
-## Environment Variables
+## Configuration
+
+### Environment Variables
 
 See `.env.example` for all required and optional variables.
+
+Key variables:
+- `APP_SECRET_KEY` — JWT signing key (generate: `openssl rand -hex 32`)
+- `DATABASE_URL` — PostgreSQL connection string
+- `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` — Azure Document Intelligence endpoint
+- `AZURE_DOCUMENT_INTELLIGENCE_KEY` — Azure Document Intelligence API key
+- `AZURE_OPENAI_ENDPOINT` — Azure OpenAI endpoint (for legal analysis)
+- `AZURE_OPENAI_KEY` — Azure OpenAI API key (for legal analysis)
+
+### Azure Configuration
+
+#### Azure Document Intelligence (OCR)
+
+1. Create resource in [Azure Portal](https://portal.azure.com)
+2. Copy **Endpoint** and **Key** (from "Keys and Endpoint")
+3. Add to `.env`:
+   ```
+   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<region>.api.cognitive.microsoft.com/
+   AZURE_DOCUMENT_INTELLIGENCE_KEY=<key>
+   ```
+
+#### Azure OpenAI (Legal Analysis)
+
+1. Create Azure OpenAI resource in [Azure Portal](https://portal.azure.com)
+2. Deploy **gpt-4** model (via "Model deployments")
+3. Copy **Endpoint** and **Key** (from "Keys and Endpoint")
+4. Add to `.env`:
+   ```
+   AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/
+   AZURE_OPENAI_KEY=<key>
+   ```
+
+> **Note:** Legal analysis (`POST /api/v1/redactions/legal-analysis`) gracefully degrades if Azure OpenAI is not configured — returns empty results.

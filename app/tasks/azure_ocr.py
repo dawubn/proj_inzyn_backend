@@ -1,5 +1,5 @@
 """
-Celery task: run OCR on a document and hold the result.
+Celery task: run Azure Document Intelligence OCR on a document.
 
 After OCR succeeds, chains into the analysis task.
 """
@@ -30,18 +30,18 @@ def _get_db_session() -> Session:
 
 @celery_app.task(  # type: ignore[misc]
     bind=True,
-    name="app.tasks.ocr.run_ocr_task",
+    name="app.tasks.azure_ocr.run_azure_ocr_task",
     max_retries=3,
     default_retry_delay=30,
 )
-def run_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
+def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
     """
-    Run OCR for a given DocumentAnalysis record.
+    Run Azure Document Intelligence OCR for a given DocumentAnalysis record.
 
     Steps:
     1. Load DocumentAnalysis + Document from DB
     2. Read file bytes from storage
-    3. Call AzureOCRAdapter
+    3. Call AzureOCRAdapter (Azure Document Intelligence API)
     4. Hold OCR raw result and extracted text
     5. Trigger run_analysis_task
     """

@@ -13,6 +13,9 @@ class DocumentStatus(StrEnum):
 
 class DocumentType(StrEnum):
     UNKNOWN = "unknown"
+    LAWSUIT = "lawsuit"
+    POWER_OF_ATTORNEY = "power_of_attorney"
+    APPLICATION = "application"
     INVOICE = "invoice"
     CONTRACT = "contract"
     ID_CARD = "id_card"
