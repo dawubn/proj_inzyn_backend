@@ -55,3 +55,75 @@ async def test_get_document_not_found(client: AsyncClient) -> None:
     fake_id = "00000000-0000-0000-0000-000000000000"
     response = await client.get(f"/api/v1/documents/{fake_id}", headers=headers)
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_patch_document_type(client: AsyncClient, tmp_path) -> None:
+    headers = await _get_auth_headers(client, email="patch_user@example.com")
+    upload = await client.post(
+        "/api/v1/documents",
+        headers=headers,
+        files={"file": ("doc.pdf", b"%PDF-1.4 test", "application/pdf")},
+    )
+    assert upload.status_code == 201
+    doc_id = upload.json()["id"]
+
+    response = await client.patch(
+        f"/api/v1/documents/{doc_id}",
+        headers=headers,
+        json={"document_type": "contract"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["document_type"] == "contract"
+    assert data["suggested_document_type"] is None
+
+
+@pytest.mark.asyncio
+async def test_patch_document_type_invalid_value(client: AsyncClient, tmp_path) -> None:
+    headers = await _get_auth_headers(client, email="patch_invalid_user@example.com")
+    upload = await client.post(
+        "/api/v1/documents",
+        headers=headers,
+        files={"file": ("doc.pdf", b"%PDF-1.4 test", "application/pdf")},
+    )
+    doc_id = upload.json()["id"]
+
+    response = await client.patch(
+        f"/api/v1/documents/{doc_id}",
+        headers=headers,
+        json={"document_type": "not_a_real_type"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_patch_document_type_not_found(client: AsyncClient) -> None:
+    headers = await _get_auth_headers(client, email="patch_notfound_user@example.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    response = await client.patch(
+        f"/api/v1/documents/{fake_id}",
+        headers=headers,
+        json={"document_type": "invoice"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_patch_document_type_forbidden(client: AsyncClient, tmp_path) -> None:
+    # Login as owner first, upload while owner cookie is active
+    await _get_auth_headers(client, email="patch_owner@example.com")
+    upload = await client.post(
+        "/api/v1/documents",
+        files={"file": ("doc.pdf", b"%PDF-1.4 test", "application/pdf")},
+    )
+    assert upload.status_code == 201
+    doc_id = upload.json()["id"]
+
+    # Now login as a different user — cookie switches to other user
+    await _get_auth_headers(client, email="patch_other@example.com")
+    response = await client.patch(
+        f"/api/v1/documents/{doc_id}",
+        json={"document_type": "invoice"},
+    )
+    assert response.status_code == 403

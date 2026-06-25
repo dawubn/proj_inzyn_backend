@@ -11,7 +11,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.schemas.common import PaginatedResponse
-from app.schemas.document import DocumentCreate, DocumentResponse
+from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.services.document import DocumentService
 
 router = APIRouter()
@@ -163,6 +163,26 @@ async def download_document(
         media_type=doc.mime_type,
         filename=doc.original_filename,
     )
+
+
+@router.patch("/{document_id}", response_model=DocumentResponse, responses=COMMON_RESPONSES)  # type: ignore[misc]
+async def update_document(
+    document_id: uuid.UUID,
+    body: DocumentUpdate,
+    current_user: User = Depends(get_current_user),
+    svc: DocumentService = Depends(_document_service),
+) -> DocumentResponse:
+    """Update document type (owner only).
+
+    Only ``document_type`` is writable — ``suggested_document_type`` is set
+    exclusively by the ML classifier and is never modified here.
+    Returns 403 when the caller does not own the document.
+    """
+    if body.document_type is None:
+        doc = await svc.get_or_raise(document_id, current_user.id)
+    else:
+        doc = await svc.update_document_type(document_id, current_user.id, body.document_type)
+    return DocumentResponse.model_validate(doc)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT, responses=COMMON_RESPONSES)  # type: ignore[misc]

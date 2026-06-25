@@ -267,15 +267,12 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
         analysis.processing_step = 2
         session.commit()
 
-        # 4. Save redacted file to permanent storage
-        redacted_storage_path = file_path.parent / f"redacted_{file_path.name}"
+        # 4. Save redacted TIFF as a per-analysis artifact alongside the original.
+        #    Named by analysis_id so re-runs never collide and the original is never touched.
+        redacted_storage_path = file_path.parent / f"redacted_{analysis_id}.tiff"
         shutil.move(str(redaction_result.output_path), str(redacted_storage_path))
 
         log.info("Redacted file saved", path=str(redacted_storage_path))
-
-        # 5. Update document with redacted file path
-        document.storage_path = str(redacted_storage_path)
-        session.commit()
 
         # 5.5 Extract Tesseract words with bounding boxes
         log.info("Extracting Tesseract words")
@@ -293,9 +290,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
         from app.adapters.azure_ocr import AzureOCRAdapter
 
         adapter = AzureOCRAdapter()
-        ocr_result = adapter.analyze_document(
-            redacted_storage_path.read_bytes(), document.mime_type
-        )
+        ocr_result = adapter.analyze_document(redacted_storage_path.read_bytes(), "image/tiff")
 
         # 7. Save OCR results
         analysis.ocr_raw_result = ocr_result.raw
@@ -318,7 +313,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
         analysis.detected_document_type = document_type.value
         analysis.classification_confidence = classification_confidence
         analysis.extracted_fields = extraction.fields
-        document.document_type = document_type
+        document.suggested_document_type = document_type
 
         profile_name, rules = _load_rules_for_document_type(session, document_type)
         issues = RuleEngineService().run(rules, extraction.fields)
