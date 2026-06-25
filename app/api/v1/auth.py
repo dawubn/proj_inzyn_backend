@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_db
 from app.repositories.user import UserRepository
-from app.schemas.auth import LoginRequest, RefreshRequest
+from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth import AuthService
 
@@ -24,29 +24,30 @@ async def register(data: UserCreate, svc: AuthService = Depends(_auth_service)) 
 
 @router.post(
     "/login",
-    status_code=204,
+    response_model=TokenResponse,
     responses={
-        204: {
-            "description": "User logged in. Tokens set in secure HTTP-only cookies "
-            "(access_token with SameSite=Lax, refresh_token with SameSite=Strict)."
+        200: {
+            "description": "User logged in. Tokens returned in body AND set as HTTP-only cookies."
         },
         401: {"description": "Invalid credentials"},
     },
 )  # type: ignore[misc]
 async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -> Response:
-    """Login and set secure cookies for tokens.
+    """Login — returns tokens in JSON body and sets secure HTTP-only cookies.
 
-    Tokens are set in secure HTTP-only cookies:
-    - access_token: expires in 15 minutes, SameSite=Lax
-    - refresh_token: expires in 7 days, SameSite=Strict
-
-    Use GET /api/v1/users/me to fetch user info after login.
+    Use the returned `access_token` as `Authorization: Bearer <token>` in Swagger UI,
+    or rely on the cookies that are automatically set for browser clients.
     """
-    user, tokens = await svc.login(data)
+    _user, tokens = await svc.login(data)
 
-    response = Response(status_code=204)
+    response = JSONResponse(
+        content={
+            "access_token": tokens.access_token,
+            "refresh_token": tokens.refresh_token,
+            "token_type": "bearer",
+        }
+    )
 
-    # Set access token cookie (HttpOnly, Secure, SameSite=Lax)
     response.set_cookie(
         key="access_token",
         value=tokens.access_token,
@@ -56,7 +57,6 @@ async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -
         max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
-    # Set refresh token cookie (HttpOnly, Secure, SameSite=Strict)
     response.set_cookie(
         key="refresh_token",
         value=tokens.refresh_token,
@@ -85,7 +85,7 @@ async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service
 
     Takes refresh_token (from cookie or request body) and returns new tokens in secure cookies.
     """
-    user, tokens = await svc.refresh(data.refresh_token)
+    _user, tokens = await svc.refresh(data.refresh_token)
 
     response = Response(status_code=204)
 

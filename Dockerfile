@@ -24,7 +24,7 @@ RUN pip install --upgrade pip && pip install -e ".[dev]" && \
 FROM deps AS final
 COPY . .
 
-RUN python scripts/train_classifier.py
+RUN python scripts/generate_synthetic_training_data.py && python scripts/train_classifier.py
 
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 RUN chown -R appuser:appgroup /app
