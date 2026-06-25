@@ -25,7 +25,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
     Steps:
     1. Load analysis + OCR result
-    2. Classify document type (TODO: plug in classifier)
+    2. Classify document type using TF-IDF + Logistic Regression
     3. Extract fields (TODO: field extractor)
     4. Load matching ValidationProfile
     5. Run RuleEngineService
@@ -63,10 +63,35 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         analysis.status = AnalysisStatus.CLASSIFYING
         session.commit()
 
+        document = session.get(Document, analysis.document_id)
+
+        text_content = (
+            str(analysis.ocr_raw_result.get("content", ""))
+            if analysis.ocr_raw_result
+            else ""
+        )
+        if text_content:
+            from app.services.classification import ClassificationService
+
+            classifier = ClassificationService()
+            try:
+                doc_type, confidence, _ = classifier.classify(text_content)
+                analysis.detected_document_type = doc_type.value
+                analysis.classification_confidence = confidence
+                if document:
+                    document.document_type = doc_type
+                session.commit()
+                log.info(
+                    "Document classified",
+                    document_type=doc_type,
+                    confidence=round(confidence, 4),
+                )
+            except Exception as cls_exc:
+                log.warning("Classification skipped", reason=str(cls_exc))
+
         analysis.status = AnalysisStatus.VALIDATING
         session.commit()
 
-        document = session.get(Document, analysis.document_id)
         if document:
             document.status = DocumentStatus.PROCESSED
             session.commit()

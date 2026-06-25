@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 20
     ALLOWED_EXTENSIONS: list[str] = ["pdf", "jpg", "jpeg", "png"]
 
+    # Classifier
+    CLASSIFIER_MODEL_PATH: str = "storage/classifier_model.joblib"
+    CLASSIFIER_MIN_CONFIDENCE: float = 0.45
+
     # Logging
     LOG_LEVEL: str = "INFO"
 

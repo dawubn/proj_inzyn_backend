@@ -34,6 +34,7 @@ dependencies = [
     "pymupdf>=1.24.0",
     "spacy>=3.7.0",
     "langdetect>=1.0.9",
+    "scikit-learn>=1.5.0",
 ]
 
 [project.optional-dependencies]
@@ -114,6 +115,9 @@ disallow_subclassing_any = false
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--cov=app --cov-report=term-missing --cov-report=xml"
+markers = [
+    "slow: integration tests that load the real trained classifier model",
+]
 
 [tool.coverage.run]
 source = ["app"]

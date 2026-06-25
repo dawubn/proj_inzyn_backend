@@ -116,6 +116,9 @@ cp .env.example .env
 # Run migrations
 alembic upgrade head
 
+# Train the document classifier (writes storage/classifier_model.joblib)
+python scripts/train_classifier.py
+
 # Start API
 uvicorn main:app --reload
 
@@ -152,6 +155,7 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/validation-profiles` | Create validation profile (admin) |
 | GET | `/api/v1/validation-profiles` | List validation profiles (admin) |
 | GET | `/api/v1/reports/{analysis_id}` | Get analysis report |
+| POST | `/api/v1/classify` | Classify document type from Azure OCR payload |
 | POST | `/api/v1/redactions` | Locally anonymise a document — PDF or image in, masked file out |
 
 ## Local Redaction
@@ -176,6 +180,94 @@ curl -X POST http://localhost:8000/api/v1/redactions \
 ```
 
 Docker handles all OCR dependencies automatically during `docker compose up --build`.
+
+## Document Classification
+
+`POST /api/v1/classify` accepts OCR text and returns a predefined document type with confidence.
+Uses a TF-IDF + Logistic Regression pipeline trained on the DocLayNet dataset. The endpoint
+accepts the normalised payload (`text_content`), Azure-style alias (`content`), or the full raw
+OCR payload (`ocr_raw_result.content`).
+
+Detected types: `financial_report`, `government_tender`, `law_and_regulation`, `manual`,
+`patent`, `scientific_article`, `invoice`, `contract`, `id_card`, `passport`,
+`bank_statement`, `tax_form`.
+
+The same classifier runs automatically after every OCR analysis — its result is stored on the
+analysis (`detected_document_type`, `classification_confidence`) and on the document
+(`document_type`), so the frontend gets the type without an extra call.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/classify \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Patent claim invention embodiment prior art"}'
+```
+
+Train (or retrain) the model with:
+
+```bash
+python scripts/train_classifier.py
+```
+
+Training data lives under `storage/classifier_training/{train,valid}/<class_name>/*.txt`
+(folder name = class label). The class folders are checked in empty — see
+`storage/classifier_training/README.md` for the format and how to populate them.
+Model output path is configurable via the `CLASSIFIER_MODEL_PATH` env variable.
+
+For classes without a public corpus (invoices, contracts, ID/passport, bank
+statements, tax forms) the repo ships a synthetic data generator that produces
+text samples from realistic vocabulary templates:
+
+```bash
+python scripts/generate_synthetic_training_data.py --train 200 --valid 60
+```
+
+Synthetic data is a "cold start" — replace it with real OCR text whenever
+available to improve real-world accuracy.
+
+The classifier model is trained automatically during `docker compose up --build`
+(see the `RUN python scripts/train_classifier.py` step in `Dockerfile`), so a
+freshly built image ships with a ready-to-use `classifier_model.joblib`. After
+retraining locally, restart the API and worker so they pick the new file up:
+
+```bash
+docker compose restart api worker
+```
+
+Predictions with a probability below `CLASSIFIER_MIN_CONFIDENCE` (default `0.45`)
+are returned as `DocumentType.UNKNOWN` so the frontend can ask the user to
+confirm the type instead of trusting a weak guess.
+
+### Adding new document types
+
+The classifier picks up new classes automatically from the training dataset — no code change in
+the endpoint or schemas is required. To add a new type:
+
+1. Add the value to `DocumentType` in `app/enums/document.py` (e.g. `INVOICE = "invoice"`).
+2. Collect labelled OCR text (one `.txt` per document) in the following layout — folder name = class label:
+   ```
+   storage/classifier_training/
+   ├── train/
+   │   ├── invoices/         # ~200+ samples per class recommended
+   │   ├── contracts/
+   │   └── ...
+   └── valid/
+       ├── invoices/         # ~60+ samples per class
+       ├── contracts/
+       └── ...
+   ```
+3. Map the folder name to the enum value in `_LABEL_TO_DOCUMENT_TYPE` in
+   `app/services/classification.py` (e.g. `"invoices": DocumentType.INVOICE`).
+4. Retrain the model:
+   ```bash
+   python scripts/train_classifier.py
+   ```
+5. Restart the API container so the new model is loaded:
+   ```bash
+   docker compose restart api worker
+   ```
+
+Labels that exist in the model but are not mapped fall back to `DocumentType.OTHER`.
 
 ## Project Structure
 
