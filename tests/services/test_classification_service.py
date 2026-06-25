@@ -47,9 +47,16 @@ def _set_required_env(monkeypatch: pytest.MonkeyPatch, model_path: str) -> None:
     monkeypatch.setenv("AZURE_DOCUMENT_INTELLIGENCE_KEY", "test")
     monkeypatch.setenv("CLASSIFIER_MODEL_PATH", model_path)
     monkeypatch.setenv("CLASSIFIER_MIN_CONFIDENCE", "0.0")
+    # Patch the already-instantiated settings singleton so the service picks up the correct path
+    import app.core.config as _cfg
+
+    monkeypatch.setattr(_cfg.settings, "CLASSIFIER_MODEL_PATH", model_path)
+    monkeypatch.setattr(_cfg.settings, "CLASSIFIER_MIN_CONFIDENCE", 0.0)
 
 
-def test_classification_service_returns_mapped_document_type(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_classification_service_returns_mapped_document_type(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     model_path = str(tmp_path / "classifier_model.joblib")
     _build_test_model(model_path)
     _set_required_env(monkeypatch, model_path)
@@ -69,7 +76,9 @@ def test_classification_service_returns_mapped_document_type(tmp_path, monkeypat
     assert "patent" in scores
 
 
-def test_classification_service_raises_when_model_missing(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_classification_service_raises_when_model_missing(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     missing_path = str(tmp_path / "missing_model.joblib")
     _set_required_env(monkeypatch, missing_path)
 
@@ -83,6 +92,3 @@ def test_classification_service_raises_when_model_missing(tmp_path, monkeypatch:
 
     with pytest.raises(ClassifierNotReadyError):
         svc.classify("financial statement")
-
-
-

@@ -66,9 +66,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         document = session.get(Document, analysis.document_id)
 
         text_content = (
-            str(analysis.ocr_raw_result.get("content", ""))
-            if analysis.ocr_raw_result
-            else ""
+            str(analysis.ocr_raw_result.get("content", "")) if analysis.ocr_raw_result else ""
         )
         if text_content:
             from app.services.classification import ClassificationService

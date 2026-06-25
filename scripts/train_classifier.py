@@ -110,4 +110,3 @@ if __name__ == "__main__":
     print(f" Output: {args.output}")
 
     train_and_save(args.data_dir, args.output)
-

@@ -1,7 +1,10 @@
-from pathlib import Path
+from __future__ import annotations
+
 import re
+from pathlib import Path
 from typing import Any
 
+import joblib
 import structlog
 
 from app.core.config import settings
@@ -39,8 +42,6 @@ class ClassificationService:
     _classes: list[str] = []
 
     def _load_model(self) -> None:
-        import joblib
-
         model_path = Path(settings.CLASSIFIER_MODEL_PATH)
         if not model_path.exists():
             raise ClassifierNotReadyError(
@@ -67,13 +68,11 @@ class ClassificationService:
         features = ClassificationService._vectorizer.transform([cleaned])
 
         predicted_label: str = ClassificationService._model.predict(features)[0]
-        probabilities: list[float] = list(
-            ClassificationService._model.predict_proba(features)[0]
-        )
+        probabilities: list[float] = list(ClassificationService._model.predict_proba(features)[0])
 
         confidence = float(max(probabilities))
         all_scores: dict[str, float] = {}
-        for label, prob in zip(ClassificationService._classes, probabilities):
+        for label, prob in zip(ClassificationService._classes, probabilities, strict=False):
             mapped_label = _LABEL_TO_DOCUMENT_TYPE.get(label, DocumentType.OTHER).value
             all_scores[mapped_label] = round(float(prob), 4)
 
@@ -96,10 +95,3 @@ class ClassificationService:
         )
 
         return document_type, confidence, all_scores
-
-
-
-
-
-
-

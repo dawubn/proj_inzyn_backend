@@ -19,15 +19,11 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture(scope="module")
-def classifier_service(monkeypatch_module):  # type: ignore[no-untyped-def]
+def classifier_service(monkeypatch_module):
     monkeypatch_module.setenv("CLASSIFIER_MODEL_PATH", str(_MODEL_PATH))
     monkeypatch_module.setenv("APP_SECRET_KEY", "test")
-    monkeypatch_module.setenv(
-        "DATABASE_URL", "postgresql+asyncpg://x:x@localhost/x"
-    )
-    monkeypatch_module.setenv(
-        "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "https://example.com"
-    )
+    monkeypatch_module.setenv("DATABASE_URL", "postgresql+asyncpg://x:x@localhost/x")
+    monkeypatch_module.setenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "https://example.com")
     monkeypatch_module.setenv("AZURE_DOCUMENT_INTELLIGENCE_KEY", "x")
 
     module = importlib.import_module("app.services.classification")
@@ -39,7 +35,7 @@ def classifier_service(monkeypatch_module):  # type: ignore[no-untyped-def]
 
 
 @pytest.fixture(scope="module")
-def monkeypatch_module():  # type: ignore[no-untyped-def]
+def monkeypatch_module():
     from _pytest.monkeypatch import MonkeyPatch
 
     mp = MonkeyPatch()
@@ -93,7 +89,7 @@ _CASES: list[tuple[DocumentType, str]] = [
 
 @pytest.mark.slow
 @pytest.mark.parametrize(("expected", "text"), _CASES)
-def test_real_model_classifies_expected_type(  # type: ignore[no-untyped-def]
+def test_real_model_classifies_expected_type(
     classifier_service, expected: DocumentType, text: str
 ) -> None:
     doc_type, confidence, scores = classifier_service.classify(text)
@@ -107,10 +103,7 @@ def test_real_model_classifies_expected_type(  # type: ignore[no-untyped-def]
 
 
 @pytest.mark.slow
-def test_real_model_returns_unknown_for_gibberish(classifier_service) -> None:  # type: ignore[no-untyped-def]
+def test_real_model_returns_unknown_for_gibberish(classifier_service) -> None:
     doc_type, confidence, _ = classifier_service.classify("hello")
-    assert confidence < 0.6, (
-        f"Expected low confidence for empty content, got {confidence:.2%} -> {doc_type}"
-    )
-
-
+    msg = f"Expected low confidence for empty content, got {confidence:.2%} -> {doc_type}"
+    assert confidence < 0.6, msg

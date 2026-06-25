@@ -1,6 +1,15 @@
 from fastapi import APIRouter
 
-from app.api.v1 import analyses, auth, classifications, documents, redactions, reports, users, validation_profiles
+from app.api.v1 import (
+    analyses,
+    auth,
+    classifications,
+    documents,
+    redactions,
+    reports,
+    users,
+    validation_profiles,
+)
 
 api_router = APIRouter()
 

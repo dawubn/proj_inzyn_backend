@@ -26,7 +26,9 @@ async def classify_document(
     if not text and body.ocr_raw_result:
         text = str(body.ocr_raw_result.get("content", "")).strip()
     if not text:
-        raise ValidationError("Missing OCR content. Provide 'text_content'/'content' or ocr_raw_result.content")
+        raise ValidationError(
+            "Missing OCR content. Provide 'text_content'/'content' or ocr_raw_result.content"
+        )
 
     document_type, confidence, all_scores = svc.classify(text)
 
@@ -42,6 +44,3 @@ async def classify_document(
         confidence=confidence,
         all_scores=all_scores,
     )
-
-
-

@@ -15,9 +15,6 @@ class ClassifyRequest(OrmBase):
 
 
 class ClassifyResponse(OrmBase):
-
     document_type: DocumentType
     confidence: float
     all_scores: dict[str, float]
-
-

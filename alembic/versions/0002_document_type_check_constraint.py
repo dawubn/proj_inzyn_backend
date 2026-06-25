@@ -45,4 +45,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_constraint("ck_documents_document_type", "documents", type_="check")
-

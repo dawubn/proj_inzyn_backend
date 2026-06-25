@@ -35,7 +35,7 @@ async def _get_auth_headers(
 
 @pytest.mark.asyncio
 async def test_classify_endpoint_accepts_azure_content_alias(client: AsyncClient) -> None:
-    app.dependency_overrides[_classification_service] = lambda: _FakeClassificationService()
+    app.dependency_overrides[_classification_service] = _FakeClassificationService
     try:
         headers = await _get_auth_headers(client)
         payload = {"content": "Patent claim invention embodiment"}
@@ -53,7 +53,7 @@ async def test_classify_endpoint_accepts_azure_content_alias(client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_classify_endpoint_returns_422_on_missing_text(client: AsyncClient) -> None:
-    app.dependency_overrides[_classification_service] = lambda: _FakeClassificationService()
+    app.dependency_overrides[_classification_service] = _FakeClassificationService
     try:
         headers = await _get_auth_headers(client, email="classification_missing@example.com")
         response = await client.post(
@@ -65,5 +65,3 @@ async def test_classify_endpoint_returns_422_on_missing_text(client: AsyncClient
         assert response.status_code == 422
     finally:
         app.dependency_overrides.pop(_classification_service, None)
-
-
