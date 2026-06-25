@@ -1,28 +1,33 @@
+x-app-env: &app-env
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_DOCS_ENABLED: "true"
+  APP_SECRET_KEY: ${APP_SECRET_KEY}
+  APP_ALLOWED_HOSTS: '["https://api.cerberdoc.com","http://api.cerberdoc.com"]'
+  DATABASE_URL: ${DATABASE_URL}
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  JWT_ALGORITHM: HS256
+  JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+  JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"
+  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
+  AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY}
+  AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+  AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY:-}
+  STORAGE_PATH: /app/storage
+  MAX_UPLOAD_SIZE_MB: "20"
+  ALLOWED_EXTENSIONS: '["pdf","jpg","jpeg","png"]'
+  CLASSIFIER_MODEL_PATH: storage/classifier_model.joblib
+  CLASSIFIER_MIN_CONFIDENCE: "0.45"
+  LOG_LEVEL: INFO
+
 services:
   migrate:
     image: ghcr.io/dawubn/proj_inzyn_backend:${IMAGE_TAG:-latest}
     restart: "no"
     environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      APP_DOCS_ENABLED: "true"
-      APP_SECRET_KEY: ${APP_SECRET_KEY}
-      APP_ALLOWED_HOSTS: '["https://api.cerberdoc.com","http://api.cerberdoc.com"]'
-      DATABASE_URL: postgresql+asyncpg://cerberdoc:CerberDoc2024Prod@db:5432/cerber_doc
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      JWT_ALGORITHM: HS256
-      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-      JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
-      AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY}
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
-      AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY}
-      STORAGE_PATH: /app/storage
-      MAX_UPLOAD_SIZE_MB: "20"
-      ALLOWED_EXTENSIONS: '["pdf","jpg","jpeg","png"]'
-      LOG_LEVEL: INFO
+      <<: *app-env
     volumes:
       - backend_storage:/app/storage
     depends_on:
@@ -34,26 +39,7 @@ services:
     image: ghcr.io/dawubn/proj_inzyn_backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      APP_DOCS_ENABLED: "true"
-      APP_SECRET_KEY: ${APP_SECRET_KEY}
-      APP_ALLOWED_HOSTS: '["https://api.cerberdoc.com","http://api.cerberdoc.com"]'
-      DATABASE_URL: postgresql+asyncpg://cerberdoc:CerberDoc2024Prod@db:5432/cerber_doc
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      JWT_ALGORITHM: HS256
-      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-      JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
-      AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY}
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
-      AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY}
-      STORAGE_PATH: /app/storage
-      MAX_UPLOAD_SIZE_MB: "20"
-      ALLOWED_EXTENSIONS: '["pdf","jpg","jpeg","png"]'
-      LOG_LEVEL: INFO
+      <<: *app-env
     volumes:
       - backend_storage:/app/storage
     depends_on:
@@ -81,26 +67,7 @@ services:
     image: ghcr.io/dawubn/proj_inzyn_backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      APP_DOCS_ENABLED: "true"
-      APP_SECRET_KEY: ${APP_SECRET_KEY}
-      APP_ALLOWED_HOSTS: '["https://api.cerberdoc.com","http://api.cerberdoc.com"]'
-      DATABASE_URL: postgresql+asyncpg://cerberdoc:CerberDoc2024Prod@db:5432/cerber_doc
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      JWT_ALGORITHM: HS256
-      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-      JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
-      AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY}
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
-      AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY}
-      STORAGE_PATH: /app/storage
-      MAX_UPLOAD_SIZE_MB: "20"
-      ALLOWED_EXTENSIONS: '["pdf","jpg","jpeg","png"]'
-      LOG_LEVEL: INFO
+      <<: *app-env
     volumes:
       - backend_storage:/app/storage
     depends_on:
@@ -121,26 +88,7 @@ services:
     image: ghcr.io/dawubn/proj_inzyn_backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      APP_DOCS_ENABLED: "true"
-      APP_SECRET_KEY: ${APP_SECRET_KEY}
-      APP_ALLOWED_HOSTS: '["https://api.cerberdoc.com","http://api.cerberdoc.com"]'
-      DATABASE_URL: postgresql+asyncpg://cerberdoc:CerberDoc2024Prod@db:5432/cerber_doc
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      JWT_ALGORITHM: HS256
-      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-      JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"
-      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
-      AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY}
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
-      AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY}
-      STORAGE_PATH: /app/storage
-      MAX_UPLOAD_SIZE_MB: "20"
-      ALLOWED_EXTENSIONS: '["pdf","jpg","jpeg","png"]'
-      LOG_LEVEL: INFO
+      <<: *app-env
     volumes:
       - backend_storage:/app/storage
     depends_on:
@@ -159,13 +107,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: cerberdoc
-      POSTGRES_PASSWORD: CerberDoc2024Prod
-      POSTGRES_DB: cerber_doc
+      POSTGRES_USER: ${POSTGRES_USER:-cerberdoc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-cerber_doc}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cerberdoc -d cerber_doc"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cerberdoc} -d ${POSTGRES_DB:-cerber_doc}"]
       interval: 5s
       timeout: 5s
       retries: 5
