@@ -47,9 +47,13 @@ class DocumentService:
         logger.info("Document uploaded", document_id=str(created.id), owner_id=str(owner_id))
         return created
 
-    async def get_or_raise(self, document_id: uuid.UUID, owner_id: uuid.UUID) -> Document:
+    async def get_or_raise(
+        self, document_id: uuid.UUID, owner_id: uuid.UUID | None = None
+    ) -> Document:
         doc = await self._docs.get_by_id(document_id)
-        if not doc or doc.owner_id != owner_id:
+        if not doc:
+            raise NotFoundError("Document not found")
+        if owner_id and doc.owner_id != owner_id:
             raise NotFoundError("Document not found")
         return doc
 

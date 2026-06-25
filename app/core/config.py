@@ -38,17 +38,25 @@ class Settings(BaseSettings):
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: str
     AZURE_DOCUMENT_INTELLIGENCE_KEY: str
 
+    # Azure OpenAI (for legal analysis)
+    AZURE_OPENAI_ENDPOINT: str | None = None
+    AZURE_OPENAI_KEY: str | None = None
+
     # File storage
     STORAGE_PATH: str = "/app/storage"
     MAX_UPLOAD_SIZE_MB: int = 20
     ALLOWED_EXTENSIONS: list[str] = ["pdf", "jpg", "jpeg", "png"]
+
+    # Classifier
+    CLASSIFIER_MODEL_PATH: str = "storage/classifier_model.joblib"
+    CLASSIFIER_MIN_CONFIDENCE: float = 0.45
 
     # Logging
     LOG_LEVEL: str = "INFO"
 
     # Local OCR / Redaction
     LOCAL_OCR_LANG: str = "pol+eng"
-    LOCAL_OCR_DPI: int = 300
+    LOCAL_OCR_DPI: int = 150
     LOCAL_OCR_MIN_CONFIDENCE: float = 30.0
     REDACTION_BOX_PADDING_PX: int = 8
     REDACTION_TIMEOUT_SECONDS: int = 120

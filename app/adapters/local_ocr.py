@@ -113,16 +113,41 @@ class LocalOCRAdapter:
     def ocr_pdf(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
         logger.info("Rendering PDF for OCR", path=str(path), dpi=settings.LOCAL_OCR_DPI)
         doc = fitz.open(str(path))
-        zoom = settings.LOCAL_OCR_DPI / 72
-        matrix = fitz.Matrix(zoom, zoom)
+        initial_zoom = settings.LOCAL_OCR_DPI / 72
         all_words: list[list[WordDict]] = []
         all_images: list[Image.Image] = []
+
         for page_id in range(len(doc)):
-            png: bytes = doc.load_page(page_id).get_pixmap(matrix=matrix).tobytes("png")
-            words, img = _ocr_page(png)
-            all_words.append(words)
-            all_images.append(img)
-            logger.debug("OCR page done", page=page_id + 1, words=len(words))
+            zoom = initial_zoom
+            max_retries = 3
+            min_zoom = 1.5
+            zoom_reduction_factor = 1.5
+
+            for attempt in range(max_retries):
+                try:
+                    matrix = fitz.Matrix(zoom, zoom)
+                    png: bytes = doc.load_page(page_id).get_pixmap(matrix=matrix).tobytes("png")
+                    words, img = _ocr_page(png)
+                    all_words.append(words)
+                    all_images.append(img)
+                    logger.debug("OCR page done", page=page_id + 1, words=len(words), zoom=zoom)
+                    break
+                except Image.DecompressionBombError:
+                    if zoom <= min_zoom or attempt >= max_retries - 1:
+                        logger.exception(
+                            "Failed to render page even with reduced zoom",
+                            page=page_id + 1,
+                            zoom=zoom,
+                        )
+                        raise
+                    zoom = zoom / zoom_reduction_factor
+                    logger.warning(
+                        "Reducing zoom due to decompression bomb",
+                        page=page_id + 1,
+                        old_zoom=round(zoom * zoom_reduction_factor, 3),
+                        new_zoom=round(zoom, 3),
+                    )
+
         doc.close()
         return all_words, all_images
 
