@@ -27,8 +27,8 @@ app = FastAPI(
     title="CerberDoc API",
     description="REST API for document completeness analysis using OCR",
     version="0.1.0",
-    docs_url="/docs" if settings.APP_DEBUG else None,
-    redoc_url="/redoc" if settings.APP_DEBUG else None,
+    docs_url="/docs" if settings.APP_DOCS_ENABLED else None,
+    redoc_url="/redoc" if settings.APP_DOCS_ENABLED else None,
     lifespan=lifespan,
 )
 
