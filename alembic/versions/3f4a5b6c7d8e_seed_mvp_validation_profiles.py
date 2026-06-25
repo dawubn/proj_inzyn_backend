@@ -1,7 +1,7 @@
 """Seed MVP validation profiles
 
 Revision ID: 3f4a5b6c7d8e
-Revises: 8d56f94fed2e
+Revises: 8d56f94fed2e, tesseract_words_001
 Create Date: 2026-06-19 00:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "3f4a5b6c7d8e"
-down_revision: str | Sequence[str] | None = ("8d56f94fed2e", "ocr_scale_001")
+down_revision: str | Sequence[str] | None = ("8d56f94fed2e", "tesseract_words_001")
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
