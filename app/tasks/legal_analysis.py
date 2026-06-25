@@ -318,7 +318,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
         analysis.detected_document_type = document_type.value
         analysis.classification_confidence = classification_confidence
         analysis.extracted_fields = extraction.fields
-        document.suggested_document_type = document_type
+        document.document_type = document_type
 
         profile_name, rules = _load_rules_for_document_type(session, document_type)
         issues = RuleEngineService().run(rules, extraction.fields)

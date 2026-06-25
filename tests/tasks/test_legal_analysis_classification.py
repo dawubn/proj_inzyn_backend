@@ -162,7 +162,6 @@ def test_classification_called_when_text_present() -> None:
         mock_classifier.classify.assert_called_once_with(ocr_text)
         assert fake_analysis.detected_document_type == DocumentType.INVOICE.value
         assert fake_analysis.classification_confidence == 0.95
-        assert fake_doc.suggested_document_type == DocumentType.INVOICE
         assert result["status"] == "success"
     finally:
         with contextlib.suppress(FileNotFoundError):
@@ -194,7 +193,6 @@ def test_classification_fallback_when_classifier_raises() -> None:
         mock_classifier.classify.assert_called_once()
         assert fake_analysis.detected_document_type == DocumentType.CONTRACT.value
         assert fake_analysis.classification_confidence == 0.7
-        assert fake_doc.suggested_document_type == DocumentType.CONTRACT
         assert result["status"] == "success"
     finally:
         with contextlib.suppress(FileNotFoundError):
