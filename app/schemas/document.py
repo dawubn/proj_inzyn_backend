@@ -11,6 +11,7 @@ class DocumentCreate(OrmBase):
 class DocumentUpdate(OrmBase):
     description: str | None = Field(default=None, max_length=1000)
     document_type: DocumentType | None = None
+    suggested_document_type: str | None = None
 
 
 class DocumentResponse(UUIDSchema, TimestampSchema):

@@ -3,7 +3,7 @@ x-app-env: &app-env
   APP_DEBUG: "false"
   APP_DOCS_ENABLED: "true"
   APP_SECRET_KEY: ${APP_SECRET_KEY}
-  APP_ALLOWED_HOSTS: '["https://api.cerberdoc.com","http://api.cerberdoc.com"]'
+  APP_ALLOWED_HOSTS: '["*"]'
   DATABASE_URL: ${DATABASE_URL}
   REDIS_URL: redis://redis:6379/0
   CELERY_BROKER_URL: redis://redis:6379/0
