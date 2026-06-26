@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # Application
     APP_ENV: str = "development"
     APP_DEBUG: bool = False
+    APP_DOCS_ENABLED: bool = True
     APP_SECRET_KEY: str
     APP_ALLOWED_HOSTS: list[str] = ["*"]
 

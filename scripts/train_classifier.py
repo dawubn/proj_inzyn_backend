@@ -12,7 +12,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
 
-from app.services.classification import normalize_text
+from app.utils.text_normalize import normalize_text
 
 DEFAULT_DATA_DIR = "storage/classifier_training"
 DEFAULT_MODEL_OUTPUT = "storage/classifier_model.joblib"

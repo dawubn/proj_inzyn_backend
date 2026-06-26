@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +9,7 @@ import structlog
 from app.core.config import settings
 from app.core.exceptions import ClassifierNotReadyError
 from app.enums.document import DocumentType
+from app.utils.text_normalize import normalize_text
 
 logger = structlog.get_logger(__name__)
 
@@ -31,21 +30,6 @@ _LABEL_TO_DOCUMENT_TYPE: dict[str, DocumentType] = {
     "power_of_attorney": DocumentType.POWER_OF_ATTORNEY,
     "applications": DocumentType.APPLICATION,
 }
-
-_PUNCT_PATTERN = re.compile(r"[^\w\s]")
-
-
-def _strip_diacritics(text: str) -> str:
-    """Convert ą→a, ę→e, ó→o, ś→s etc. so OCR text without diacritics matches
-    training data that was written with proper Polish characters."""
-    nfkd = unicodedata.normalize("NFKD", text)
-    return nfkd.encode("ascii", "ignore").decode("ascii")
-
-
-def normalize_text(text: str) -> str:
-    ascii_text = _strip_diacritics(text.lower())
-    cleaned = _PUNCT_PATTERN.sub(" ", ascii_text)
-    return " ".join(cleaned.split())
 
 
 class ClassificationService:

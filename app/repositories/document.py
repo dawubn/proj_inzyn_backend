@@ -38,3 +38,9 @@ class DocumentRepository(BaseRepository[Document]):
     ) -> Document:
         document.document_type = document_type
         return await self.update(document)
+
+    async def update_suggested_document_type(
+        self, document: Document, suggested_document_type: str | None
+    ) -> Document:
+        document.suggested_document_type = suggested_document_type  # type: ignore[assignment]
+        return await self.update(document)

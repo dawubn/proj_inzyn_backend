@@ -65,6 +65,19 @@ class DocumentService:
             raise ForbiddenError("You do not own this document")
         return await self._docs.update_document_type(doc, document_type)
 
+    async def update_suggested_document_type(
+        self,
+        document_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        suggested_document_type: str | None,
+    ) -> Document:
+        doc = await self._docs.get_by_id(document_id)
+        if not doc:
+            raise NotFoundError("Document not found")
+        if doc.owner_id != owner_id:
+            raise ForbiddenError("You do not own this document")
+        return await self._docs.update_suggested_document_type(doc, suggested_document_type)
+
     async def get_or_raise(
         self, document_id: uuid.UUID, owner_id: uuid.UUID | None = None
     ) -> Document:
