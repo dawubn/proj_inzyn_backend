@@ -108,6 +108,9 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         profile_name, rules = _load_rules_for_document_type(session, document_type)
         issues = RuleEngineService().run(rules, extraction.fields)
+        validation_profile_available = _add_profile_availability_warning(
+            issues, profile_name, rules, document_type
+        )
 
         if not extraction.fields.get("has_text"):
             issues.insert(
@@ -130,6 +133,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
                 "document_type": document_type.value,
                 "classification_confidence": classification_confidence,
                 "profile_name": profile_name,
+                "validation_profile_available": validation_profile_available,
                 "total_rules": len(rules),
                 "issues": len(issues),
                 "checked_fields": {
@@ -197,6 +201,33 @@ def _load_rules_for_document_type(
         return None, []
 
     return fallback_profile.name, build_rule_models(fallback_profile)
+
+
+def _add_profile_availability_warning(
+    issues: list["ValidationIssue"],
+    profile_name: str | None,
+    rules: list[Any],
+    document_type: "DocumentType",
+) -> bool:
+    if profile_name or rules:
+        return True
+
+    from app.enums.analysis import ValidationSeverity
+    from app.schemas.analysis_report import ValidationIssue
+
+    issues.append(
+        ValidationIssue(
+            rule_name="Formal validation profile",
+            field_name="document_type",
+            severity=ValidationSeverity.WARNING,
+            message="Formal validation is not available for this document type yet.",
+            details={
+                "document_type": document_type.value,
+                "reason": "unsupported_document_type",
+            },
+        )
+    )
+    return False
 
 
 def _upsert_report(
