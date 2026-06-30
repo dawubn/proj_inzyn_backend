@@ -211,6 +211,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
     from app.services.formal_validation import FormalDocumentExtractor
     from app.services.validation import RuleEngineService
     from app.tasks.analysis import (
+        _add_profile_availability_warning,
         _coerce_document_type,
         _load_rules_for_document_type,
         _upsert_report,
@@ -317,6 +318,9 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
 
         profile_name, rules = _load_rules_for_document_type(session, document_type)
         issues = RuleEngineService().run(rules, extraction.fields)
+        validation_profile_available = _add_profile_availability_warning(
+            issues, profile_name, rules, document_type
+        )
         if not extraction.fields.get("has_text"):
             issues.insert(
                 0,
@@ -337,6 +341,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
                 "document_type": document_type.value,
                 "classification_confidence": classification_confidence,
                 "profile_name": profile_name,
+                "validation_profile_available": validation_profile_available,
                 "total_rules": len(rules),
                 "issues": len(issues),
                 "checked_fields": {
