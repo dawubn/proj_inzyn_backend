@@ -95,7 +95,7 @@ python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 exclude = ["alembic/"]
-plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+plugins = ["pydantic.mypy"]
 
 # Tests
 [[tool.mypy.overrides]]
