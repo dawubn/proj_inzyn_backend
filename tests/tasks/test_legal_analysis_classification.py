@@ -37,7 +37,9 @@ def _make_extraction(
 
 
 def _make_ocr_result(text: str = "invoice content netto VAT brutto") -> Any:
-    return SimpleNamespace(raw={"content": text}, text_content=text, page_count=1, provider="azure")
+    return SimpleNamespace(
+        raw={"content": text}, text_content=text, pages=[], page_count=1, provider="azure"
+    )
 
 
 def _make_temp_pdf() -> Path:
@@ -92,7 +94,7 @@ def _run_task_with_patches(
     mock_redaction_svc.anonymize_file.return_value = mock_redaction_result
 
     mock_adapter_inst = MagicMock()
-    mock_adapter_inst.analyze_document.return_value = ocr_result
+    mock_adapter_inst.analyze_paged.return_value = ocr_result
 
     patch_map = [
         ("app.tasks.legal_analysis._get_db_session", MagicMock(return_value=session)),

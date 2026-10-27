@@ -153,3 +153,118 @@ class TestAnalyzeDocument:
 
         with pytest.raises(OCRServiceError, match="Unexpected OCR error"):
             adapter.analyze_document(b"bytes", "application/pdf")
+
+
+def _make_pdf(pages: int) -> bytes:
+    import fitz
+
+    with fitz.open() as doc:
+        for i in range(pages):
+            doc.new_page().insert_text((72, 72), f"Page {i + 1}")
+        return cast(bytes, doc.tobytes())
+
+
+def _make_tiff(pages: int) -> bytes:
+    import io
+
+    from PIL import Image
+
+    frames = [Image.new("RGB", (20, 20), "white") for _ in range(pages)]
+    buf = io.BytesIO()
+    frames[0].save(buf, format="TIFF", save_all=True, append_images=frames[1:])
+    return buf.getvalue()
+
+
+def _raw_chunk(texts: list[str]) -> dict[str, object]:
+    """Raw Azure result (as_dict) for a chunk whose pages contain the given texts."""
+    content = "\n".join(texts)
+    pages = []
+    offset = 0
+    for number, text in enumerate(texts, start=1):
+        pages.append(
+            {
+                "pageNumber": number,
+                "spans": [{"offset": offset, "length": len(text)}],
+                "lines": [{"content": text, "spans": [{"offset": offset, "length": len(text)}]}],
+                "words": [{"content": text, "confidence": 0.9}],
+            }
+        )
+        offset += len(text) + 1
+    paragraphs = [{"content": t, "boundingRegions": [{"pageNumber": 1}]} for t in texts[:1]]
+    return {"content": content, "pages": pages, "paragraphs": paragraphs}
+
+
+class TestSplitIntoPageChunks:
+    def test_splits_pdf_into_chunks(self) -> None:
+        from app.adapters.azure_ocr import split_into_page_chunks
+
+        chunks, page_count = split_into_page_chunks(_make_pdf(5), "application/pdf", 2)
+
+        import fitz
+
+        assert page_count == 5
+        assert [len(fitz.open(stream=c, filetype="pdf")) for c in chunks] == [2, 2, 1]
+
+    def test_splits_tiff_into_chunks(self) -> None:
+        import io
+
+        from PIL import Image
+
+        from app.adapters.azure_ocr import split_into_page_chunks
+
+        chunks, page_count = split_into_page_chunks(_make_tiff(3), "image/tiff", 2)
+
+        assert page_count == 3
+        assert [Image.open(io.BytesIO(c)).n_frames for c in chunks] == [2, 1]
+
+    def test_short_document_is_not_split(self) -> None:
+        from app.adapters.azure_ocr import split_into_page_chunks
+
+        pdf = _make_pdf(2)
+        assert split_into_page_chunks(pdf, "application/pdf", 2) == ([pdf], 2)
+
+    def test_single_image_and_disabled_chunking(self) -> None:
+        from app.adapters.azure_ocr import split_into_page_chunks
+
+        assert split_into_page_chunks(b"png", "image/png", 2) == ([b"png"], None)
+        assert split_into_page_chunks(b"pdf", "application/pdf", 0) == ([b"pdf"], None)
+
+
+class TestAnalyzePaged:
+    def test_merges_chunks_with_document_page_numbers_and_offsets(
+        self, adapter: AzureOCRAdapter
+    ) -> None:
+        chunk_results = [
+            OCRResult(
+                raw=_raw_chunk(["one", "two"]),
+                text_content="",
+                pages=[],
+                page_count=2,
+                confidence=None,
+            ),
+            OCRResult(
+                raw=_raw_chunk(["three"]), text_content="", pages=[], page_count=1, confidence=None
+            ),
+        ]
+        with patch.object(adapter, "analyze_document", side_effect=chunk_results) as analyze:
+            result = adapter.analyze_paged(_make_pdf(3), "application/pdf")
+
+        assert analyze.call_count == 2
+        assert result.text_content == "one\ntwo\nthree"
+        assert result.page_count == 3
+        assert [p.lines for p in result.pages] == [["one"], ["two"], ["three"]]
+        assert [p["pageNumber"] for p in result.raw["pages"]] == [1, 2, 3]
+        third = result.raw["pages"][2]["lines"][0]["spans"][0]
+        assert result.text_content[third["offset"] : third["offset"] + third["length"]] == "three"
+        assert result.raw["paragraphs"][1]["boundingRegions"][0]["pageNumber"] == 3
+
+    def test_single_chunk_calls_azure_once(self, adapter: AzureOCRAdapter) -> None:
+        mock_client = cast(MagicMock, adapter._client)
+        mock_client.begin_analyze_document.return_value.result.return_value = (
+            _make_mock_azure_result(content="x", pages=1)
+        )
+
+        result = adapter.analyze_paged(_make_pdf(1), "application/pdf")
+
+        assert result.text_content == "x"
+        mock_client.begin_analyze_document.assert_called_once()
