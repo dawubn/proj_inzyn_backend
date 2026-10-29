@@ -13,3 +13,9 @@ Expected failures:
 - `05`: none; masked values pass presence checks; only the signature remains unknown.
 
 Regenerate intentionally after reviewing OCR/model changes; do not automatically replace expected results with current predictions.
+
+## Reduced fixtures
+
+`01_pelnomocnictwo_wypelnione.ocr.json` is the complete recorded response. The other
+files are reduced Azure-derived inputs, not complete responses. See
+[fixture reduction](../formal_fixtures.md) for the retained data and verification.

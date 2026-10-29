@@ -28,3 +28,10 @@ Szczególne regresje: podpisy pól pod wartościami, fragmenty wiersza odczytane
 w innej kolejności, opisowe dane osób, maski o niskiej pewności odczytu,
 daty pomocnicze, puste żądanie obok wniosku dowodowego oraz podpisy stron
 umowy, które nie są kolejnymi pustymi polami identyfikacyjnymi.
+
+## Reduced fixtures
+
+`02_pelnomocnictwo_formularz.ocr.json` is the complete recorded response. The other
+files are reduced Azure-derived inputs, not complete responses. They retain all
+pages, text, line geometry and spans, plus the lowest-confidence overlapping word
+for each line. See [fixture reduction](../formal_fixtures.md).

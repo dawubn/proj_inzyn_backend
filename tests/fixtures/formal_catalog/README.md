@@ -20,3 +20,9 @@ tożsamości zawsze wymagają oceny wizualnej.
 To ograniczony korpus regresyjny, nie reprezentatywny benchmark jakości na
 wszystkich odmianach dokumentów. Osiem pozostałych nowych typów ma testy na
 kontrolowanych strukturach OCR, bez nowego wywołania Azure w tej rundzie.
+
+## Reduced fixtures
+
+The four `.ocr.json` files are reduced Azure-derived inputs, not complete
+responses. All document text, pages and line geometry are preserved. See
+[fixture reduction](../formal_fixtures.md) for the retained data and verification.

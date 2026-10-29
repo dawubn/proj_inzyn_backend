@@ -23,3 +23,9 @@ Regresje odkryte podczas rzeczywistego przepływu:
 Testy: `tests/services/test_formal_language.py`. Obejmują również odwróconą
 kolejność linii Azure i przeskalowane współrzędne oraz pary zdań różniące się
 przeczeniem, ograniczeniem albo rodzajem maski.
+
+## Reduced fixtures
+
+`07_sam_zakaz.ocr.json` is the complete recorded response. Files `06` and `08`
+are reduced Azure-derived inputs, not complete responses. See
+[fixture reduction](../formal_fixtures.md) for the retained data and verification.
