@@ -81,7 +81,7 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
         from app.adapters.azure_ocr import AzureOCRAdapter
 
         adapter = AzureOCRAdapter()
-        ocr_result = adapter.analyze_document(file_bytes, document.mime_type)
+        ocr_result = adapter.analyze_paged(file_bytes, document.mime_type)
 
         # Hold results
         analysis.ocr_raw_result = ocr_result.raw
