@@ -1,4 +1,5 @@
-import base64
+import copy
+import io
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -7,6 +8,7 @@ from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import HttpResponseError, ServiceRequestError
+from PIL import Image
 
 from app.core.config import settings
 from app.core.exceptions import OCRServiceError
@@ -16,6 +18,7 @@ logger = structlog.get_logger(__name__)
 # Azure model used for general document reading.
 # Switch to "prebuilt-document" or a custom model ID if needed.
 _AZURE_MODEL_ID = "prebuilt-read"
+_TIFF_BATCH_PAGES = 2
 
 
 @dataclass
@@ -79,16 +82,68 @@ class AzureOCRAdapter:
         Raises:
             OCRServiceError: On any Azure API or network error.
         """
+        if content_type == "image/tiff":
+            return self._analyze_tiff(file_bytes)
+        return self._analyze_bytes(file_bytes, content_type)
+
+    def _analyze_tiff(self, file_bytes: bytes) -> OCRResult:
+        # The redaction pipeline produces TIFF. Bound batches so the service
+        # cannot silently truncate multi-page documents on a two-page tier.
+        with Image.open(io.BytesIO(file_bytes)) as image:
+            count = int(getattr(image, "n_frames", 1))
+            batches = []
+            for start in range(0, count, _TIFF_BATCH_PAGES):
+                frames = []
+                for index in range(start, min(start + _TIFF_BATCH_PAGES, count)):
+                    image.seek(index)
+                    frames.append(image.convert("RGB"))
+                buffer = io.BytesIO()
+                frames[0].save(
+                    buffer,
+                    format="TIFF",
+                    save_all=True,
+                    append_images=frames[1:],
+                    compression="tiff_adobe_deflate",
+                )
+                result = self._analyze_bytes(buffer.getvalue(), "image/tiff")
+                if result.page_count != len(frames):
+                    raise OCRServiceError("Nie udało się odczytać wszystkich stron dokumentu.")
+                batches.append(result.raw)
+        merged: dict[str, Any] = {"content": "", "pages": [], "stringIndexType": "unicodeCodePoint"}
+        for batch in batches:
+            offset = len(merged["content"])
+            page_offset = len(merged["pages"])
+            pages = copy.deepcopy(batch.get("pages", []))
+            for index, page in enumerate(pages):
+                page["pageNumber"] = page_offset + index + 1
+                self._shift_spans(page, offset)
+            merged["pages"].extend(pages)
+            merged["content"] += batch.get("content", "") + "\n"
+        return self._map_result(merged)
+
+    @staticmethod
+    def _shift_spans(value: Any, offset: int) -> None:
+        if isinstance(value, dict):
+            if "offset" in value and "length" in value:
+                value["offset"] += offset
+            for child in value.values():
+                AzureOCRAdapter._shift_spans(child, offset)
+        elif isinstance(value, list):
+            for child in value:
+                AzureOCRAdapter._shift_spans(child, offset)
+
+    def _analyze_bytes(self, file_bytes: bytes, content_type: str) -> OCRResult:
         log = logger.bind(content_type=content_type, size_bytes=len(file_bytes))
         log.info("Sending document to Azure OCR")
 
         try:
-            encoded = base64.b64encode(file_bytes).decode("utf-8")
-            request = AnalyzeDocumentRequest(bytes_source=encoded)
+            # Let the SDK serialize bytes into the API's base64Source field.
+            request = AnalyzeDocumentRequest(bytes_source=file_bytes)
 
             poller = self._client.begin_analyze_document(
                 _AZURE_MODEL_ID,
                 request,
+                string_index_type="unicodeCodePoint",
             )
             azure_result = poller.result()
 
@@ -139,7 +194,9 @@ class AzureOCRAdapter:
             ]
             pages.append(
                 OCRPage(
-                    page_number=int(_get(raw_page, "page_number", len(pages) + 1)),
+                    page_number=int(
+                        _get(raw_page, "page_number", _get(raw_page, "pageNumber", len(pages) + 1))
+                    ),
                     width=float(_get(raw_page, "width", 0.0)),
                     height=float(_get(raw_page, "height", 0.0)),
                     lines=lines,

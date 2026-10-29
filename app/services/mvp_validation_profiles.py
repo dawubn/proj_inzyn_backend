@@ -7,6 +7,7 @@ from typing import Any
 from app.enums.analysis import ValidationSeverity
 from app.enums.document import DocumentType
 from app.models.validation_rule import ValidationRule
+from app.services.formal_catalog import EXTENDED_DOCUMENT_SPECS
 
 
 @dataclass(frozen=True)
@@ -167,6 +168,29 @@ def get_mvp_profile_definition(
     for profile in MVP_VALIDATION_PROFILES:
         if profile.document_type == document_type:
             return profile
+    spec = EXTENDED_DOCUMENT_SPECS.get(document_type)
+    if spec:
+        return ValidationProfileDefinition(
+            name=f"Kontrola podstawowa - {spec.name}",
+            description=(
+                "Kontrola obecności podstawowych danych i treści. "
+                "Nie stanowi oceny zgodności z prawem ani autentyczności dokumentu. "
+                "Elementy zależne od wariantu dokumentu wymagają osobnego sprawdzenia."
+            ),
+            document_type=document_type,
+            rules=tuple(
+                ValidationRuleDefinition(
+                    name=field.label,
+                    field_name=field.key,
+                    message=f"Nie odnaleziono elementu: {field.label.lower()}.",
+                    severity=(
+                        ValidationSeverity.WARNING if field.advisory else ValidationSeverity.ERROR
+                    ),
+                    order=index * 10,
+                )
+                for index, field in enumerate(spec.fields, 1)
+            ),
+        )
     return None
 
 

@@ -1,0 +1,1062 @@
+{
+  "content": "PASZPORT - WZÓR TESTOWY\nNazwisko: [UTAJNIONO: IMIE/NAZWISKO]\nUTAJNIONO: IMIĘ Imiona:\n[UTAJNIONO: DATA] Data urodzenia:\nNumer paszportu: TEST000000\nData ważności:\nOrgan wydający: Organ Testowy\n[UTAJNIONO: ADRES] Obywatelstwo:\nDOKUMENT TESTOWY. Wszystkie dane są fikcyjne. Nie jest to dokument urzędowy ani dokument do użycia w obrocie prawnym.\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "angle": 0,
+      "width": 2481,
+      "height": 3508,
+      "unit": "pixel",
+      "words": [
+        {
+          "content": "PASZPORT",
+          "polygon": [
+            254,
+            261,
+            692,
+            243,
+            691,
+            324,
+            253,
+            320
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 0,
+            "length": 8
+          }
+        },
+        {
+          "content": "-",
+          "polygon": [
+            716,
+            242,
+            741,
+            242,
+            740,
+            324,
+            715,
+            324
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 9,
+            "length": 1
+          }
+        },
+        {
+          "content": "WZÓR",
+          "polygon": [
+            764,
+            241,
+            1013,
+            240,
+            1013,
+            324,
+            763,
+            324
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 11,
+            "length": 4
+          }
+        },
+        {
+          "content": "TESTOWY",
+          "polygon": [
+            1035,
+            240,
+            1437,
+            249,
+            1437,
+            323,
+            1034,
+            324
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 16,
+            "length": 7
+          }
+        },
+        {
+          "content": "Nazwisko:",
+          "polygon": [
+            254,
+            459,
+            465,
+            460,
+            465,
+            501,
+            254,
+            501
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 24,
+            "length": 9
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            463,
+            452,
+            528,
+            450,
+            528,
+            464,
+            464,
+            465
+          ],
+          "confidence": 0.803,
+          "span": {
+            "offset": 34,
+            "length": 11
+          }
+        },
+        {
+          "content": "IMIE/NAZWISKO]",
+          "polygon": [
+            531,
+            450,
+            613,
+            451,
+            613,
+            465,
+            531,
+            464
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 46,
+            "length": 14
+          }
+        },
+        {
+          "content": "UTAJNIONO:",
+          "polygon": [
+            416,
+            596,
+            470,
+            595,
+            470,
+            611,
+            415,
+            612
+          ],
+          "confidence": 0.84,
+          "span": {
+            "offset": 61,
+            "length": 10
+          }
+        },
+        {
+          "content": "IMIĘ",
+          "polygon": [
+            473,
+            595,
+            496,
+            595,
+            496,
+            612,
+            473,
+            611
+          ],
+          "confidence": 0.977,
+          "span": {
+            "offset": 72,
+            "length": 4
+          }
+        },
+        {
+          "content": "Imiona:",
+          "polygon": [
+            252,
+            597,
+            408,
+            598,
+            408,
+            649,
+            249,
+            649
+          ],
+          "confidence": 0.979,
+          "span": {
+            "offset": 77,
+            "length": 7
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            587,
+            735,
+            651,
+            735,
+            651,
+            751,
+            588,
+            754
+          ],
+          "confidence": 0.852,
+          "span": {
+            "offset": 85,
+            "length": 11
+          }
+        },
+        {
+          "content": "DATA]",
+          "polygon": [
+            654,
+            735,
+            689,
+            735,
+            689,
+            750,
+            654,
+            751
+          ],
+          "confidence": 0.975,
+          "span": {
+            "offset": 97,
+            "length": 5
+          }
+        },
+        {
+          "content": "Data",
+          "polygon": [
+            254,
+            739,
+            351,
+            740,
+            350,
+            786,
+            253,
+            788
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 103,
+            "length": 4
+          }
+        },
+        {
+          "content": "urodzenia:",
+          "polygon": [
+            367,
+            740,
+            586,
+            739,
+            586,
+            785,
+            366,
+            786
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 108,
+            "length": 10
+          }
+        },
+        {
+          "content": "Numer",
+          "polygon": [
+            251,
+            885,
+            396,
+            884,
+            396,
+            932,
+            252,
+            932
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 119,
+            "length": 5
+          }
+        },
+        {
+          "content": "paszportu:",
+          "polygon": [
+            409,
+            884,
+            625,
+            883,
+            625,
+            931,
+            410,
+            932
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 125,
+            "length": 10
+          }
+        },
+        {
+          "content": "TEST000000",
+          "polygon": [
+            638,
+            883,
+            896,
+            884,
+            896,
+            926,
+            638,
+            930
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 136,
+            "length": 10
+          }
+        },
+        {
+          "content": "Data",
+          "polygon": [
+            249,
+            1020,
+            350,
+            1020,
+            350,
+            1074,
+            249,
+            1073
+          ],
+          "confidence": 0.991,
+          "span": {
+            "offset": 147,
+            "length": 4
+          }
+        },
+        {
+          "content": "ważności:",
+          "polygon": [
+            364,
+            1020,
+            570,
+            1020,
+            570,
+            1074,
+            364,
+            1074
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 152,
+            "length": 9
+          }
+        },
+        {
+          "content": "Organ",
+          "polygon": [
+            250,
+            1165,
+            381,
+            1164,
+            381,
+            1217,
+            250,
+            1217
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 162,
+            "length": 5
+          }
+        },
+        {
+          "content": "wydający:",
+          "polygon": [
+            396,
+            1164,
+            594,
+            1164,
+            593,
+            1217,
+            395,
+            1217
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 168,
+            "length": 9
+          }
+        },
+        {
+          "content": "Organ",
+          "polygon": [
+            608,
+            1164,
+            734,
+            1165,
+            733,
+            1217,
+            607,
+            1217
+          ],
+          "confidence": 0.999,
+          "span": {
+            "offset": 178,
+            "length": 5
+          }
+        },
+        {
+          "content": "Testowy",
+          "polygon": [
+            746,
+            1165,
+            926,
+            1169,
+            926,
+            1217,
+            745,
+            1217
+          ],
+          "confidence": 0.999,
+          "span": {
+            "offset": 184,
+            "length": 7
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            575,
+            1298,
+            637,
+            1299,
+            636,
+            1318,
+            574,
+            1318
+          ],
+          "confidence": 0.682,
+          "span": {
+            "offset": 192,
+            "length": 11
+          }
+        },
+        {
+          "content": "ADRES]",
+          "polygon": [
+            641,
+            1299,
+            677,
+            1299,
+            677,
+            1317,
+            640,
+            1318
+          ],
+          "confidence": 0.952,
+          "span": {
+            "offset": 204,
+            "length": 6
+          }
+        },
+        {
+          "content": "Obywatelstwo:",
+          "polygon": [
+            251,
+            1304,
+            574,
+            1306,
+            574,
+            1354,
+            250,
+            1357
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 211,
+            "length": 13
+          }
+        },
+        {
+          "content": "DOKUMENT",
+          "polygon": [
+            250,
+            1527,
+            439,
+            1527,
+            438,
+            1566,
+            250,
+            1565
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 225,
+            "length": 8
+          }
+        },
+        {
+          "content": "TESTOWY.",
+          "polygon": [
+            447,
+            1527,
+            605,
+            1526,
+            605,
+            1567,
+            446,
+            1566
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 234,
+            "length": 8
+          }
+        },
+        {
+          "content": "Wszystkie",
+          "polygon": [
+            615,
+            1526,
+            763,
+            1526,
+            763,
+            1567,
+            615,
+            1567
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 243,
+            "length": 9
+          }
+        },
+        {
+          "content": "dane",
+          "polygon": [
+            774,
+            1526,
+            846,
+            1526,
+            845,
+            1567,
+            773,
+            1567
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 253,
+            "length": 4
+          }
+        },
+        {
+          "content": "są",
+          "polygon": [
+            856,
+            1526,
+            885,
+            1526,
+            885,
+            1567,
+            855,
+            1567
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 258,
+            "length": 2
+          }
+        },
+        {
+          "content": "fikcyjne.",
+          "polygon": [
+            897,
+            1526,
+            1014,
+            1526,
+            1014,
+            1568,
+            897,
+            1567
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 261,
+            "length": 9
+          }
+        },
+        {
+          "content": "Nie",
+          "polygon": [
+            1022,
+            1526,
+            1073,
+            1526,
+            1072,
+            1568,
+            1022,
+            1568
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 271,
+            "length": 3
+          }
+        },
+        {
+          "content": "jest",
+          "polygon": [
+            1081,
+            1526,
+            1137,
+            1526,
+            1136,
+            1568,
+            1080,
+            1568
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 275,
+            "length": 4
+          }
+        },
+        {
+          "content": "to",
+          "polygon": [
+            1145,
+            1526,
+            1182,
+            1526,
+            1181,
+            1568,
+            1144,
+            1568
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 280,
+            "length": 2
+          }
+        },
+        {
+          "content": "dokument",
+          "polygon": [
+            1192,
+            1526,
+            1346,
+            1526,
+            1346,
+            1568,
+            1191,
+            1568
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 283,
+            "length": 8
+          }
+        },
+        {
+          "content": "urzędowy",
+          "polygon": [
+            1356,
+            1526,
+            1502,
+            1526,
+            1501,
+            1568,
+            1355,
+            1568
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 292,
+            "length": 8
+          }
+        },
+        {
+          "content": "ani",
+          "polygon": [
+            1511,
+            1526,
+            1553,
+            1526,
+            1552,
+            1568,
+            1510,
+            1568
+          ],
+          "confidence": 0.999,
+          "span": {
+            "offset": 301,
+            "length": 3
+          }
+        },
+        {
+          "content": "dokument",
+          "polygon": [
+            1564,
+            1526,
+            1718,
+            1527,
+            1717,
+            1568,
+            1563,
+            1568
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 305,
+            "length": 8
+          }
+        },
+        {
+          "content": "do",
+          "polygon": [
+            1728,
+            1527,
+            1764,
+            1527,
+            1763,
+            1568,
+            1727,
+            1568
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 314,
+            "length": 2
+          }
+        },
+        {
+          "content": "użycia",
+          "polygon": [
+            1775,
+            1527,
+            1864,
+            1527,
+            1863,
+            1568,
+            1774,
+            1568
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 317,
+            "length": 6
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            1874,
+            1527,
+            1898,
+            1527,
+            1898,
+            1568,
+            1873,
+            1568
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 324,
+            "length": 1
+          }
+        },
+        {
+          "content": "obrocie",
+          "polygon": [
+            1908,
+            1527,
+            2020,
+            1528,
+            2019,
+            1568,
+            1908,
+            1568
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 326,
+            "length": 7
+          }
+        },
+        {
+          "content": "prawnym.",
+          "polygon": [
+            2031,
+            1528,
+            2182,
+            1528,
+            2182,
+            1568,
+            2030,
+            1568
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 334,
+            "length": 8
+          }
+        }
+      ],
+      "lines": [
+        {
+          "content": "PASZPORT - WZÓR TESTOWY",
+          "polygon": [
+            252,
+            242,
+            1436,
+            239,
+            1436,
+            321,
+            252,
+            324
+          ],
+          "spans": [
+            {
+              "offset": 0,
+              "length": 23
+            }
+          ]
+        },
+        {
+          "content": "Nazwisko:",
+          "polygon": [
+            253,
+            459,
+            464,
+            459,
+            464,
+            500,
+            253,
+            500
+          ],
+          "spans": [
+            {
+              "offset": 24,
+              "length": 9
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: IMIE/NAZWISKO]",
+          "polygon": [
+            462,
+            450,
+            612,
+            450,
+            612,
+            465,
+            462,
+            465
+          ],
+          "spans": [
+            {
+              "offset": 34,
+              "length": 26
+            }
+          ]
+        },
+        {
+          "content": "UTAJNIONO: IMIĘ",
+          "polygon": [
+            414,
+            595,
+            495,
+            595,
+            495,
+            611,
+            414,
+            611
+          ],
+          "spans": [
+            {
+              "offset": 61,
+              "length": 15
+            }
+          ]
+        },
+        {
+          "content": "Imiona:",
+          "polygon": [
+            248,
+            596,
+            407,
+            596,
+            407,
+            648,
+            248,
+            648
+          ],
+          "spans": [
+            {
+              "offset": 77,
+              "length": 7
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: DATA]",
+          "polygon": [
+            583,
+            734,
+            688,
+            734,
+            688,
+            752,
+            583,
+            753
+          ],
+          "spans": [
+            {
+              "offset": 85,
+              "length": 17
+            }
+          ]
+        },
+        {
+          "content": "Data urodzenia:",
+          "polygon": [
+            252,
+            738,
+            585,
+            738,
+            585,
+            786,
+            252,
+            787
+          ],
+          "spans": [
+            {
+              "offset": 103,
+              "length": 15
+            }
+          ]
+        },
+        {
+          "content": "Numer paszportu: TEST000000",
+          "polygon": [
+            251,
+            884,
+            895,
+            883,
+            895,
+            928,
+            251,
+            932
+          ],
+          "spans": [
+            {
+              "offset": 119,
+              "length": 27
+            }
+          ]
+        },
+        {
+          "content": "Data ważności:",
+          "polygon": [
+            248,
+            1019,
+            569,
+            1020,
+            569,
+            1073,
+            248,
+            1073
+          ],
+          "spans": [
+            {
+              "offset": 147,
+              "length": 14
+            }
+          ]
+        },
+        {
+          "content": "Organ wydający: Organ Testowy",
+          "polygon": [
+            250,
+            1163,
+            925,
+            1164,
+            925,
+            1217,
+            250,
+            1216
+          ],
+          "spans": [
+            {
+              "offset": 162,
+              "length": 29
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: ADRES]",
+          "polygon": [
+            574,
+            1297,
+            676,
+            1297,
+            676,
+            1317,
+            574,
+            1318
+          ],
+          "spans": [
+            {
+              "offset": 192,
+              "length": 18
+            }
+          ]
+        },
+        {
+          "content": "Obywatelstwo:",
+          "polygon": [
+            250,
+            1304,
+            573,
+            1304,
+            573,
+            1355,
+            250,
+            1356
+          ],
+          "spans": [
+            {
+              "offset": 211,
+              "length": 13
+            }
+          ]
+        },
+        {
+          "content": "DOKUMENT TESTOWY. Wszystkie dane są fikcyjne. Nie jest to dokument urzędowy ani dokument do użycia w obrocie prawnym.",
+          "polygon": [
+            250,
+            1526,
+            2181,
+            1526,
+            2181,
+            1568,
+            250,
+            1566
+          ],
+          "spans": [
+            {
+              "offset": 225,
+              "length": 117
+            }
+          ]
+        }
+      ],
+      "spans": [
+        {
+          "offset": 0,
+          "length": 342
+        }
+      ]
+    }
+  ],
+  "stringIndexType": "unicodeCodePoint"
+}

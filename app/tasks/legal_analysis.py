@@ -12,7 +12,6 @@ Steps:
 """
 
 import shutil
-import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -21,64 +20,48 @@ import structlog
 from celery import Task
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import OCRServiceError
 from app.enums.document import DocumentType
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
 
 
-def _extract_tesseract_words(pdf_path: Path) -> list[dict[str, Any]]:
-    """Extract Tesseract words with bounding boxes from PDF (per-page, memory-efficient)."""
-    import fitz
+_MIN_POLYGON_COORDINATES = 8
 
-    from app.adapters.local_ocr import LocalOCRAdapter
 
-    adapter = LocalOCRAdapter()
-    all_words = []
-    word_id = 0
+def _extract_azure_words(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """Keep the legacy preview-word contract while sourcing every word from Azure.
 
-    try:
-        doc = fitz.open(str(pdf_path))
-        page_count = len(doc)
-
-        for page_num in range(page_count):
-            page = doc[page_num]
-            pix = page.get_pixmap(matrix=fitz.Matrix(1, 1))
-            png_bytes = pix.tobytes("png")
-
-            # Save to temp file for local_ocr to process
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                tmp.write(png_bytes)
-                tmp_path = Path(tmp.name)
-
-            try:
-                # Extract words for this page
-                words_per_page, _ = adapter.ocr_image(tmp_path)
-                for words in words_per_page:
-                    for word in words:
-                        all_words.append(
-                            {
-                                "id": f"w{word_id}",
-                                "text": word["tekst"],
-                                "bbox": {
-                                    "x": word["x"],
-                                    "y": word["y"],
-                                    "width": word["szerokosc"],
-                                    "height": word["wysokosc"],
-                                },
-                                "page": page_num + 1,
-                            }
-                        )
-                        word_id += 1
-            finally:
-                tmp_path.unlink(missing_ok=True)
-
-        doc.close()
-    except Exception as exc:
-        raise OCRServiceError(f"Tesseract extraction failed: {exc}") from exc
-
-    return all_words
+    The pipeline sends TIFF images, for which Azure returns pixel coordinates.
+    Unknown coordinate units are omitted rather than projected incorrectly.
+    """
+    words: list[dict[str, Any]] = []
+    for index, page in enumerate(raw.get("pages") or []):
+        if page.get("unit") != "pixel":
+            continue
+        for word in page.get("words") or []:
+            polygon = word.get("polygon") or []
+            if len(polygon) < _MIN_POLYGON_COORDINATES or not all(
+                isinstance(v, int | float) for v in polygon
+            ):
+                continue
+            xs, ys = polygon[::2], polygon[1::2]
+            words.append(
+                {
+                    "id": f"az{len(words)}",
+                    "text": word.get("content", ""),
+                    "page": page.get("pageNumber", page.get("page_number", index + 1)),
+                    "source": "azure_ocr",
+                    "confidence": word.get("confidence"),
+                    "bbox": {
+                        "x": min(xs),
+                        "y": min(ys),
+                        "width": max(xs) - min(xs),
+                        "height": max(ys) - min(ys),
+                    },
+                }
+            )
+    return words
 
 
 _FUZZY_MATCH_THRESHOLD = 0.7
@@ -163,7 +146,7 @@ def _classify_document(
     text_content: str,
     fallback_type: "DocumentType",
     fallback_confidence: float,
-    log: structlog.PrintLogger,
+    log: structlog.stdlib.BoundLogger,
 ) -> "tuple[DocumentType, float]":
     """Run TF-IDF + LR classifier; fall back to extraction result on failure."""
     if not text_content:
@@ -204,18 +187,11 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
     6. Send to Azure LLM for legal analysis
     7. Save legal_analysis_result to DB
     """
-    from app.enums.analysis import AnalysisStatus, ProcessingStage, ValidationSeverity
+    from app.enums.analysis import AnalysisStatus, ProcessingStage
     from app.models.document import Document
     from app.models.document_analysis import DocumentAnalysis
-    from app.schemas.analysis_report import ValidationIssue
     from app.services.formal_validation import FormalDocumentExtractor
-    from app.services.validation import RuleEngineService
-    from app.tasks.analysis import (
-        _add_profile_availability_warning,
-        _coerce_document_type,
-        _load_rules_for_document_type,
-        _upsert_report,
-    )
+    from app.tasks.analysis import _coerce_document_type, _validate_and_save_report
 
     log = logger.bind(analysis_id=analysis_id, document_id=document_id, task_id=self.request.id)
     log.info("Legal analysis task started")
@@ -275,14 +251,6 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
 
         log.info("Redacted file saved", path=str(redacted_storage_path))
 
-        # 5.5 Extract Tesseract words with bounding boxes
-        log.info("Extracting Tesseract words")
-        tesseract_words = _extract_tesseract_words(redacted_storage_path)
-        analysis.tesseract_words = tesseract_words
-        session.commit()
-
-        log.info("Tesseract extraction completed", word_count=len(tesseract_words))
-
         # 6. Run Azure OCR on redacted file - AZURE OCR (step 3/4)
         analysis.processing_stage = ProcessingStage.AZURE_OCR
         analysis.processing_step = 3
@@ -295,6 +263,8 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
 
         # 7. Save OCR results
         analysis.ocr_raw_result = ocr_result.raw
+        tesseract_words = _extract_azure_words(ocr_result.raw)
+        analysis.tesseract_words = tesseract_words  # Legacy column name; source is Azure.
         analysis.ocr_provider = ocr_result.provider
         session.commit()
 
@@ -316,39 +286,8 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
         analysis.extracted_fields = extraction.fields
         document.suggested_document_type = document_type
 
-        profile_name, rules = _load_rules_for_document_type(session, document_type)
-        issues = RuleEngineService().run(rules, extraction.fields)
-        validation_profile_available = _add_profile_availability_warning(
-            issues, profile_name, rules, document_type
-        )
-        if not extraction.fields.get("has_text"):
-            issues.insert(
-                0,
-                ValidationIssue(
-                    rule_name="Tekst dokumentu",
-                    field_name="has_text",
-                    severity=ValidationSeverity.ERROR,
-                    message="Nie udało się odczytać tekstu dokumentu.",
-                    details={"expected_field": "has_text"},
-                ),
-            )
-        _upsert_report(
-            session=session,
-            analysis_id=analysis.id,
-            issues=issues,
-            total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
-            summary={
-                "document_type": document_type.value,
-                "classification_confidence": classification_confidence,
-                "profile_name": profile_name,
-                "validation_profile_available": validation_profile_available,
-                "total_rules": len(rules),
-                "issues": len(issues),
-                "checked_fields": {
-                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
-                },
-                "detected_sections": extraction.fields.get("detected_sections", []),
-            },
+        _validate_and_save_report(
+            session, analysis, document, document_type, classification_confidence
         )
         session.commit()
 
@@ -362,7 +301,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
         # 9. Send to Azure LLM for legal analysis
         legal_analysis = _perform_legal_analysis(ocr_text, document.original_filename, log)
 
-        # 10. Map LLM errors to Tesseract bbox
+        # 10. Map LLM errors to Azure word coordinates
         errors_with_bbox = []
         for error in legal_analysis.get("errors", []):
             error_copy = error.copy()
@@ -404,7 +343,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
 
 
 def _perform_legal_analysis(
-    ocr_text: str, filename: str, log: structlog.PrintLogger
+    ocr_text: str, filename: str, log: structlog.stdlib.BoundLogger
 ) -> dict[str, Any]:
     """Send OCR text to Azure LLM for legal analysis."""
     import json

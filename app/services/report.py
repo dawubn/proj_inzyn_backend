@@ -5,10 +5,11 @@ import structlog
 
 from app.core.exceptions import NotFoundError
 from app.enums.analysis import ReportStatus, ValidationSeverity
+from app.enums.document import DocumentType
 from app.models.analysis_report import AnalysisReport
 from app.repositories.analysis_report import AnalysisReportRepository
 from app.repositories.document_analysis import DocumentAnalysisRepository
-from app.schemas.analysis_report import ValidationIssue
+from app.services.formal_report import FormalValidationService
 from app.services.validation import RuleEngineService
 
 logger = structlog.get_logger(__name__)
@@ -31,13 +32,18 @@ class ReportService:
             raise NotFoundError("Analysis not found")
 
         fields = analysis.extracted_fields or {}
-        issues = self._engine.run(rules, fields)
+        issues, summary = FormalValidationService().build_report(
+            rules,
+            fields,
+            "provided" if rules else None,
+            DocumentType(analysis.detected_document_type or "unknown"),
+        )
 
         errors = [i for i in issues if i.severity == ValidationSeverity.ERROR]
         warnings = [i for i in issues if i.severity == ValidationSeverity.WARNING]
         infos = [i for i in issues if i.severity == ValidationSeverity.INFO]
 
-        score = self._compute_score(rules, errors)
+        score = summary["completeness_score"]
 
         report = AnalysisReport(
             analysis_id=analysis_id,
@@ -47,13 +53,8 @@ class ReportService:
             infos=[i.model_dump() for i in infos],
             error_count=len(errors),
             warning_count=len(warnings),
-            is_complete=len(errors) == 0,
+            is_complete=summary["is_complete"],
             completeness_score=score,
-            summary={"total_rules": len(rules), "issues": len(issues)},
+            summary=summary,
         )
         return await self._reports.create(report)
-
-    def _compute_score(self, rules: list[Any], errors: list[ValidationIssue]) -> float:
-        if not rules:
-            return 1.0
-        return round(1.0 - len(errors) / len(rules), 4)

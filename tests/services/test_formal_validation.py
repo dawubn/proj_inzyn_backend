@@ -24,11 +24,12 @@ def test_extracts_contract_formal_fields_from_azure_content() -> None:
     assert result.fields["has_date"] is True
     assert result.fields["has_parties_section"] is True
     assert result.fields["has_subject_section"] is True
-    assert result.fields["has_signature"] is True
+    assert result.fields["has_signature"] is False
+    assert result.fields["observations"]["has_signature"]["state"] == "unknown"
     assert result.fields["has_attachments_section"] is True
 
 
-def test_treats_redacted_date_placeholder_as_present_date() -> None:
+def test_marks_redacted_date_as_present_but_masked() -> None:
     raw = {
         "content": """
         UMOWA O ŚWIADCZENIE USŁUG
@@ -45,6 +46,7 @@ def test_treats_redacted_date_placeholder_as_present_date() -> None:
 
     assert result.document_type == DocumentType.CONTRACT
     assert result.fields["has_date"] is True
+    assert result.fields["observations"]["has_date"]["state"] == "masked"
     assert result.fields["date_candidates"] == ["[UTAJNIONO: DATA]"]
 
 
@@ -68,7 +70,9 @@ def test_extracts_formal_fields_from_redacted_contract_text() -> None:
 
     assert result.document_type == DocumentType.CONTRACT
     assert result.fields["has_date"] is True
+    assert result.fields["observations"]["has_date"]["state"] == "masked"
     assert result.fields["has_parties_section"] is True
+    assert result.fields["observations"]["has_parties_section"]["state"] == "masked"
     assert result.fields["has_subject_section"] is True
     assert result.fields["has_attachments_section"] is True
     assert result.fields["has_signature"] is False
@@ -88,6 +92,7 @@ def test_detects_malformed_redacted_date_placeholder_from_ocr() -> None:
     result = FormalDocumentExtractor().extract(raw)
 
     assert result.fields["has_date"] is True
+    assert result.fields["observations"]["has_date"]["state"] == "masked"
     assert result.fields["date_candidates"] == ["UTAJNIOM. DATA"]
 
 
@@ -143,7 +148,8 @@ def test_detects_sections_split_by_ocr_line_breaks() -> None:
 
     assert result.fields["has_parties_section"] is True
     assert result.fields["has_subject_section"] is True
-    assert result.fields["has_signature"] is True
+    assert result.fields["has_signature"] is False
+    assert result.fields["observations"]["has_signature"]["state"] == "unknown"
 
 
 def test_contract_title_does_not_count_as_subject_section() -> None:
@@ -271,7 +277,8 @@ def test_extracts_power_of_attorney_formal_fields() -> None:
     assert result.fields["has_principal_section"] is True
     assert result.fields["has_attorney_section"] is True
     assert result.fields["has_authorization_scope_section"] is True
-    assert result.fields["has_signature"] is True
+    assert result.fields["has_signature"] is False
+    assert result.fields["observations"]["has_signature"]["state"] == "unknown"
 
 
 def test_extract_text_from_local_ocr_words() -> None:
