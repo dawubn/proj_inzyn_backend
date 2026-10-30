@@ -238,6 +238,7 @@ def _validate_and_save_report(
     detected_type: "DocumentType",
     confidence: float,
 ) -> None:
+    from app.services.formal_issue_locator import locate_formal_issues
     from app.services.formal_report import FormalValidationService, effective_document_type
     from app.services.formal_validation import FormalDocumentExtractor
 
@@ -249,6 +250,7 @@ def _validate_and_save_report(
     issues, summary = FormalValidationService().build_report(
         rules, extraction.fields, profile_name, effective
     )
+    issues = locate_formal_issues(issues, analysis.tesseract_words or [])
     summary.update(
         {
             "requested_document_type": requested.value,

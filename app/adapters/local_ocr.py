@@ -63,6 +63,7 @@ def _post_processing(words: list[WordDict]) -> list[WordDict]:
                     "szerokosc": sum(e["szerokosc"] for e in group),
                     "wysokosc": max(e["y"] + e["wysokosc"] for e in group)
                     - min(e["y"] for e in group),
+                    "linia": current.get("linia"),
                 }
             )
             used.add(id(current))
@@ -101,10 +102,19 @@ def _ocr_page(image_bytes: bytes) -> tuple[list[WordDict], Image.Image]:
                 "y": max(0, y),
                 "szerokosc": int(data["width"][i]),
                 "wysokosc": int(data["height"][i]),
+                "linia": f"{data['block_num'][i]}-{data['par_num'][i]}-{data['line_num'][i]}",
             }
         )
 
     return _post_processing(words), orig
+
+
+def page_render_zoom(page: fitz.Page, zoom: float) -> float:
+    """Caps zoom so the longest rendered side stays within LOCAL_OCR_MAX_PAGE_PX."""
+    longest_side_pt = float(max(page.rect.width, page.rect.height))
+    if longest_side_pt <= 0:
+        return zoom
+    return min(zoom, settings.LOCAL_OCR_MAX_PAGE_PX / longest_side_pt)
 
 
 class LocalOCRAdapter:
@@ -118,7 +128,7 @@ class LocalOCRAdapter:
         all_images: list[Image.Image] = []
 
         for page_id in range(len(doc)):
-            zoom = initial_zoom
+            zoom = page_render_zoom(doc.load_page(page_id), initial_zoom)
             max_retries = 3
             min_zoom = 1.5
             zoom_reduction_factor = 1.5

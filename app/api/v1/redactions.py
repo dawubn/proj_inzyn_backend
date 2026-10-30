@@ -21,10 +21,13 @@ from app.repositories.document_analysis import DocumentAnalysisRepository
 from app.schemas.document_analysis import (
     DocumentAnalysisListResponse,
     DocumentAnalysisResponse,
+    PageInfo,
+    PagesManifestResponse,
     TriggerAnalysisResponse,
 )
 from app.services.document import DocumentService
 from app.services.document_analysis import DocumentAnalysisService
+from app.services.page_preview import PagePreviewService, PreviewSize, PreviewVariant
 from app.services.redaction_service import RedactionService
 
 logger = structlog.get_logger(__name__)
@@ -392,6 +395,69 @@ async def get_redaction(
     return DocumentAnalysisResponse.model_validate(analysis)
 
 
+async def _preview_service(
+    analysis_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PagePreviewService:
+    """Previews of an analysis the current user may access (owner or admin)."""
+    from app.enums.analysis import UserRole
+    from app.models.document import Document
+
+    svc = DocumentAnalysisService(DocumentAnalysisRepository(db), DocumentRepository(db))
+    owner_id = current_user.id if current_user.role != UserRole.ADMIN else None
+    analysis = await svc.get_or_raise(analysis_id, owner_id)
+    doc = await db.get(Document, analysis.document_id)
+    if not doc:
+        from app.core.exceptions import NotFoundError
+
+        raise NotFoundError("Document not found")
+    return PagePreviewService(Path(doc.storage_path), doc.mime_type, str(analysis.id))
+
+
+@router.get(
+    "/{analysis_id}/pages",
+    response_model=PagesManifestResponse,
+    responses=COMMON_RESPONSES,
+)  # type: ignore[misc]
+async def get_pages_manifest(
+    previews: PagePreviewService = Depends(_preview_service),
+) -> PagesManifestResponse:
+    """
+    List document pages with their dimensions and the available preview variants.
+
+    Coordinates in legal analysis error `locations` are relative (0-1) to these pages.
+    """
+    page_sizes = await asyncio.to_thread(previews.page_sizes)
+    return PagesManifestResponse(
+        variants=previews.available_variants(),
+        pages=[PageInfo(page=p.page, width=p.width, height=p.height) for p in page_sizes],
+    )
+
+
+@router.get(
+    "/{analysis_id}/pages/{page}/image",
+    response_class=FileResponse,
+    responses={
+        **COMMON_RESPONSES,
+        200: {"description": "Page preview", "content": {"image/webp": {}}},
+    },
+)  # type: ignore[misc]
+async def get_page_image(
+    page: int,
+    variant: PreviewVariant = Query("redacted"),
+    size: PreviewSize = Query("lg"),
+    previews: PagePreviewService = Depends(_preview_service),
+) -> FileResponse:
+    """WebP preview of a single page (1-based); rendered on first request, then cached."""
+    path = await asyncio.to_thread(previews.get_preview, variant, page, size)
+    return FileResponse(
+        path,
+        media_type="image/webp",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
 @router.delete("/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT, responses=COMMON_RESPONSES)  # type: ignore[misc]
 async def delete_redaction(
     analysis_id: uuid.UUID,
@@ -414,4 +480,5 @@ async def delete_redaction(
     if not doc or doc.owner_id != current_user.id:
         raise NotFoundError("Analysis not found")
 
+    PagePreviewService(Path(doc.storage_path), doc.mime_type, str(analysis.id)).delete()
     await repo.delete(analysis)

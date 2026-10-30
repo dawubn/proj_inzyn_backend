@@ -524,3 +524,41 @@ def test_mask_confirms_presence_but_not_date_format_or_range(kind, config):
     )
     assert [result.outcome for result in results] == ["pass", "unknown"]
     assert results[1].reason_code == "MASKED_CONTENT_UNVERIFIABLE"
+
+
+def test_worker_preserves_formal_results_and_adds_azure_viewer_locations():
+    from app.tasks.legal_analysis import _extract_azure_words
+
+    raw = azure(
+        FULL.replace("Warszawa, 12.05.2026", "Data: ........").replace(
+            "Jan Kowalski", "[UTAJNIONO: IMIE/NAZWISKO]"
+        )
+    )
+    analysis = DocumentAnalysis(
+        id=uuid.uuid4(), ocr_raw_result=raw, tesseract_words=_extract_azure_words(raw)
+    )
+    document = Document(document_type=DocumentType.POWER_OF_ATTORNEY)
+    profile = get_mvp_profile_definition(DocumentType.POWER_OF_ATTORNEY)
+    assert profile is not None
+    with (
+        patch(
+            "app.tasks.analysis._load_rules_for_document_type",
+            return_value=(profile.name, build_rule_models(profile)),
+        ),
+        patch("app.tasks.analysis._upsert_report") as save,
+    ):
+        _validate_and_save_report(MagicMock(), analysis, document, DocumentType.INVOICE, 0.99)
+
+    issues = save.call_args.args[2]
+    summary = save.call_args.args[4]
+    date = next(issue for issue in issues if issue.field_name == "has_date")
+    assert date.details["outcome"] == "fail"
+    assert date.details["evidence"]
+    assert date.details["location"]["kind"] == "placeholder"
+    assert date.details["location"]["page"] == 1
+    assert date.details["location"]["rects"][0]["y"] == 0.05
+    principal = next(
+        r for r in summary["rule_results"] if r["field_name"] == "has_principal_section"
+    )
+    assert principal["outcome"] == "pass"
+    assert summary["effective_document_type"] == "power_of_attorney"
