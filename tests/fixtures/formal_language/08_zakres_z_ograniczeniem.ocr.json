@@ -1,0 +1,39 @@
+{
+  "content": "PEŁNOMOCNICTWO\nUTAJNIONO. ADRES] [UTAJNIONO: DATA]\nJTAJNIONO: IMII [UTAJNIONO. IMIE/NAZWISKO]\nMocodawca:\nPełnomocnik: UTAJNIONO: IMIE/NAZW Przykładowa\nZakres pełnomocnictwa: reprezentowanie przed sądem bez prawa zawierania ugód\nPodpis mocodawcy:\nDOKUMENT TESTOWY. Wszystkie dane i zdarzenia są fikcyjne. Dokument nie służy do użycia w obrocie prawnym.\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "width": 2481,
+      "height": 3508,
+      "unit": "pixel",
+      "lines": [
+        {"content": "PEŁNOMOCNICTWO", "polygon": [254, 294, 1075, 293, 1075, 369, 254, 370], "spans": [{"offset": 0, "length": 14}]},
+        {"content": "UTAJNIONO. ADRES]", "polygon": [252, 517, 349, 517, 349, 529, 252, 528], "spans": [{"offset": 15, "length": 17}]},
+        {"content": "[UTAJNIONO: DATA]", "polygon": [453, 516, 544, 516, 544, 529, 453, 528], "spans": [{"offset": 33, "length": 17}]},
+        {"content": "JTAJNIONO: IMII [UTAJNIONO. IMIE/NAZWISKO]", "polygon": [522, 659, 746, 658, 746, 675, 522, 678], "spans": [{"offset": 51, "length": 42}]},
+        {"content": "Mocodawca:", "polygon": [251, 667, 513, 668, 513, 710, 251, 709], "spans": [{"offset": 94, "length": 10}]},
+        {"content": "Pełnomocnik:", "polygon": [252, 811, 537, 811, 537, 857, 252, 857], "spans": [{"offset": 105, "length": 12}]},
+        {"content": "UTAJNIONO: IMIE/NAZW", "polygon": [543, 806, 657, 806, 657, 824, 543, 825], "spans": [{"offset": 118, "length": 20}]},
+        {"content": "Przykładowa", "polygon": [663, 812, 927, 812, 927, 859, 663, 859], "spans": [{"offset": 139, "length": 11}]},
+        {"content": "Zakres pełnomocnictwa: reprezentowanie przed sądem bez prawa zawierania ugód", "polygon": [248, 955, 1975, 955, 1975, 1008, 248, 1008], "spans": [{"offset": 151, "length": 76}]},
+        {"content": "Podpis mocodawcy:", "polygon": [251, 1101, 663, 1101, 663, 1155, 251, 1154], "spans": [{"offset": 228, "length": 17}]},
+        {"content": "DOKUMENT TESTOWY. Wszystkie dane i zdarzenia są fikcyjne. Dokument nie służy do użycia w", "polygon": [249, 1432, 2212, 1432, 2212, 1488, 249, 1487], "spans": [{"offset": 246, "length": 88}]},
+        {"content": "obrocie prawnym.", "polygon": [250, 1506, 629, 1507, 629, 1557, 250, 1556], "spans": [{"offset": 335, "length": 16}]}
+      ],
+      "words": [
+        {"content": "PEŁNOMOCNICTWO", "polygon": [257, 298, 1076, 293, 1076, 370, 254, 368], "confidence": 0.992, "span": {"offset": 0, "length": 14}},
+        {"content": "UTAJNIONO.", "polygon": [253, 517, 311, 518, 311, 529, 253, 529], "confidence": 0.811, "span": {"offset": 15, "length": 10}},
+        {"content": "[UTAJNIONO:", "polygon": [454, 516, 515, 516, 515, 529, 454, 529], "confidence": 0.653, "span": {"offset": 33, "length": 11}},
+        {"content": "[UTAJNIONO.", "polygon": [600, 659, 662, 659, 661, 675, 599, 676], "confidence": 0.67, "span": {"offset": 67, "length": 11}},
+        {"content": "Mocodawca:", "polygon": [251, 668, 514, 674, 514, 706, 251, 710], "confidence": 0.993, "span": {"offset": 94, "length": 10}},
+        {"content": "Pełnomocnik:", "polygon": [252, 812, 538, 811, 538, 857, 252, 858], "confidence": 0.992, "span": {"offset": 105, "length": 12}},
+        {"content": "UTAJNIONO:", "polygon": [545, 806, 600, 807, 599, 825, 544, 825], "confidence": 0.741, "span": {"offset": 118, "length": 10}},
+        {"content": "Przykładowa", "polygon": [664, 814, 928, 812, 928, 860, 664, 859], "confidence": 0.992, "span": {"offset": 139, "length": 11}},
+        {"content": "ugód", "polygon": [1871, 955, 1976, 955, 1976, 1007, 1871, 1008], "confidence": 0.992, "span": {"offset": 223, "length": 4}},
+        {"content": "mocodawcy:", "polygon": [409, 1102, 664, 1102, 664, 1156, 409, 1155], "confidence": 0.995, "span": {"offset": 235, "length": 10}},
+        {"content": "są", "polygon": [1314, 1432, 1351, 1432, 1350, 1489, 1314, 1489], "confidence": 0.991, "span": {"offset": 291, "length": 2}},
+        {"content": "obrocie", "polygon": [251, 1506, 410, 1507, 409, 1557, 251, 1557], "confidence": 0.995, "span": {"offset": 335, "length": 7}}
+      ]
+    }
+  ]
+}

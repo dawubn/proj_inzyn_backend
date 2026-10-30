@@ -1,6 +1,10 @@
 """Unit tests for redaction detectors — no OCR engine required."""
 
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
+
+import pytest
 
 from app.api.v1.redactions import ALLOWED_CONTENT_TYPES
 from app.services.redaction_detectors import _PESEL_RE, find_personal_data
@@ -52,3 +56,55 @@ def test_detect_polish_date() -> None:
 
 def test_allowed_content_types() -> None:
     assert {"application/pdf", "image/png", "image/jpeg", "image/jpg"} == ALLOWED_CONTENT_TYPES
+
+
+def test_date_match_masks_only_the_matched_occurrence() -> None:
+    with patch("app.services.redaction_detectors._load_spacy", return_value=False):
+        items = find_personal_data(_words("27", "stycznia", "1975", "Numer", "27"))
+    assert {item["x"] for item in items} == {0, 120, 240}
+
+
+def test_nlp_does_not_turn_dots_into_a_person_marker() -> None:
+    words = _words("Jan", ".....", "opis", ".....")
+    entity = SimpleNamespace(label_="persName", start_char=0, end_char=9)
+    with (
+        patch("app.services.redaction_detectors._load_spacy", return_value=True),
+        patch("app.services.redaction_detectors.detect", return_value="pl"),
+        patch(
+            "app.services.redaction_detectors._nlp_pl", return_value=SimpleNamespace(ents=[entity])
+        ),
+    ):
+        items = find_personal_data(words)
+    assert [item["tekst"] for item in items] == ["Jan"]
+
+
+def test_thin_dotted_rule_misread_as_letters_is_covered_without_person_marker() -> None:
+    words = _words("Formularz", "pełnomocnictwo", "ccc", "dalej", "dokument")
+    words[2]["wysokosc"] = 3
+    start = len("Formularz pełnomocnictwo ")
+    entity = SimpleNamespace(label_="persName", start_char=start, end_char=start + 3)
+    with (
+        patch("app.services.redaction_detectors._load_spacy", return_value=True),
+        patch("app.services.redaction_detectors.detect", return_value="pl"),
+        patch(
+            "app.services.redaction_detectors._nlp_pl", return_value=SimpleNamespace(ents=[entity])
+        ),
+    ):
+        items = find_personal_data(words)
+    assert len(items) == 1
+    assert items[0]["rodzaj_danych"] == ""
+
+
+@pytest.mark.parametrize("label", ["Mocodawca:", "Pełnomocnik:", "Petnomocnik:"])
+def test_person_entity_cannot_mask_form_label_but_still_masks_name(label) -> None:
+    words = _words(label, "Jan", "Kowalski")
+    entity = SimpleNamespace(label_="persName", start_char=0, end_char=len(label) + 13)
+    with (
+        patch("app.services.redaction_detectors._load_spacy", return_value=True),
+        patch("app.services.redaction_detectors.detect", return_value="pl"),
+        patch(
+            "app.services.redaction_detectors._nlp_pl", return_value=SimpleNamespace(ents=[entity])
+        ),
+    ):
+        items = find_personal_data(words)
+    assert [item["tekst"] for item in items] == ["Jan", "Kowalski"]

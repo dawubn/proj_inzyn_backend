@@ -126,3 +126,44 @@ def test_no_rects_for_words_without_normalized_boxes() -> None:
 
     assert match is not None
     assert "rects" not in match
+
+
+def test_azure_words_provide_normalized_multiline_highlights() -> None:
+    from app.tasks.legal_analysis import _extract_azure_words
+
+    raw = {
+        "pages": [
+            {
+                "pageNumber": 3,
+                "unit": "pixel",
+                "width": 1000,
+                "height": 2000,
+                "lines": [
+                    {"spans": [{"offset": 0, "length": 12}]},
+                    {"spans": [{"offset": 13, "length": 10}]},
+                ],
+                "words": [
+                    {
+                        "content": text,
+                        "span": {"offset": offset, "length": len(text)},
+                        "polygon": [x, y, x + 80, y, x + 80, y + 40, x, y + 40],
+                    }
+                    for text, offset, x, y in [
+                        ("Sąd", 0, 100, 200),
+                        ("Okręgowy", 4, 200, 200),
+                        ("w", 13, 100, 300),
+                        ("Krakowie", 15, 200, 300),
+                    ]
+                ],
+            }
+        ]
+    }
+
+    match = _map_error_to_bbox("Sąd Okręgowy w Krakowie", _extract_azure_words(raw), page=3)
+
+    assert match is not None
+    assert match["page"] == 3
+    assert match["rects"] == [
+        {"x": 0.1, "y": 0.1, "width": 0.18, "height": 0.02},
+        {"x": 0.1, "y": 0.15, "width": 0.18, "height": 0.02},
+    ]

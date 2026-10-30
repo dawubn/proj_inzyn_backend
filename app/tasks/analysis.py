@@ -16,6 +16,8 @@ logger = structlog.get_logger(__name__)
 
 if TYPE_CHECKING:
     from app.enums.document import DocumentType
+    from app.models.document import Document
+    from app.models.document_analysis import DocumentAnalysis
     from app.schemas.analysis_report import ValidationIssue
 
 
@@ -40,7 +42,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
     Args:
         analysis_id: UUID string of the DocumentAnalysis row.
     """
-    from app.enums.analysis import AnalysisStatus, ValidationSeverity
+    from app.enums.analysis import AnalysisStatus
     from app.enums.document import DocumentStatus
 
     log = logger.bind(analysis_id=analysis_id, task_id=self.request.id)
@@ -61,9 +63,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         from app.models.document import Document
         from app.models.document_analysis import DocumentAnalysis
-        from app.schemas.analysis_report import ValidationIssue
         from app.services.formal_validation import FormalDocumentExtractor
-        from app.services.validation import RuleEngineService
 
         analysis = session.get(DocumentAnalysis, uuid.UUID(analysis_id))
         if not analysis:
@@ -106,41 +106,8 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         analysis.status = AnalysisStatus.VALIDATING
         session.commit()
 
-        profile_name, rules = _load_rules_for_document_type(session, document_type)
-        issues = RuleEngineService().run(rules, extraction.fields)
-        validation_profile_available = _add_profile_availability_warning(
-            issues, profile_name, rules, document_type
-        )
-
-        if not extraction.fields.get("has_text"):
-            issues.insert(
-                0,
-                ValidationIssue(
-                    rule_name="Tekst dokumentu",
-                    field_name="has_text",
-                    severity=ValidationSeverity.ERROR,
-                    message="Nie udało się odczytać tekstu dokumentu.",
-                    details={"expected_field": "has_text"},
-                ),
-            )
-
-        _upsert_report(
-            session=session,
-            analysis_id=analysis.id,
-            issues=issues,
-            total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
-            summary={
-                "document_type": document_type.value,
-                "classification_confidence": classification_confidence,
-                "profile_name": profile_name,
-                "validation_profile_available": validation_profile_available,
-                "total_rules": len(rules),
-                "issues": len(issues),
-                "checked_fields": {
-                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
-                },
-                "detected_sections": extraction.fields.get("detected_sections", []),
-            },
+        _validate_and_save_report(
+            session, analysis, document, document_type, classification_confidence
         )
         if document:
             document.status = DocumentStatus.PROCESSED
@@ -234,7 +201,7 @@ def _upsert_report(
     session: Session,
     analysis_id: uuid.UUID,
     issues: list["ValidationIssue"],
-    total_rules: int,
+    _total_rules: int,
     summary: dict[str, Any],
 ) -> None:
     from app.enums.analysis import ReportStatus, ValidationSeverity
@@ -244,7 +211,7 @@ def _upsert_report(
     warnings = [issue for issue in issues if issue.severity == ValidationSeverity.WARNING]
     infos = [issue for issue in issues if issue.severity == ValidationSeverity.INFO]
 
-    score = 1.0 if total_rules == 0 else round(max(0.0, 1.0 - len(errors) / total_rules), 4)
+    score = summary.get("completeness_score")
     report = session.execute(
         select(AnalysisReport).where(AnalysisReport.analysis_id == analysis_id)
     ).scalar_one_or_none()
@@ -258,7 +225,38 @@ def _upsert_report(
     report.infos = [issue.model_dump() for issue in infos]
     report.error_count = len(errors)
     report.warning_count = len(warnings)
-    report.is_complete = len(errors) == 0
+    report.is_complete = summary.get("is_complete")
     report.completeness_score = score
     report.summary = summary
     session.add(report)
+
+
+def _validate_and_save_report(
+    session: Session,
+    analysis: "DocumentAnalysis",
+    document: "Document | None",
+    detected_type: "DocumentType",
+    confidence: float,
+) -> None:
+    from app.services.formal_issue_locator import locate_formal_issues
+    from app.services.formal_report import FormalValidationService, effective_document_type
+    from app.services.formal_validation import FormalDocumentExtractor
+
+    requested = _coerce_document_type(document.document_type if document else None)
+    effective = effective_document_type(requested, detected_type, confidence)
+    extraction = FormalDocumentExtractor().extract(analysis.ocr_raw_result, effective)
+    analysis.extracted_fields = extraction.fields
+    profile_name, rules = _load_rules_for_document_type(session, effective)
+    issues, summary = FormalValidationService().build_report(
+        rules, extraction.fields, profile_name, effective
+    )
+    issues = locate_formal_issues(issues, analysis.tesseract_words or [])
+    summary.update(
+        {
+            "requested_document_type": requested.value,
+            "detected_document_type": detected_type.value,
+            "classification_confidence": confidence,
+            "type_source": "user" if requested.value != "unknown" else "automatic",
+        }
+    )
+    _upsert_report(session, analysis.id, issues, len(rules), summary)

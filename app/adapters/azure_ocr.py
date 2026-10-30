@@ -1,4 +1,3 @@
-import base64
 import io
 from dataclasses import dataclass, field
 from typing import Any
@@ -177,16 +176,22 @@ class AzureOCRAdapter:
         Raises:
             OCRServiceError: On any Azure API or network error.
         """
+        if content_type in ("image/tiff", "image/tif"):
+            return self.analyze_paged(file_bytes, content_type)
+        return self._analyze_bytes(file_bytes, content_type)
+
+    def _analyze_bytes(self, file_bytes: bytes, content_type: str) -> OCRResult:
         log = logger.bind(content_type=content_type, size_bytes=len(file_bytes))
         log.info("Sending document to Azure OCR")
 
         try:
-            encoded = base64.b64encode(file_bytes).decode("utf-8")
-            request = AnalyzeDocumentRequest(bytes_source=encoded)
+            # Let the SDK serialize bytes into the API's base64Source field.
+            request = AnalyzeDocumentRequest(bytes_source=file_bytes)
 
             poller = self._client.begin_analyze_document(
                 _AZURE_MODEL_ID,
                 request,
+                string_index_type="unicodeCodePoint",
             )
             azure_result = poller.result()
 
@@ -217,18 +222,19 @@ class AzureOCRAdapter:
             file_bytes, content_type, settings.AZURE_OCR_PAGES_PER_REQUEST
         )
         if len(chunks) == 1:
-            result = self.analyze_document(chunks[0], content_type)
+            result = self._analyze_bytes(chunks[0], content_type)
         else:
-            raws = [self.analyze_document(chunk, content_type).raw for chunk in chunks]
+            raws = [self._analyze_bytes(chunk, content_type).raw for chunk in chunks]
             result = self._map_result(_merge_raw_results(raws))
 
         if page_count is not None and result.page_count != page_count:
-            logger.warning(
+            logger.error(
                 "Azure OCR page count differs from document",
                 page_count=result.page_count,
                 document_page_count=page_count,
                 chunks=len(chunks),
             )
+            raise OCRServiceError("Nie udało się odczytać wszystkich stron dokumentu.")
         return result
 
     # ------------------------------------------------------------------
@@ -263,7 +269,9 @@ class AzureOCRAdapter:
             ]
             pages.append(
                 OCRPage(
-                    page_number=int(_get(raw_page, "page_number", len(pages) + 1)),
+                    page_number=int(
+                        _get(raw_page, "page_number", _get(raw_page, "pageNumber", len(pages) + 1))
+                    ),
                     width=float(_get(raw_page, "width", 0.0)),
                     height=float(_get(raw_page, "height", 0.0)),
                     lines=lines,

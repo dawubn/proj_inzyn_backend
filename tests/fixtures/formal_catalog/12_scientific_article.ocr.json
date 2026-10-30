@@ -1,0 +1,37 @@
+{
+  "content": "ARTYKUŁ NAUKOWY - TEST\nTytuł artykułu: Porównanie metod odczytu dokumentów drukowanych\nAutorzy: UTAJNIONO: IMIE/NAZW [UTAJNIONO: IMIE/NAZWISKO]\nUTAJNIONO: IMIE [UTAJNIONO: IMIE/NAZWISKO]\nWyniki: Metoda pierwsza osiągnęła większą dokładność na zbiorze testowym\nStreszczenie:\n...... .........\nBibliografia: Testowa A. Metody przetwarzania dokumentów. Wydawnictwo Testowe 2025\nDOKUMENT TESTOWY. Wszystkie dane są fikcyjne. Nie jest to dokument urzędowy ani dokument do użycia w obrocie prawnym.\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "width": 2481,
+      "height": 3508,
+      "unit": "pixel",
+      "lines": [
+        {"content": "ARTYKUŁ NAUKOWY - TEST", "polygon": [251, 250, 1370, 250, 1370, 321, 251, 321], "spans": [{"offset": 0, "length": 22}]},
+        {"content": "Tytuł artykułu: Porównanie metod odczytu dokumentów drukowanych", "polygon": [251, 455, 1717, 454, 1717, 507, 251, 508], "spans": [{"offset": 23, "length": 63}]},
+        {"content": "Autorzy:", "polygon": [251, 601, 427, 602, 427, 648, 251, 646], "spans": [{"offset": 87, "length": 8}]},
+        {"content": "UTAJNIONO: IMIE/NAZW [UTAJNIONO: IMIE/NAZWISKO]", "polygon": [436, 595, 697, 595, 697, 610, 436, 611], "spans": [{"offset": 96, "length": 47}]},
+        {"content": "UTAJNIONO: IMIE [UTAJNIONO: IMIE/NAZWISKO]", "polygon": [763, 594, 992, 590, 992, 606, 763, 610], "spans": [{"offset": 144, "length": 42}]},
+        {"content": "Wyniki: Metoda pierwsza osiągnęła większą dokładność na zbiorze testowym", "polygon": [250, 738, 1847, 737, 1847, 790, 250, 790], "spans": [{"offset": 187, "length": 72}]},
+        {"content": "Streszczenie:", "polygon": [249, 881, 526, 881, 527, 928, 249, 929], "spans": [{"offset": 260, "length": 13}]},
+        {"content": "......", "polygon": [769, 894, 834, 893, 834, 935, 769, 935], "spans": [{"offset": 274, "length": 6}]},
+        {"content": ".........", "polygon": [885, 895, 979, 898, 978, 935, 886, 936], "spans": [{"offset": 281, "length": 9}]},
+        {"content": "Bibliografia: Testowa A. Metody przetwarzania dokumentów. Wydawnictwo Testowe 2025", "polygon": [250, 1023, 2129, 1022, 2129, 1074, 250, 1075], "spans": [{"offset": 291, "length": 82}]},
+        {"content": "DOKUMENT TESTOWY. Wszystkie dane są fikcyjne. Nie jest to dokument urzędowy ani dokument do użycia w obrocie prawnym.", "polygon": [248, 1241, 2179, 1242, 2179, 1287, 248, 1285], "spans": [{"offset": 374, "length": 117}]}
+      ],
+      "words": [
+        {"content": "-", "polygon": [1122, 251, 1147, 251, 1147, 322, 1121, 322], "confidence": 0.989, "span": {"offset": 16, "length": 1}},
+        {"content": "artykułu:", "polygon": [372, 457, 553, 457, 554, 507, 373, 507], "confidence": 0.992, "span": {"offset": 29, "length": 9}},
+        {"content": "Autorzy:", "polygon": [251, 602, 428, 605, 428, 648, 251, 647], "confidence": 0.993, "span": {"offset": 87, "length": 8}},
+        {"content": "IMIE/NAZW", "polygon": [498, 595, 548, 595, 548, 611, 497, 612], "confidence": 0.759, "span": {"offset": 107, "length": 9}},
+        {"content": "IMIE/NAZWISKO]", "polygon": [912, 591, 992, 591, 992, 607, 912, 607], "confidence": 0.703, "span": {"offset": 172, "length": 14}},
+        {"content": "osiągnęła", "polygon": [784, 738, 978, 738, 977, 791, 783, 791], "confidence": 0.993, "span": {"offset": 211, "length": 9}},
+        {"content": "Streszczenie:", "polygon": [249, 881, 527, 883, 527, 926, 249, 930], "confidence": 0.994, "span": {"offset": 260, "length": 13}},
+        {"content": "......", "polygon": [769, 893, 835, 893, 835, 934, 769, 935], "confidence": 0.636, "span": {"offset": 274, "length": 6}},
+        {"content": ".........", "polygon": [885, 895, 980, 896, 980, 936, 885, 935], "confidence": 0.531, "span": {"offset": 281, "length": 9}},
+        {"content": "dokumentów.", "polygon": [1236, 1022, 1520, 1022, 1519, 1075, 1235, 1075], "confidence": 0.947, "span": {"offset": 337, "length": 11}},
+        {"content": "są", "polygon": [856, 1242, 885, 1241, 885, 1286, 855, 1286], "confidence": 0.987, "span": {"offset": 407, "length": 2}}
+      ]
+    }
+  ]
+}

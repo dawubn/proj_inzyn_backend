@@ -1,0 +1,37 @@
+{
+  "content": "PEŁNOMOCNICTWO\nUTAJNIONO. ADRES] [UTAJNIONO: DATA]\nMocodawca: dane zostaną uzupełnione później\nPełnomocnik: UTAJNIONO: IMIE/NAZW Przykładowa\nZakres pełnomocnictwa: do uzupełnienia przez mocodawcę\nPodpis mocodawcy:\nDOKUMENT TESTOWY. Wszystkie dane i zdarzenia są fikcyjne. Dokument nie służy do użycia w obrocie prawnym.\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "width": 2481,
+      "height": 3508,
+      "unit": "pixel",
+      "lines": [
+        {"content": "PEŁNOMOCNICTWO", "polygon": [254, 294, 1077, 292, 1078, 369, 254, 370], "spans": [{"offset": 0, "length": 14}]},
+        {"content": "UTAJNIONO. ADRES]", "polygon": [250, 516, 349, 518, 349, 530, 250, 528], "spans": [{"offset": 15, "length": 17}]},
+        {"content": "[UTAJNIONO: DATA]", "polygon": [453, 515, 545, 516, 545, 529, 453, 528], "spans": [{"offset": 33, "length": 17}]},
+        {"content": "Mocodawca: dane zostaną uzupełnione później", "polygon": [251, 662, 1232, 662, 1232, 717, 251, 715], "spans": [{"offset": 51, "length": 43}]},
+        {"content": "Pełnomocnik:", "polygon": [252, 811, 537, 810, 538, 857, 252, 857], "spans": [{"offset": 95, "length": 12}]},
+        {"content": "UTAJNIONO: IMIE/NAZW", "polygon": [543, 806, 657, 806, 657, 823, 543, 825], "spans": [{"offset": 108, "length": 20}]},
+        {"content": "Przykładowa", "polygon": [663, 811, 928, 810, 928, 858, 663, 860], "spans": [{"offset": 129, "length": 11}]},
+        {"content": "Zakres pełnomocnictwa: do uzupełnienia przez mocodawcę", "polygon": [248, 955, 1486, 956, 1486, 1009, 248, 1007], "spans": [{"offset": 141, "length": 54}]},
+        {"content": "Podpis mocodawcy:", "polygon": [251, 1101, 663, 1101, 663, 1155, 251, 1154], "spans": [{"offset": 196, "length": 17}]},
+        {"content": "DOKUMENT TESTOWY. Wszystkie dane i zdarzenia są fikcyjne. Dokument nie służy do użycia w", "polygon": [249, 1432, 2212, 1432, 2212, 1488, 249, 1487], "spans": [{"offset": 214, "length": 88}]},
+        {"content": "obrocie prawnym.", "polygon": [250, 1506, 629, 1507, 629, 1557, 250, 1556], "spans": [{"offset": 303, "length": 16}]}
+      ],
+      "words": [
+        {"content": "PEŁNOMOCNICTWO", "polygon": [257, 298, 1078, 292, 1078, 370, 254, 368], "confidence": 0.992, "span": {"offset": 0, "length": 14}},
+        {"content": "UTAJNIONO.", "polygon": [251, 517, 311, 518, 311, 529, 250, 529], "confidence": 0.869, "span": {"offset": 15, "length": 10}},
+        {"content": "[UTAJNIONO:", "polygon": [454, 516, 515, 516, 515, 529, 454, 529], "confidence": 0.656, "span": {"offset": 33, "length": 11}},
+        {"content": "dane", "polygon": [526, 664, 624, 664, 623, 716, 525, 715], "confidence": 0.992, "span": {"offset": 62, "length": 4}},
+        {"content": "Pełnomocnik:", "polygon": [252, 811, 539, 811, 539, 858, 252, 858], "confidence": 0.993, "span": {"offset": 95, "length": 12}},
+        {"content": "UTAJNIONO:", "polygon": [545, 807, 599, 807, 598, 824, 544, 825], "confidence": 0.719, "span": {"offset": 108, "length": 10}},
+        {"content": "Przykładowa", "polygon": [664, 813, 929, 810, 929, 859, 664, 859], "confidence": 0.992, "span": {"offset": 129, "length": 11}},
+        {"content": "uzupełnienia", "polygon": [835, 956, 1095, 956, 1095, 1009, 835, 1009], "confidence": 0.992, "span": {"offset": 167, "length": 12}},
+        {"content": "mocodawcy:", "polygon": [408, 1102, 664, 1102, 664, 1156, 408, 1156], "confidence": 0.993, "span": {"offset": 203, "length": 10}},
+        {"content": "są", "polygon": [1314, 1432, 1351, 1432, 1350, 1489, 1314, 1489], "confidence": 0.991, "span": {"offset": 259, "length": 2}},
+        {"content": "obrocie", "polygon": [251, 1506, 410, 1507, 409, 1557, 251, 1557], "confidence": 0.995, "span": {"offset": 303, "length": 7}}
+      ]
+    }
+  ]
+}
