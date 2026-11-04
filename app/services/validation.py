@@ -67,11 +67,15 @@ class RuleEngineService:
         field = rule.field_name
         if not field or fields.get(field):
             return None
+        message = rule.rule_config.get("message")
+        if not isinstance(message, str) or not message.strip():
+            message = f"Brakuje wymaganego elementu: {rule.name}"
         return ValidationIssue(
             rule_name=rule.name,
             field_name=field,
             severity=rule.severity,
-            message=f"Required field '{field}' is missing or empty",
+            message=message,
+            details={"expected_field": field},
         )
 
     def _check_regex_match(

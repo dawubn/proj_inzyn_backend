@@ -1,10 +1,17 @@
 import asyncio
 import os
+import tempfile
 from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+
+# Set STORAGE_PATH to a writable temp dir before importing the app so that
+# Settings picks it up at module load time.
+if "STORAGE_PATH" not in os.environ:
+    os.environ.setdefault("STORAGE_PATH", tempfile.mkdtemp(prefix="cerber_test_"))
+
 from main import app
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool

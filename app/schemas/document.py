@@ -11,6 +11,7 @@ class DocumentCreate(OrmBase):
 class DocumentUpdate(OrmBase):
     description: str | None = Field(default=None, max_length=1000)
     document_type: DocumentType | None = None
+    suggested_document_type: str | None = None
 
 
 class DocumentResponse(UUIDSchema, TimestampSchema):
@@ -20,6 +21,7 @@ class DocumentResponse(UUIDSchema, TimestampSchema):
     mime_type: str
     status: DocumentStatus
     document_type: DocumentType
+    suggested_document_type: DocumentType | None
     description: str | None
 
 
@@ -27,5 +29,6 @@ class DocumentListResponse(UUIDSchema):
     original_filename: str
     status: DocumentStatus
     document_type: DocumentType
+    suggested_document_type: DocumentType | None
     file_size_bytes: int
     created_at: str

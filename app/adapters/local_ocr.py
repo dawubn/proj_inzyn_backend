@@ -63,6 +63,7 @@ def _post_processing(words: list[WordDict]) -> list[WordDict]:
                     "szerokosc": sum(e["szerokosc"] for e in group),
                     "wysokosc": max(e["y"] + e["wysokosc"] for e in group)
                     - min(e["y"] for e in group),
+                    "linia": current.get("linia"),
                 }
             )
             used.add(id(current))
@@ -101,10 +102,19 @@ def _ocr_page(image_bytes: bytes) -> tuple[list[WordDict], Image.Image]:
                 "y": max(0, y),
                 "szerokosc": int(data["width"][i]),
                 "wysokosc": int(data["height"][i]),
+                "linia": f"{data['block_num'][i]}-{data['par_num'][i]}-{data['line_num'][i]}",
             }
         )
 
     return _post_processing(words), orig
+
+
+def page_render_zoom(page: fitz.Page, zoom: float) -> float:
+    """Caps zoom so the longest rendered side stays within LOCAL_OCR_MAX_PAGE_PX."""
+    longest_side_pt = float(max(page.rect.width, page.rect.height))
+    if longest_side_pt <= 0:
+        return zoom
+    return min(zoom, settings.LOCAL_OCR_MAX_PAGE_PX / longest_side_pt)
 
 
 class LocalOCRAdapter:
@@ -113,16 +123,41 @@ class LocalOCRAdapter:
     def ocr_pdf(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
         logger.info("Rendering PDF for OCR", path=str(path), dpi=settings.LOCAL_OCR_DPI)
         doc = fitz.open(str(path))
-        zoom = settings.LOCAL_OCR_DPI / 72
-        matrix = fitz.Matrix(zoom, zoom)
+        initial_zoom = settings.LOCAL_OCR_DPI / 72
         all_words: list[list[WordDict]] = []
         all_images: list[Image.Image] = []
+
         for page_id in range(len(doc)):
-            png: bytes = doc.load_page(page_id).get_pixmap(matrix=matrix).tobytes("png")
-            words, img = _ocr_page(png)
-            all_words.append(words)
-            all_images.append(img)
-            logger.debug("OCR page done", page=page_id + 1, words=len(words))
+            zoom = page_render_zoom(doc.load_page(page_id), initial_zoom)
+            max_retries = 3
+            min_zoom = 1.5
+            zoom_reduction_factor = 1.5
+
+            for attempt in range(max_retries):
+                try:
+                    matrix = fitz.Matrix(zoom, zoom)
+                    png: bytes = doc.load_page(page_id).get_pixmap(matrix=matrix).tobytes("png")
+                    words, img = _ocr_page(png)
+                    all_words.append(words)
+                    all_images.append(img)
+                    logger.debug("OCR page done", page=page_id + 1, words=len(words), zoom=zoom)
+                    break
+                except Image.DecompressionBombError:
+                    if zoom <= min_zoom or attempt >= max_retries - 1:
+                        logger.exception(
+                            "Failed to render page even with reduced zoom",
+                            page=page_id + 1,
+                            zoom=zoom,
+                        )
+                        raise
+                    zoom = zoom / zoom_reduction_factor
+                    logger.warning(
+                        "Reducing zoom due to decompression bomb",
+                        page=page_id + 1,
+                        old_zoom=round(zoom * zoom_reduction_factor, 3),
+                        new_zoom=round(zoom, 3),
+                    )
+
         doc.close()
         return all_words, all_images
 

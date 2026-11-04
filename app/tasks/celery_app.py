@@ -6,7 +6,13 @@ celery_app = Celery(
     "cerber_doc",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.tasks.ocr", "app.tasks.analysis"],
+    include=[
+        "app.tasks.local_ocr",
+        "app.tasks.azure_ocr",
+        "app.tasks.analysis",
+        "app.tasks.full_ocr",
+        "app.tasks.legal_analysis",
+    ],
 )
 
 celery_app.conf.update(
@@ -19,7 +25,10 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_routes={
-        "app.tasks.ocr.*": {"queue": "ocr"},
+        "app.tasks.local_ocr.*": {"queue": "ocr"},
+        "app.tasks.azure_ocr.*": {"queue": "ocr"},
         "app.tasks.analysis.*": {"queue": "analysis"},
+        "app.tasks.full_ocr.*": {"queue": "ocr"},
+        "app.tasks.legal_analysis.*": {"queue": "ocr"},
     },
 )

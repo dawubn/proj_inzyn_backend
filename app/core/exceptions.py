@@ -55,6 +55,11 @@ class ProcessingTimeoutError(AppError):
     detail = "Processing timed out"
 
 
+class ClassifierNotReadyError(AppError):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    detail = "Classifier model not loaded"
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)  # type: ignore[misc]
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:

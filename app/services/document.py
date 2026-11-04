@@ -5,8 +5,13 @@ import aiofiles
 import structlog
 
 from app.core.config import settings
-from app.core.exceptions import FileTooLargeError, NotFoundError, UnsupportedFileTypeError
-from app.enums.document import DocumentStatus, FileExtension
+from app.core.exceptions import (
+    FileTooLargeError,
+    ForbiddenError,
+    NotFoundError,
+    UnsupportedFileTypeError,
+)
+from app.enums.document import DocumentStatus, DocumentType, FileExtension
 from app.models.document import Document
 from app.repositories.document import DocumentRepository
 from app.schemas.document import DocumentCreate
@@ -47,9 +52,39 @@ class DocumentService:
         logger.info("Document uploaded", document_id=str(created.id), owner_id=str(owner_id))
         return created
 
-    async def get_or_raise(self, document_id: uuid.UUID, owner_id: uuid.UUID) -> Document:
+    async def update_document_type(
+        self,
+        document_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        document_type: DocumentType,
+    ) -> Document:
         doc = await self._docs.get_by_id(document_id)
-        if not doc or doc.owner_id != owner_id:
+        if not doc:
+            raise NotFoundError("Document not found")
+        if doc.owner_id != owner_id:
+            raise ForbiddenError("You do not own this document")
+        return await self._docs.update_document_type(doc, document_type)
+
+    async def update_suggested_document_type(
+        self,
+        document_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        suggested_document_type: str | None,
+    ) -> Document:
+        doc = await self._docs.get_by_id(document_id)
+        if not doc:
+            raise NotFoundError("Document not found")
+        if doc.owner_id != owner_id:
+            raise ForbiddenError("You do not own this document")
+        return await self._docs.update_suggested_document_type(doc, suggested_document_type)
+
+    async def get_or_raise(
+        self, document_id: uuid.UUID, owner_id: uuid.UUID | None = None
+    ) -> Document:
+        doc = await self._docs.get_by_id(document_id)
+        if not doc:
+            raise NotFoundError("Document not found")
+        if owner_id and doc.owner_id != owner_id:
             raise NotFoundError("Document not found")
         return doc
 

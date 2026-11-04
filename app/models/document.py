@@ -32,6 +32,9 @@ class Document(BaseModel):
     document_type: Mapped[DocumentType] = mapped_column(
         String(50), nullable=False, default=DocumentType.UNKNOWN
     )
+    suggested_document_type: Mapped[DocumentType | None] = mapped_column(
+        String(50), nullable=True, default=None
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     owner: Mapped[User] = relationship(back_populates="documents", lazy="noload")

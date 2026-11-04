@@ -32,7 +32,7 @@ class AuthService:
         )
         return await self._users.create(user)
 
-    async def login(self, data: LoginRequest) -> TokenResponse:
+    async def login(self, data: LoginRequest) -> tuple[User, TokenResponse]:
         user = await self._users.get_by_email(data.email)
         if not user or not verify_password(data.password, user.hashed_password):
             raise UnauthorizedError("Invalid credentials")
@@ -41,12 +41,13 @@ class AuthService:
             raise UnauthorizedError("Account is deactivated")
 
         logger.info("User logged in", user_id=str(user.id))
-        return TokenResponse(
+        tokens = TokenResponse(
             access_token=create_access_token(str(user.id), {"role": user.role}),
             refresh_token=create_refresh_token(str(user.id)),
         )
+        return user, tokens
 
-    async def refresh(self, refresh_token: str) -> TokenResponse:
+    async def refresh(self, refresh_token: str) -> tuple[User, TokenResponse]:
         try:
             payload = decode_token(refresh_token)
         except ValueError as exc:
@@ -59,7 +60,8 @@ class AuthService:
         if not user or not user.is_active:
             raise UnauthorizedError("User not found or deactivated")
 
-        return TokenResponse(
+        tokens = TokenResponse(
             access_token=create_access_token(str(user.id), {"role": user.role}),
             refresh_token=create_refresh_token(str(user.id)),
         )
+        return user, tokens
