@@ -2,7 +2,10 @@
 Celery task: classify document type and run validation after OCR.
 """
 
+from __future__ import annotations
+
 import uuid
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -10,13 +13,41 @@ from celery import Task
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.enums.analysis import (
+    TERMINAL_STATUSES,
+    AnalysisStatus,
+    ProcessingStage,
+    ValidationSeverity,
+)
+from app.enums.document import DocumentStatus
+from app.models.document import Document
+from app.schemas.analysis_report import ValidationIssue
+from app.services.formal_validation import FormalDocumentExtractor
+from app.services.validation import RuleEngineService
 from app.tasks.celery_app import celery_app
+from app.tasks.local_ocr import (
+    _cancellation_requested,
+    _finish_cancellation,
+    _lock_analysis,
+    _update_document_status,
+)
 
 logger = structlog.get_logger(__name__)
 
 if TYPE_CHECKING:
     from app.enums.document import DocumentType
-    from app.schemas.analysis_report import ValidationIssue
+
+
+def _get_db_session() -> Session:
+    """Create a synchronous DB session for Celery workers."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.config import settings
+
+    sync_url = settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
+    engine = create_engine(sync_url)
+    return sessionmaker(bind=engine)()
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -26,90 +57,141 @@ if TYPE_CHECKING:
     default_retry_delay=30,
 )
 def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
-    """
-    Classify document and run rule-based validation.
+    """Classify, validate and save results with cooperative cancellation."""
+    log = logger.bind(
+        analysis_id=analysis_id,
+        task_id=self.request.id,
+    )
+    log.info("Classification and validation started")
 
-    Steps:
-    1. Load analysis + OCR result
-    2. Classify document type using TF-IDF + Logistic Regression
-    3. Extract MVP formal fields
-    4. Load matching ValidationProfile
-    5. Run RuleEngineService
-    6. Persist AnalysisReport
+    analysis_uuid = uuid.UUID(analysis_id)
+    session = _get_db_session()
 
-    Args:
-        analysis_id: UUID string of the DocumentAnalysis row.
-    """
-    from app.enums.analysis import AnalysisStatus, ValidationSeverity
-    from app.enums.document import DocumentStatus
-
-    log = logger.bind(analysis_id=analysis_id, task_id=self.request.id)
-    log.info("Analysis task started")
-
-    session = None
-    analysis = None
     try:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
+        analysis = _lock_analysis(session, analysis_uuid)
 
-        from app.core.config import settings
+        if analysis is None:
+            session.rollback()
+            return {"status": "error", "detail": "analysis_not_found"}
 
-        sync_url = settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
-        engine = create_engine(sync_url)
-        session_factory = sessionmaker(bind=engine)
-        session = session_factory()
+        if analysis.status in TERMINAL_STATUSES:
+            result = {"status": str(analysis.status), "analysis_id": analysis_id}
+            session.rollback()
+            return result
 
-        from app.models.document import Document
-        from app.models.document_analysis import DocumentAnalysis
-        from app.schemas.analysis_report import ValidationIssue
-        from app.services.formal_validation import FormalDocumentExtractor
-        from app.services.validation import RuleEngineService
+        if analysis.task_id and analysis.task_id != self.request.id:
+            session.rollback()
+            return {"status": "ignored", "detail": "stale_task"}
 
-        analysis = session.get(DocumentAnalysis, uuid.UUID(analysis_id))
-        if not analysis:
-            return {"status": "error", "detail": "not_found"}
+        if _cancellation_requested(analysis):
+            _finish_cancellation(session, analysis)
+            return {"status": "cancelled", "analysis_id": analysis_id}
 
-        analysis.status = AnalysisStatus.CLASSIFYING
-        session.commit()
+        if analysis.status == AnalysisStatus.QUEUED:
+            session.rollback()
+            return {"status": "ignored", "detail": "not_dispatched"}
 
         document = session.get(Document, analysis.document_id)
-        fallback_type = _coerce_document_type(document.document_type if document else None)
+        if document is None:
+            raise FileNotFoundError(
+                f"Document {analysis.document_id} not found"
+            )
+
+        fallback_type = _coerce_document_type(document.document_type)
+        ocr_raw_result = analysis.ocr_raw_result
+
+        analysis.task_id = self.request.id
+        analysis.status = AnalysisStatus.CLASSIFYING
+        analysis.started_at = analysis.started_at or datetime.now(UTC)
+        analysis.error_message = None
+        document.status = DocumentStatus.PROCESSING
+
+        params = dict(analysis.pipeline_params or {})
+        pending_task = params.get("pending_task")
+        if (
+            isinstance(pending_task, dict)
+            and pending_task.get("task_id") == self.request.id
+        ):
+            params.pop("pending_task", None)
+            analysis.pipeline_params = params
+
+        # Release the owner lock before extraction and classification.
+        session.commit()
+
         extraction = FormalDocumentExtractor().extract(
-            analysis.ocr_raw_result,
+            ocr_raw_result,
             fallback_document_type=fallback_type,
         )
 
         text_content = str(extraction.fields.get("document_text", "")).strip()
         document_type = extraction.document_type
         classification_confidence = extraction.confidence
+
         if text_content:
             from app.services.classification import ClassificationService
 
             classifier = ClassificationService()
             try:
-                document_type, classification_confidence, _ = classifier.classify(text_content)
+                document_type, classification_confidence, _ = classifier.classify(
+                    text_content
+                )
                 log.info(
                     "Document classified",
                     document_type=document_type,
                     confidence=round(classification_confidence, 4),
                 )
             except Exception as cls_exc:
-                log.warning("Classification fallback used", reason=str(cls_exc))
+                log.warning(
+                    "Classification fallback used",
+                    reason=str(cls_exc),
+                )
+
+        # Re-read the state before persisting classification results.
+        analysis = _lock_analysis(session, analysis_uuid)
+
+        if analysis is None:
+            session.rollback()
+            return {"status": "error", "detail": "analysis_not_found"}
+
+        if analysis.status in TERMINAL_STATUSES:
+            result = {"status": str(analysis.status), "analysis_id": analysis_id}
+            session.rollback()
+            return result
+
+        if analysis.task_id and analysis.task_id != self.request.id:
+            session.rollback()
+            return {"status": "ignored", "detail": "stale_task"}
+
+        if _cancellation_requested(analysis):
+            _finish_cancellation(session, analysis)
+            return {"status": "cancelled", "analysis_id": analysis_id}
 
         analysis.detected_document_type = document_type.value
         analysis.classification_confidence = classification_confidence
         analysis.extracted_fields = extraction.fields
-        if document:
-            document.suggested_document_type = document_type
-        session.commit()
-
         analysis.status = AnalysisStatus.VALIDATING
+
+        document = session.get(Document, analysis.document_id)
+        if document is None:
+            raise FileNotFoundError(
+                f"Document {analysis.document_id} not found"
+            )
+
+        document.suggested_document_type = document_type
         session.commit()
 
-        profile_name, rules = _load_rules_for_document_type(session, document_type)
+        profile_name, rules = _load_rules_for_document_type(
+            session,
+            document_type,
+        )
+        total_rules_count = len(rules)
+
         issues = RuleEngineService().run(rules, extraction.fields)
         validation_profile_available = _add_profile_availability_warning(
-            issues, profile_name, rules, document_type
+            issues,
+            profile_name,
+            rules,
+            document_type,
         )
 
         if not extraction.fields.get("has_text"):
@@ -124,63 +206,136 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
                 ),
             )
 
+        # End the rules read transaction before taking the owner lock again.
+        session.rollback()
+
+        analysis = _lock_analysis(session, analysis_uuid)
+
+        if analysis is None:
+            session.rollback()
+            return {"status": "error", "detail": "analysis_not_found"}
+
+        if analysis.status in TERMINAL_STATUSES:
+            result = {"status": str(analysis.status), "analysis_id": analysis_id}
+            session.rollback()
+            return result
+
+        if analysis.task_id and analysis.task_id != self.request.id:
+            session.rollback()
+            return {"status": "ignored", "detail": "stale_task"}
+
+        if _cancellation_requested(analysis):
+            _finish_cancellation(session, analysis)
+            return {"status": "cancelled", "analysis_id": analysis_id}
+
+        # Save the report and final status atomically under the owner lock.
         _upsert_report(
             session=session,
             analysis_id=analysis.id,
             issues=issues,
-            total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
+            total_rules=max(
+                total_rules_count,
+                1 if not extraction.fields.get("has_text") else 0,
+            ),
             summary={
                 "document_type": document_type.value,
                 "classification_confidence": classification_confidence,
                 "profile_name": profile_name,
                 "validation_profile_available": validation_profile_available,
-                "total_rules": len(rules),
+                "total_rules": total_rules_count,
                 "issues": len(issues),
                 "checked_fields": {
-                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
+                    key: value
+                    for key, value in extraction.fields.items()
+                    if key.startswith("has_")
                 },
-                "detected_sections": extraction.fields.get("detected_sections", []),
+                "detected_sections": extraction.fields.get(
+                    "detected_sections",
+                    [],
+                ),
             },
         )
-        if document:
-            document.status = DocumentStatus.PROCESSED
 
         analysis.status = AnalysisStatus.COMPLETED
+        analysis.processing_stage = ProcessingStage.COMPLETED
+        analysis.processing_step = 4
+        analysis.finished_at = datetime.now(UTC)
+        analysis.error_message = None
+
+        _update_document_status(session, analysis, DocumentStatus.PROCESSED)
         session.commit()
 
-        log.info("Analysis task completed")
-    except Exception as exc:
-        log.exception("Analysis task failed")
-        if session and analysis:
-            analysis.status = AnalysisStatus.FAILED
-            analysis.error_message = str(exc)
-            session.commit()
-        raise self.retry(exc=exc) from exc
-    else:
+        log.info("Classification and validation completed")
+
         return {"analysis_id": analysis_id, "status": "completed"}
+
+    except Exception as exc:
+        session.rollback()
+        log.exception("Classification or validation failed")
+
+        analysis = _lock_analysis(session, analysis_uuid)
+
+        if analysis is None:
+            session.rollback()
+            return {"status": "error", "detail": "analysis_not_found"}
+
+        if analysis.status in TERMINAL_STATUSES:
+            result = {"status": str(analysis.status), "analysis_id": analysis_id}
+            session.rollback()
+            return result
+
+        if analysis.task_id and analysis.task_id != self.request.id:
+            session.rollback()
+            return {"status": "ignored", "detail": "stale_task"}
+
+        if _cancellation_requested(analysis):
+            _finish_cancellation(session, analysis)
+            return {"status": "cancelled", "analysis_id": analysis_id}
+
+        analysis.error_message = str(exc)
+
+        if self.request.retries < self.max_retries:
+            # Retain the owner's slot throughout the retry delay.
+            analysis.status = AnalysisStatus.IN_PROGRESS
+            session.commit()
+            raise self.retry(exc=exc) from exc
+
+        analysis.status = AnalysisStatus.FAILED
+        analysis.finished_at = datetime.now(UTC)
+
+        _update_document_status(session, analysis, DocumentStatus.FAILED)
+        session.commit()
+
+        raise
+
     finally:
-        if session:
-            session.close()
+        session.close()
 
 
-def _coerce_document_type(value: object) -> "DocumentType":
+def _coerce_document_type(value: object) -> DocumentType:
     from app.enums.document import DocumentType
 
     if isinstance(value, DocumentType):
         return value
+
     if isinstance(value, str):
         try:
             return DocumentType(value)
         except ValueError:
             return DocumentType.UNKNOWN
+
     return DocumentType.UNKNOWN
 
 
 def _load_rules_for_document_type(
-    session: Session, document_type: "DocumentType"
+    session: Session,
+    document_type: DocumentType,
 ) -> tuple[str | None, list[Any]]:
     from app.models.validation_profile import ValidationProfile
-    from app.services.mvp_validation_profiles import build_rule_models, get_mvp_profile_definition
+    from app.services.mvp_validation_profiles import (
+        build_rule_models,
+        get_mvp_profile_definition,
+    )
 
     profile = session.execute(
         select(ValidationProfile)
@@ -204,16 +359,13 @@ def _load_rules_for_document_type(
 
 
 def _add_profile_availability_warning(
-    issues: list["ValidationIssue"],
+    issues: list[ValidationIssue],
     profile_name: str | None,
     rules: list[Any],
-    document_type: "DocumentType",
+    document_type: DocumentType,
 ) -> bool:
     if profile_name or rules:
         return True
-
-    from app.enums.analysis import ValidationSeverity
-    from app.schemas.analysis_report import ValidationIssue
 
     issues.append(
         ValidationIssue(
@@ -233,23 +385,36 @@ def _add_profile_availability_warning(
 def _upsert_report(
     session: Session,
     analysis_id: uuid.UUID,
-    issues: list["ValidationIssue"],
+    issues: list[ValidationIssue],
     total_rules: int,
     summary: dict[str, Any],
 ) -> None:
-    from app.enums.analysis import ReportStatus, ValidationSeverity
+    from app.enums.analysis import ReportStatus
     from app.models.analysis_report import AnalysisReport
 
-    errors = [issue for issue in issues if issue.severity == ValidationSeverity.ERROR]
-    warnings = [issue for issue in issues if issue.severity == ValidationSeverity.WARNING]
-    infos = [issue for issue in issues if issue.severity == ValidationSeverity.INFO]
+    errors = [
+        issue for issue in issues if issue.severity == ValidationSeverity.ERROR
+    ]
+    warnings = [
+        issue for issue in issues if issue.severity == ValidationSeverity.WARNING
+    ]
+    infos = [
+        issue for issue in issues if issue.severity == ValidationSeverity.INFO
+    ]
 
-    score = 1.0 if total_rules == 0 else round(max(0.0, 1.0 - len(errors) / total_rules), 4)
+    score = (
+        1.0
+        if total_rules == 0
+        else round(max(0.0, 1.0 - len(errors) / total_rules), 4)
+    )
+
     report = session.execute(
-        select(AnalysisReport).where(AnalysisReport.analysis_id == analysis_id)
+        select(AnalysisReport).where(
+            AnalysisReport.analysis_id == analysis_id
+        )
     ).scalar_one_or_none()
 
-    if not report:
+    if report is None:
         report = AnalysisReport(analysis_id=analysis_id)
 
     report.status = ReportStatus.COMPLETED
@@ -261,4 +426,5 @@ def _upsert_report(
     report.is_complete = len(errors) == 0
     report.completeness_score = score
     report.summary = summary
+
     session.add(report)

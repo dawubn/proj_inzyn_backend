@@ -12,6 +12,7 @@ celery_app = Celery(
         "app.tasks.analysis",
         "app.tasks.full_ocr",
         "app.tasks.legal_analysis",
+        "app.tasks.queue_dispatcher",
     ],
 )
 
@@ -30,5 +31,16 @@ celery_app.conf.update(
         "app.tasks.analysis.*": {"queue": "analysis"},
         "app.tasks.full_ocr.*": {"queue": "ocr"},
         "app.tasks.legal_analysis.*": {"queue": "ocr"},
+        "app.tasks.queue_dispatcher.*": {"queue": "celery"},
+    },
+    beat_schedule={
+        "dispatch-processing-queues": {
+            "task": "app.tasks.queue_dispatcher.dispatch_processing_queues",
+            "schedule": 3.0,
+            "options": {
+                "queue": "celery",
+                "expires": 10.0,
+            },
+        },
     },
 )

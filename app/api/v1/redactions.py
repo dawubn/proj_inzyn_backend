@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-import asyncio
-import tempfile
 import uuid
-from pathlib import Path
 
-import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_user
-from app.core.config import settings
-from app.core.exceptions import ProcessingTimeoutError, UnsupportedFileTypeError
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.db.session import get_db
+from app.enums.analysis import TERMINAL_STATUSES, UserRole
+from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.document_analysis import DocumentAnalysisRepository
+from app.schemas.document import DocumentCreate
 from app.schemas.document_analysis import (
     DocumentAnalysisListResponse,
     DocumentAnalysisResponse,
@@ -25,9 +24,6 @@ from app.schemas.document_analysis import (
 )
 from app.services.document import DocumentService
 from app.services.document_analysis import DocumentAnalysisService
-from app.services.redaction_service import RedactionService
-
-logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
@@ -35,20 +31,22 @@ ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset(
     {"application/pdf", "image/png", "image/jpeg", "image/jpg"}
 )
 
-# Common error responses for authenticated endpoints
 COMMON_RESPONSES = {
     401: {"description": "Unauthorized - missing or invalid access token"},
-    403: {"description": "Forbidden - insufficient permissions (admin only)"},
-    404: {"description": "Not found - analysis/document does not exist or access denied"},
+    403: {"description": "Forbidden - insufficient permissions"},
+    404: {"description": "Not found - resource does not exist or access denied"},
+}
+
+CONFLICT_RESPONSE = {
+    409: {"description": "Processing state conflicts with the requested operation"},
 }
 
 
-def _redaction_service() -> RedactionService:
-    return RedactionService()
-
-
 def _analysis_service(db: AsyncSession = Depends(get_db)) -> DocumentAnalysisService:
-    return DocumentAnalysisService(DocumentAnalysisRepository(db), DocumentRepository(db))
+    return DocumentAnalysisService(
+        DocumentAnalysisRepository(db),
+        DocumentRepository(db),
+    )
 
 
 def _document_service(db: AsyncSession = Depends(get_db)) -> DocumentService:
@@ -61,18 +59,18 @@ async def _get_or_upload_document(
     current_user: User,
     doc_svc: DocumentService,
 ) -> uuid.UUID:
-    """Get document_id from either existing document or uploaded file."""
-    from app.schemas.document import DocumentCreate
+    """Resolve an owned document or upload a new one."""
+    if document_id is not None and file is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Cannot provide both document_id and file.",
+        )
 
-    if document_id and file:
-        raise ValueError("Cannot provide both document_id and file - use one or the other")
-
-    if document_id:
-        # Verify document exists and belongs to current user
+    if document_id is not None:
         await doc_svc.get_or_raise(document_id, current_user.id)
         return document_id
 
-    if file:
+    if file is not None:
         content = await file.read()
         doc = await doc_svc.upload(
             owner_id=current_user.id,
@@ -83,89 +81,60 @@ async def _get_or_upload_document(
         )
         return doc.id
 
-    raise ValueError("Must provide either document_id or file")
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="Must provide either document_id or file.",
+    )
+
+
+async def _trigger_response(
+    analysis: DocumentAnalysis,
+    svc: DocumentAnalysisService,
+) -> TriggerAnalysisResponse:
+    return TriggerAnalysisResponse(
+        analysis_id=analysis.id,
+        task_id=analysis.task_id,
+        status=analysis.status,
+        queue_position=await svc.get_queue_position(analysis),
+        queued_at=analysis.queued_at,
+        message="Waiting for analysis",
+    )
+
+
+async def _detail_response(
+    analysis: DocumentAnalysis,
+    svc: DocumentAnalysisService,
+) -> DocumentAnalysisResponse:
+    response = DocumentAnalysisResponse.model_validate(analysis)
+    response.queue_position = await svc.get_queue_position(analysis)
+    return response
 
 
 @router.post(
     "",
     status_code=status.HTTP_200_OK,
-    responses={200: {"description": "Redacted file", "content": {"application/pdf": {}}}},
+    deprecated=True,
+    responses={
+        **COMMON_RESPONSES,
+        409: {
+            "description": "Inline processing disabled; use asynchronous processing"
+        },
+    },
 )  # type: ignore[misc]
-async def redact_local_ocr(  # noqa: PLR0913
-    background_tasks: BackgroundTasks,
-    document_id: uuid.UUID | None = Query(None),
-    file: UploadFile | None = File(None),
+async def redact_local_ocr(
     current_user: User = Depends(get_current_user),
-    doc_svc: DocumentService = Depends(_document_service),
-    svc: RedactionService = Depends(_redaction_service),
 ) -> FileResponse:
     """
-    Inline local OCR (Tesseract) with redaction - process and return redacted file immediately.
+    Inline processing is disabled to prevent bypassing the per-user queue.
 
-    Accepts either:
-    - document_id: existing document (reads from storage)
-    - file: upload file
-
-    Returns redacted file (HTTP 200) synchronously as binary content.
+    Use POST /redactions/local-ocr and poll GET /redactions/{analysis_id}.
     """
-    if document_id and file:
-        raise ValueError("Cannot provide both document_id and file - use one or the other")
-
-    if document_id:
-        # Get existing document (verifying ownership)
-        doc = await doc_svc.get_or_raise(document_id, current_user.id)
-
-        # Read file from storage
-        file_path = Path(doc.storage_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-
-        content = file_path.read_bytes()
-        original_filename = doc.original_filename
-        content_type = doc.mime_type
-
-    elif file:
-        content_type = (file.content_type or "").lower()
-        if content_type not in ALLOWED_CONTENT_TYPES:
-            msg = (
-                f"Unsupported type '{content_type}'. "
-                "Accepted: application/pdf, image/png, image/jpeg."
-            )
-            raise UnsupportedFileTypeError(msg)
-        content = await file.read()
-        original_filename = file.filename or "document"
-
-    else:
-        raise ValueError("Must provide either document_id or file")
-
-    # Write to temp file and process
-    with tempfile.NamedTemporaryFile(
-        suffix=Path(original_filename).suffix or ".bin", delete=False
-    ) as tmp:
-        tmp.write(content)
-        input_path = Path(tmp.name)
-
-    try:
-        result = await asyncio.wait_for(
-            asyncio.to_thread(svc.anonymize_file, input_path, original_filename, content_type),
-            timeout=settings.REDACTION_TIMEOUT_SECONDS,
-        )
-    except TimeoutError:
-        raise ProcessingTimeoutError(
-            f"Redaction exceeded the {settings.REDACTION_TIMEOUT_SECONDS}s time limit."
-        ) from None
-    finally:
-        input_path.unlink(missing_ok=True)
-
-    background_tasks.add_task(result.output_path.unlink, missing_ok=True)
-    logger.info(
-        "Local OCR redaction complete", filename=original_filename, user_id=str(current_user.id)
-    )
-
-    return FileResponse(
-        path=str(result.output_path),
-        media_type=result.media_type,
-        filename=result.filename,
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            "Inline processing is disabled. "
+            "Use /api/v1/redactions/local-ocr for queued processing."
+        ),
     )
 
 
@@ -173,6 +142,7 @@ async def redact_local_ocr(  # noqa: PLR0913
     "/local-ocr",
     response_model=TriggerAnalysisResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    responses={401: COMMON_RESPONSES[401], 404: COMMON_RESPONSES[404]},
 )
 async def trigger_local_ocr_async(
     document_id: uuid.UUID | None = Query(None),
@@ -181,45 +151,22 @@ async def trigger_local_ocr_async(
     doc_svc: DocumentService = Depends(_document_service),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> TriggerAnalysisResponse:
-    """
-    Trigger local OCR (Tesseract) asynchronously and save results to DB.
-
-    Accepts either:
-    - document_id: existing document ID
-    - file: upload file to process
-
-    Returns immediately (HTTP 202) while processing happens in background.
-    """
-    from app.enums.analysis import AnalysisStatus
-    from app.tasks.local_ocr import run_local_ocr_task
-
-    # Get or upload document
-    doc_id = await _get_or_upload_document(document_id, file, current_user, doc_svc)
-
-    # Create and queue analysis
-    analysis_repo = analysis_svc._analyses
-    analysis = DocumentAnalysis(
-        document_id=doc_id,
-        status=AnalysisStatus.PENDING,
+    """Queue local OCR processing for an existing or uploaded document."""
+    doc_id = await _get_or_upload_document(
+        document_id,
+        file,
+        current_user,
+        doc_svc,
     )
-    analysis = await analysis_repo.create(analysis)
-
-    task = run_local_ocr_task.delay(str(analysis.id), str(doc_id))
-    analysis.task_id = task.id
-    analysis = await analysis_repo.update(analysis)
-    await analysis_repo.session.commit()
-
-    return TriggerAnalysisResponse(
-        analysis_id=analysis.id,
-        task_id=analysis.task_id or "",
-        message="Local OCR queued",
-    )
+    analysis = await analysis_svc.trigger_local_ocr(doc_id, current_user.id)
+    return await _trigger_response(analysis, analysis_svc)
 
 
 @router.post(  # type: ignore[misc]
     "/full-ocr",
     response_model=TriggerAnalysisResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    responses={401: COMMON_RESPONSES[401], 404: COMMON_RESPONSES[404]},
 )
 async def trigger_full_ocr(
     document_id: uuid.UUID | None = Query(None),
@@ -228,31 +175,25 @@ async def trigger_full_ocr(
     doc_svc: DocumentService = Depends(_document_service),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> TriggerAnalysisResponse:
-    """
-    Trigger full OCR pipeline: local OCR → redaction → Azure OCR.
-
-    Accepts either:
-    - document_id: existing document ID
-    - file: upload file to process
-
-    Returns immediately (HTTP 202) while processing happens in background.
-    """
-    # Get or upload document
-    doc_id = await _get_or_upload_document(document_id, file, current_user, doc_svc)
-
-    # Trigger full pipeline
-    analysis = await analysis_svc.trigger_analysis_with_redaction(doc_id, current_user.id)
-    return TriggerAnalysisResponse(
-        analysis_id=analysis.id,
-        task_id=analysis.task_id or "",
-        message="Full OCR pipeline queued",
+    """Queue local OCR, redaction and Azure OCR processing."""
+    doc_id = await _get_or_upload_document(
+        document_id,
+        file,
+        current_user,
+        doc_svc,
     )
+    analysis = await analysis_svc.trigger_analysis_with_redaction(
+        doc_id,
+        current_user.id,
+    )
+    return await _trigger_response(analysis, analysis_svc)
 
 
 @router.post(  # type: ignore[misc]
     "/azure-ocr",
     response_model=TriggerAnalysisResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    responses={401: COMMON_RESPONSES[401], 404: COMMON_RESPONSES[404]},
 )
 async def trigger_azure_ocr(
     document_id: uuid.UUID | None = Query(None),
@@ -261,31 +202,22 @@ async def trigger_azure_ocr(
     doc_svc: DocumentService = Depends(_document_service),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> TriggerAnalysisResponse:
-    """
-    Trigger Azure OCR only (without local OCR or redaction).
-
-    Accepts either:
-    - document_id: existing document ID
-    - file: upload file to process
-
-    Returns immediately (HTTP 202) while processing happens in background.
-    """
-    # Get or upload document
-    doc_id = await _get_or_upload_document(document_id, file, current_user, doc_svc)
-
-    # Trigger Azure OCR only
-    analysis = await analysis_svc.trigger_azure_ocr(doc_id, current_user.id)
-    return TriggerAnalysisResponse(
-        analysis_id=analysis.id,
-        task_id=analysis.task_id or "",
-        message="Azure OCR queued",
+    """Queue Azure OCR processing without local OCR or redaction."""
+    doc_id = await _get_or_upload_document(
+        document_id,
+        file,
+        current_user,
+        doc_svc,
     )
+    analysis = await analysis_svc.trigger_azure_ocr(doc_id, current_user.id)
+    return await _trigger_response(analysis, analysis_svc)
 
 
 @router.post(  # type: ignore[misc]
     "/legal-analysis",
     response_model=TriggerAnalysisResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    responses={401: COMMON_RESPONSES[401], 404: COMMON_RESPONSES[404]},
 )
 async def trigger_legal_analysis(
     document_id: uuid.UUID | None = Query(None),
@@ -294,28 +226,15 @@ async def trigger_legal_analysis(
     doc_svc: DocumentService = Depends(_document_service),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> TriggerAnalysisResponse:
-    """
-    Trigger full OCR pipeline with legal analysis.
-
-    Pipeline: local OCR → redaction → Azure OCR → LLM legal analysis.
-
-    Accepts either:
-    - document_id: existing document ID
-    - file: upload file to process
-
-    Returns immediately (HTTP 202) while processing happens in background.
-    Results include: document summary, errors/issues, and applicable laws.
-    """
-    # Get or upload document
-    doc_id = await _get_or_upload_document(document_id, file, current_user, doc_svc)
-
-    # Trigger legal analysis pipeline
-    analysis = await analysis_svc.trigger_legal_analysis(doc_id, current_user.id)
-    return TriggerAnalysisResponse(
-        analysis_id=analysis.id,
-        task_id=analysis.task_id or "",
-        message="Legal analysis pipeline queued",
+    """Queue local OCR, redaction, Azure OCR and legal processing."""
+    doc_id = await _get_or_upload_document(
+        document_id,
+        file,
+        current_user,
+        doc_svc,
     )
+    analysis = await analysis_svc.trigger_legal_analysis(doc_id, current_user.id)
+    return await _trigger_response(analysis, analysis_svc)
 
 
 @router.get(
@@ -327,25 +246,23 @@ async def list_redactions(
     current_user: User = Depends(get_current_user),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> list[DocumentAnalysisListResponse]:
-    """
-    List all redactions/analyses for current user.
-    """
-    from sqlalchemy import select
-
-    from app.models.document import Document
-
-    # Query analyses joined with documents to filter by owner_id
+    """List the current user's processing requests."""
     stmt = (
         select(DocumentAnalysis)
         .join(Document, DocumentAnalysis.document_id == Document.id)
         .where(Document.owner_id == current_user.id)
         .order_by(DocumentAnalysis.created_at.desc())
     )
-
     result = await analysis_svc._analyses.session.execute(stmt)
     analyses = list(result.scalars().all())
 
-    return [DocumentAnalysisListResponse.model_validate(a) for a in analyses]
+    responses: list[DocumentAnalysisListResponse] = []
+    for analysis in analyses:
+        response = DocumentAnalysisListResponse.model_validate(analysis)
+        response.queue_position = await analysis_svc.get_queue_position(analysis)
+        responses.append(response)
+
+    return responses
 
 
 @router.get(
@@ -357,61 +274,91 @@ async def list_all_redactions_admin(
     current_user: User = Depends(get_current_user),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> list[DocumentAnalysisResponse]:
-    """
-    List ALL redactions/analyses (admin only).
-    """
-    from app.core.exceptions import ForbiddenError
-    from app.enums.analysis import UserRole
-
+    """List processing requests across all users; admin only."""
     if current_user.role != UserRole.ADMIN:
         raise ForbiddenError("Only admins can access this endpoint")
-
-    from sqlalchemy import select
 
     stmt = select(DocumentAnalysis).order_by(DocumentAnalysis.created_at.desc())
     result = await analysis_svc._analyses.session.execute(stmt)
     analyses = list(result.scalars().all())
 
-    return [DocumentAnalysisResponse.model_validate(a) for a in analyses]
+    responses: list[DocumentAnalysisResponse] = []
+    for analysis in analyses:
+        responses.append(await _detail_response(analysis, analysis_svc))
+
+    return responses
 
 
-@router.get("/{analysis_id}", response_model=DocumentAnalysisResponse, responses=COMMON_RESPONSES)  # type: ignore[misc]
-async def get_redaction(
+@router.post(
+    "/{analysis_id}/cancel",
+    response_model=DocumentAnalysisResponse,
+    status_code=status.HTTP_200_OK,
+    responses={**COMMON_RESPONSES, **CONFLICT_RESPONSE},
+)  # type: ignore[misc]
+async def cancel_redaction(
     analysis_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> DocumentAnalysisResponse:
     """
-    Get redaction/analysis status by ID. Only owner or admin can access.
+    Cancel waiting processing or request cancellation of running processing.
+
+    Running processing retains its slot until a worker confirms cancellation.
+    Only the owner or an admin can cancel processing.
     """
-    from app.enums.analysis import UserRole
+    owner_id = None if current_user.role == UserRole.ADMIN else current_user.id
 
-    # Admin can access any analysis, non-admin can only access their own
-    owner_id = current_user.id if current_user.role != UserRole.ADMIN else None
+    analysis = await svc.cancel_processing(analysis_id, owner_id)
+    return await _detail_response(analysis, svc)
+
+
+@router.get(
+    "/{analysis_id}",
+    response_model=DocumentAnalysisResponse,
+    responses=COMMON_RESPONSES,
+)  # type: ignore[misc]
+async def get_redaction(
+    analysis_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    svc: DocumentAnalysisService = Depends(_analysis_service),
+) -> DocumentAnalysisResponse:
+    """Get processing status and results; owner or admin only."""
+    owner_id = None if current_user.role == UserRole.ADMIN else current_user.id
+
     analysis = await svc.get_or_raise(analysis_id, owner_id)
-    return DocumentAnalysisResponse.model_validate(analysis)
+    return await _detail_response(analysis, svc)
 
 
-@router.delete("/{analysis_id}", status_code=status.HTTP_204_NO_CONTENT, responses=COMMON_RESPONSES)  # type: ignore[misc]
+@router.delete(
+    "/{analysis_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**COMMON_RESPONSES, **CONFLICT_RESPONSE},
+)  # type: ignore[misc]
 async def delete_redaction(
     analysis_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """
-    Delete a redaction/analysis by ID. Only document owner can delete.
-    """
-    from app.core.exceptions import NotFoundError
-    from app.models.document import Document
-
+    """Delete finished processing; only the document owner can delete."""
     repo = DocumentAnalysisRepository(db)
+
     analysis = await repo.get_by_id(analysis_id)
     if not analysis:
         raise NotFoundError("Analysis not found")
 
-    # Verify user owns the document
     doc = await db.get(Document, analysis.document_id)
     if not doc or doc.owner_id != current_user.id:
         raise NotFoundError("Analysis not found")
 
-    await repo.delete(analysis)
+    await repo.lock_owner(analysis.owner_id)
+
+    locked_analysis = await repo.get_by_id_for_update(analysis_id)
+    if not locked_analysis:
+        raise NotFoundError("Analysis not found")
+
+    if locked_analysis.status not in TERMINAL_STATUSES:
+        raise ConflictError(
+            "Cancel processing and wait for it to stop before deleting."
+        )
+
+    await repo.delete(locked_analysis)

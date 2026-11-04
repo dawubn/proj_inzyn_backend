@@ -1,17 +1,30 @@
 """
 Celery task: run Azure Document Intelligence OCR on a document.
 
-After OCR succeeds, chains into the analysis task.
+After OCR succeeds, persist a handoff to classification and validation.
+Cancellation is checked before and after the Azure OCR call.
 """
 
 import uuid
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import structlog
 from celery import Task
 from sqlalchemy.orm import Session
 
+from app.adapters.azure_ocr import AzureOCRAdapter
+from app.enums.analysis import TERMINAL_STATUSES, AnalysisStatus, ProcessingStage
+from app.enums.document import DocumentStatus
+from app.models.document import Document
 from app.tasks.celery_app import celery_app
+from app.tasks.local_ocr import (
+    _cancellation_requested,
+    _finish_cancellation,
+    _lock_analysis,
+    _update_document_status,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -35,77 +48,168 @@ def _get_db_session() -> Session:
     default_retry_delay=30,
 )
 def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
-    """
-    Run Azure Document Intelligence OCR for a given DocumentAnalysis record.
+    """Run Azure OCR while retaining the owner's processing slot."""
+    log = logger.bind(
+        analysis_id=analysis_id,
+        task_id=self.request.id,
+    )
+    log.info("Azure OCR processing started")
 
-    Steps:
-    1. Load DocumentAnalysis + Document from DB
-    2. Read file bytes from storage
-    3. Call AzureOCRAdapter (Azure Document Intelligence API)
-    4. Hold OCR raw result and extracted text
-    5. Trigger run_analysis_task
-    """
-    from app.enums.analysis import AnalysisStatus
-
-    log = logger.bind(analysis_id=analysis_id, task_id=self.request.id)
-    log.info("OCR task started")
+    analysis_uuid = uuid.UUID(analysis_id)
     session = _get_db_session()
-    analysis = None
 
     try:
-        from app.models.document import Document
-        from app.models.document_analysis import DocumentAnalysis
+        analysis = _lock_analysis(session, analysis_uuid)
 
-        analysis = session.get(DocumentAnalysis, uuid.UUID(analysis_id))
-        if not analysis:
-            log.error("Analysis not found")
-            return {"status": "error", "detail": "not_found"}
+        if analysis is None:
+            session.rollback()
+            return {"status": "error", "detail": "analysis_not_found"}
 
-        analysis.status = AnalysisStatus.OCR_IN_PROGRESS
-        session.commit()
+        if analysis.status in TERMINAL_STATUSES:
+            result = {"status": str(analysis.status), "analysis_id": analysis_id}
+            session.rollback()
+            return result
+
+        if analysis.task_id and analysis.task_id != self.request.id:
+            session.rollback()
+            return {"status": "ignored", "detail": "stale_task"}
+
+        if _cancellation_requested(analysis):
+            _finish_cancellation(session, analysis)
+            return {"status": "cancelled", "analysis_id": analysis_id}
+
+        if analysis.status == AnalysisStatus.QUEUED:
+            session.rollback()
+            return {"status": "ignored", "detail": "not_dispatched"}
 
         document = session.get(Document, analysis.document_id)
-        if not document:
-            raise ValueError(f"Document {analysis.document_id} not found in DB")
-
-        # Read file from storage
-        from pathlib import Path
+        if document is None:
+            raise FileNotFoundError(
+                f"Document {analysis.document_id} not found"
+            )
 
         file_path = Path(document.storage_path)
+        content_type = document.mime_type
+
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
+        analysis.task_id = self.request.id
+        analysis.status = AnalysisStatus.OCR_IN_PROGRESS
+        analysis.processing_stage = ProcessingStage.AZURE_OCR
+        analysis.processing_step = max(analysis.processing_step, 2)
+        analysis.started_at = analysis.started_at or datetime.now(UTC)
+        analysis.error_message = None
+        document.status = DocumentStatus.PROCESSING
+
+        # Acknowledge the persisted handoff in the same transaction
+        # that marks this stage as running.
+        params = dict(analysis.pipeline_params or {})
+        pending_task = params.get("pending_task")
+        if (
+            isinstance(pending_task, dict)
+            and pending_task.get("task_id") == self.request.id
+        ):
+            params.pop("pending_task", None)
+            analysis.pipeline_params = params
+
+        # Release the owner lock before reading the file and calling Azure.
+        session.commit()
+
         file_bytes = file_path.read_bytes()
-
-        # Call Azure OCR
-        from app.adapters.azure_ocr import AzureOCRAdapter
-
         adapter = AzureOCRAdapter()
-        ocr_result = adapter.analyze_document(file_bytes, document.mime_type)
+        ocr_result = adapter.analyze_document(file_bytes, content_type)
 
-        # Hold results
+        # Do not overwrite a cancellation requested during the Azure call.
+        analysis = _lock_analysis(session, analysis_uuid)
+
+        if analysis is None:
+            session.rollback()
+            return {"status": "error", "detail": "analysis_not_found"}
+
+        if analysis.status in TERMINAL_STATUSES:
+            result = {"status": str(analysis.status), "analysis_id": analysis_id}
+            session.rollback()
+            return result
+
+        if analysis.task_id and analysis.task_id != self.request.id:
+            session.rollback()
+            return {"status": "ignored", "detail": "stale_task"}
+
+        if _cancellation_requested(analysis):
+            _finish_cancellation(session, analysis)
+            return {"status": "cancelled", "analysis_id": analysis_id}
+
         analysis.ocr_raw_result = ocr_result.raw
         analysis.ocr_provider = ocr_result.provider
         analysis.status = AnalysisStatus.OCR_COMPLETED
+        analysis.processing_step = max(analysis.processing_step, 3)
+        analysis.error_message = None
+
+        # Keep the owner's slot occupied between OCR and validation.
+        # The dispatcher publishes this handoff after the transaction commits.
+        next_task_id = str(uuid.uuid4())
+        params = dict(analysis.pipeline_params or {})
+        params["pending_task"] = {
+            "name": "app.tasks.analysis.run_analysis_task",
+            "task_id": next_task_id,
+            "args": [analysis_id],
+            "queue": "analysis",
+        }
+        analysis.pipeline_params = params
+        analysis.task_id = next_task_id
+
         session.commit()
 
-        # Chain to classification + validation
-        from app.tasks.analysis import run_analysis_task
+        log.info(
+            "Azure OCR completed; validation handoff persisted",
+            page_count=ocr_result.page_count,
+            next_task_id=next_task_id,
+        )
 
-        run_analysis_task.delay(analysis_id)
-
-        log.info("OCR task completed", page_count=ocr_result.page_count)
+        return {
+            "analysis_id": analysis_id,
+            "status": "ocr_completed",
+        }
 
     except Exception as exc:
-        log.exception("OCR task failed")
-        if analysis:
-            analysis.status = AnalysisStatus.OCR_FAILED
-            analysis.error_message = str(exc)
-            session.commit()
-        raise self.retry(exc=exc) from exc
+        session.rollback()
+        log.exception("Azure OCR processing failed")
 
-    else:
-        return {"analysis_id": analysis_id, "status": "ocr_completed"}
+        analysis = _lock_analysis(session, analysis_uuid)
+
+        if analysis is None:
+            session.rollback()
+            return {"status": "error", "detail": "analysis_not_found"}
+
+        if analysis.status in TERMINAL_STATUSES:
+            result = {"status": str(analysis.status), "analysis_id": analysis_id}
+            session.rollback()
+            return result
+
+        if analysis.task_id and analysis.task_id != self.request.id:
+            session.rollback()
+            return {"status": "ignored", "detail": "stale_task"}
+
+        if _cancellation_requested(analysis):
+            _finish_cancellation(session, analysis)
+            return {"status": "cancelled", "analysis_id": analysis_id}
+
+        analysis.error_message = str(exc)
+
+        if self.request.retries < self.max_retries:
+            # A retry is not a terminal failure: retain the processing slot.
+            analysis.status = AnalysisStatus.OCR_IN_PROGRESS
+            session.commit()
+            raise self.retry(exc=exc) from exc
+
+        analysis.status = AnalysisStatus.OCR_FAILED
+        analysis.finished_at = datetime.now(UTC)
+
+        _update_document_status(session, analysis, DocumentStatus.FAILED)
+        session.commit()
+
+        raise
 
     finally:
         session.close()
