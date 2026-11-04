@@ -49,11 +49,7 @@ CANCELLABLE_STATUSES: frozenset[AnalysisStatus] = frozenset(
     {
         AnalysisStatus.PENDING,
         AnalysisStatus.QUEUED,
-        *(
-            status
-            for status in ACTIVE_STATUSES
-            if status != AnalysisStatus.CANCELLING
-        ),
+        *(status for status in ACTIVE_STATUSES if status != AnalysisStatus.CANCELLING),
     }
 )
 

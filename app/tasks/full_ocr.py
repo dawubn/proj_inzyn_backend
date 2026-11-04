@@ -68,9 +68,7 @@ def _full_ocr_checkpoint(
 
     if analysis is None:
         session.rollback()
-        raise _FullOCRStoppedError(
-            {"status": "error", "detail": "analysis_not_found"}
-        )
+        raise _FullOCRStoppedError({"status": "error", "detail": "analysis_not_found"})
 
     if document_id is not None and analysis.document_id != document_id:
         raise ValueError("Document does not match the processing request")
@@ -85,9 +83,7 @@ def _full_ocr_checkpoint(
 
     if analysis.task_id and analysis.task_id != task_id:
         session.rollback()
-        raise _FullOCRStoppedError(
-            {"status": "ignored", "detail": "stale_task"}
-        )
+        raise _FullOCRStoppedError({"status": "ignored", "detail": "stale_task"})
 
     if _cancellation_requested(analysis):
         _finish_cancellation(session, analysis)
@@ -100,9 +96,7 @@ def _full_ocr_checkpoint(
 
     if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
         session.rollback()
-        raise _FullOCRStoppedError(
-            {"status": "ignored", "detail": "not_dispatched"}
-        )
+        raise _FullOCRStoppedError({"status": "ignored", "detail": "not_dispatched"})
 
     return analysis
 

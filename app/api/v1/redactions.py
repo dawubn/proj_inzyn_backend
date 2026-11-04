@@ -121,9 +121,7 @@ async def _detail_response(
     deprecated=True,
     responses={
         **COMMON_RESPONSES,
-        409: {
-            "description": "Inline processing disabled; use asynchronous processing"
-        },
+        409: {"description": "Inline processing disabled; use asynchronous processing"},
     },
 )  # type: ignore[misc]
 async def redact_local_ocr(
@@ -137,8 +135,7 @@ async def redact_local_ocr(
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail=(
-            "Inline processing is disabled. "
-            "Use /api/v1/redactions/local-ocr for queued processing."
+            "Inline processing is disabled. Use /api/v1/redactions/local-ocr for queued processing."
         ),
     )
 
@@ -374,10 +371,7 @@ async def get_pages_manifest(
     page_sizes = await asyncio.to_thread(previews.page_sizes)
     return PagesManifestResponse(
         variants=previews.available_variants(),
-        pages=[
-            PageInfo(page=p.page, width=p.width, height=p.height)
-            for p in page_sizes
-        ],
+        pages=[PageInfo(page=p.page, width=p.width, height=p.height) for p in page_sizes],
     )
 
 
@@ -432,9 +426,7 @@ async def delete_redaction(
         raise NotFoundError("Analysis not found")
 
     if locked_analysis.status not in TERMINAL_STATUSES:
-        raise ConflictError(
-            "Cancel processing and wait for it to stop before deleting."
-        )
+        raise ConflictError("Cancel processing and wait for it to stop before deleting.")
 
     PagePreviewService(
         Path(doc.storage_path),

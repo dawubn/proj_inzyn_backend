@@ -46,8 +46,7 @@ PIPELINE_TASKS: dict[str, tuple[str, str, bool]] = {
 }
 
 ALLOWED_TASK_QUEUES: dict[str, str] = {
-    task_name: queue
-    for task_name, queue, _needs_document_id in PIPELINE_TASKS.values()
+    task_name: queue for task_name, queue, _needs_document_id in PIPELINE_TASKS.values()
 }
 ALLOWED_TASK_QUEUES["app.tasks.analysis.run_analysis_task"] = "analysis"
 
@@ -68,11 +67,7 @@ def _get_db_session() -> Session:
 def _lock_owner(session: Session, owner_id: uuid.UUID) -> None:
     """Hold the shared per-owner lock until commit or rollback."""
     session.execute(
-        text(
-            "SELECT pg_advisory_xact_lock("
-            "hashtextextended(CAST(:owner_id AS text), 0)"
-            ")"
-        ),
+        text("SELECT pg_advisory_xact_lock(hashtextextended(CAST(:owner_id AS text), 0))"),
         {"owner_id": str(owner_id)},
     )
 
@@ -219,9 +214,7 @@ def _validate_pending_task(
     if analysis.task_id != task_id:
         raise ValueError("Pending task ID differs from the current task ID")
 
-    if not isinstance(args, list) or not all(
-        isinstance(value, str) for value in args
-    ):
+    if not isinstance(args, list) or not all(isinstance(value, str) for value in args):
         raise ValueError("Pending task arguments must be a list of strings")
 
     expected_args = [str(analysis.id)]

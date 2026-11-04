@@ -4,11 +4,7 @@ from datetime import UTC, datetime
 import structlog
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.enums.analysis import (
-    ACTIVE_STATUSES,
-    TERMINAL_STATUSES,
-    AnalysisStatus,
-)
+from app.enums.analysis import ACTIVE_STATUSES, TERMINAL_STATUSES, AnalysisStatus
 from app.enums.document import DocumentStatus
 from app.models.document_analysis import DocumentAnalysis
 from app.repositories.document import DocumentRepository
@@ -64,9 +60,7 @@ class DocumentAnalysisService:
         # An already running request for the same document must retain
         # its document-level processing status.
         document_analyses = await self._analyses.get_by_document(document_id)
-        has_active_processing = any(
-            item.status in ACTIVE_STATUSES for item in document_analyses
-        )
+        has_active_processing = any(item.status in ACTIVE_STATUSES for item in document_analyses)
         if not has_active_processing:
             await self._docs.update_status(doc, DocumentStatus.QUEUED)
 
@@ -175,10 +169,7 @@ class DocumentAnalysisService:
             await self._analyses.update(analysis)
             await self._sync_document_status_after_cancel(analysis)
 
-        elif (
-            analysis.status in ACTIVE_STATUSES
-            or analysis.status == AnalysisStatus.PENDING
-        ):
+        elif analysis.status in ACTIVE_STATUSES or analysis.status == AnalysisStatus.PENDING:
             # PENDING may represent a legacy task already published to Celery.
             # Do not assume it is safe to release the owner's slot.
             analysis.cancel_requested_at = now
@@ -209,27 +200,19 @@ class DocumentAnalysisService:
 
         document_analyses = await self._analyses.get_by_document(analysis.document_id)
 
-        other_analyses = [
-            item for item in document_analyses if item.id != analysis.id
-        ]
+        other_analyses = [item for item in document_analyses if item.id != analysis.id]
 
         if any(item.status in ACTIVE_STATUSES for item in other_analyses):
             return
 
-        if any(
-            item.status == AnalysisStatus.PENDING for item in other_analyses
-        ):
+        if any(item.status == AnalysisStatus.PENDING for item in other_analyses):
             return
 
-        if any(
-            item.status == AnalysisStatus.QUEUED for item in other_analyses
-        ):
+        if any(item.status == AnalysisStatus.QUEUED for item in other_analyses):
             await self._docs.update_status(doc, DocumentStatus.QUEUED)
             return
 
-        if any(
-            item.status == AnalysisStatus.COMPLETED for item in other_analyses
-        ):
+        if any(item.status == AnalysisStatus.COMPLETED for item in other_analyses):
             await self._docs.update_status(doc, DocumentStatus.PROCESSED)
             return
 

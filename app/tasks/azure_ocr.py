@@ -66,9 +66,7 @@ def _azure_ocr_checkpoint(
 
     if analysis is None:
         session.rollback()
-        raise _AzureOCRStoppedError(
-            {"status": "error", "detail": "analysis_not_found"}
-        )
+        raise _AzureOCRStoppedError({"status": "error", "detail": "analysis_not_found"})
 
     if analysis.status in TERMINAL_STATUSES:
         result = {
@@ -80,9 +78,7 @@ def _azure_ocr_checkpoint(
 
     if analysis.task_id and analysis.task_id != task_id:
         session.rollback()
-        raise _AzureOCRStoppedError(
-            {"status": "ignored", "detail": "stale_task"}
-        )
+        raise _AzureOCRStoppedError({"status": "ignored", "detail": "stale_task"})
 
     if _cancellation_requested(analysis):
         _finish_cancellation(session, analysis)
@@ -95,9 +91,7 @@ def _azure_ocr_checkpoint(
 
     if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
         session.rollback()
-        raise _AzureOCRStoppedError(
-            {"status": "ignored", "detail": "not_dispatched"}
-        )
+        raise _AzureOCRStoppedError({"status": "ignored", "detail": "not_dispatched"})
 
     return analysis
 
@@ -130,9 +124,7 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         document = session.get(Document, analysis.document_id)
         if document is None:
-            raise FileNotFoundError(
-                f"Document {analysis.document_id} not found"
-            )
+            raise FileNotFoundError(f"Document {analysis.document_id} not found")
 
         file_path = Path(document.storage_path)
         content_type = document.mime_type
@@ -152,10 +144,7 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
         # that marks this stage as running.
         params = dict(analysis.pipeline_params or {})
         pending_task = params.get("pending_task")
-        if (
-            isinstance(pending_task, dict)
-            and pending_task.get("task_id") == task_id
-        ):
+        if isinstance(pending_task, dict) and pending_task.get("task_id") == task_id:
             params.pop("pending_task", None)
             analysis.pipeline_params = params
 

@@ -71,9 +71,7 @@ def _analysis_checkpoint(
 
     if analysis is None:
         session.rollback()
-        raise _AnalysisStoppedError(
-            {"status": "error", "detail": "analysis_not_found"}
-        )
+        raise _AnalysisStoppedError({"status": "error", "detail": "analysis_not_found"})
 
     if analysis.status in TERMINAL_STATUSES:
         result = {
@@ -85,9 +83,7 @@ def _analysis_checkpoint(
 
     if analysis.task_id and analysis.task_id != task_id:
         session.rollback()
-        raise _AnalysisStoppedError(
-            {"status": "ignored", "detail": "stale_task"}
-        )
+        raise _AnalysisStoppedError({"status": "ignored", "detail": "stale_task"})
 
     if _cancellation_requested(analysis):
         _finish_cancellation(session, analysis)
@@ -100,9 +96,7 @@ def _analysis_checkpoint(
 
     if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
         session.rollback()
-        raise _AnalysisStoppedError(
-            {"status": "ignored", "detail": "not_dispatched"}
-        )
+        raise _AnalysisStoppedError({"status": "ignored", "detail": "not_dispatched"})
 
     return analysis
 
@@ -135,9 +129,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         document = session.get(Document, analysis.document_id)
         if document is None:
-            raise FileNotFoundError(
-                f"Document {analysis.document_id} not found"
-            )
+            raise FileNotFoundError(f"Document {analysis.document_id} not found")
 
         fallback_type = _coerce_document_type(document.document_type)
         ocr_raw_result = analysis.ocr_raw_result
@@ -150,10 +142,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         params = dict(analysis.pipeline_params or {})
         pending_task = params.get("pending_task")
-        if (
-            isinstance(pending_task, dict)
-            and pending_task.get("task_id") == task_id
-        ):
+        if isinstance(pending_task, dict) and pending_task.get("task_id") == task_id:
             params.pop("pending_task", None)
             analysis.pipeline_params = params
 
@@ -174,9 +163,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
             classifier = ClassificationService()
             try:
-                document_type, classification_confidence, _ = (
-                    classifier.classify(text_content)
-                )
+                document_type, classification_confidence, _ = classifier.classify(text_content)
                 log.info(
                     "Document classified",
                     document_type=document_type,
@@ -202,9 +189,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         document = session.get(Document, analysis.document_id)
         if document is None:
-            raise FileNotFoundError(
-                f"Document {analysis.document_id} not found"
-            )
+            raise FileNotFoundError(f"Document {analysis.document_id} not found")
 
         document.suggested_document_type = document_type
         session.commit()
@@ -261,9 +246,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
                 "total_rules": total_rules_count,
                 "issues": len(issues),
                 "checked_fields": {
-                    key: value
-                    for key, value in extraction.fields.items()
-                    if key.startswith("has_")
+                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
                 },
                 "detected_sections": extraction.fields.get(
                     "detected_sections",
@@ -342,10 +325,7 @@ def _load_rules_for_document_type(
     document_type: DocumentType,
 ) -> tuple[str | None, list[Any]]:
     from app.models.validation_profile import ValidationProfile
-    from app.services.mvp_validation_profiles import (
-        build_rule_models,
-        get_mvp_profile_definition,
-    )
+    from app.services.mvp_validation_profiles import build_rule_models, get_mvp_profile_definition
 
     profile = session.execute(
         select(ValidationProfile)
@@ -402,26 +382,14 @@ def _upsert_report(
     from app.enums.analysis import ReportStatus
     from app.models.analysis_report import AnalysisReport
 
-    errors = [
-        issue for issue in issues if issue.severity == ValidationSeverity.ERROR
-    ]
-    warnings = [
-        issue for issue in issues if issue.severity == ValidationSeverity.WARNING
-    ]
-    infos = [
-        issue for issue in issues if issue.severity == ValidationSeverity.INFO
-    ]
+    errors = [issue for issue in issues if issue.severity == ValidationSeverity.ERROR]
+    warnings = [issue for issue in issues if issue.severity == ValidationSeverity.WARNING]
+    infos = [issue for issue in issues if issue.severity == ValidationSeverity.INFO]
 
-    score = (
-        1.0
-        if total_rules == 0
-        else round(max(0.0, 1.0 - len(errors) / total_rules), 4)
-    )
+    score = 1.0 if total_rules == 0 else round(max(0.0, 1.0 - len(errors) / total_rules), 4)
 
     report = session.execute(
-        select(AnalysisReport).where(
-            AnalysisReport.analysis_id == analysis_id
-        )
+        select(AnalysisReport).where(AnalysisReport.analysis_id == analysis_id)
     ).scalar_one_or_none()
 
     if report is None:

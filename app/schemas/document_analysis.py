@@ -49,9 +49,7 @@ class DocumentAnalysisListResponse(UUIDSchema, TimestampSchema):
 
     @computed_field
     def irregularities_count(self) -> dict[str, int]:
-        if not self.legal_analysis_result or not isinstance(
-            self.legal_analysis_result, dict
-        ):
+        if not self.legal_analysis_result or not isinstance(self.legal_analysis_result, dict):
             return {"critical": 0, "high": 0, "medium": 0}
 
         errors = self.legal_analysis_result.get("errors", [])

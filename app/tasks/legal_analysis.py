@@ -154,8 +154,7 @@ def _build_paged_text(ocr_result: OCRResult) -> str:
         return str(ocr_result.text_content)
 
     return "\n\n".join(
-        f"[Strona {page.page_number}]\n" + "\n".join(page.lines)
-        for page in ocr_result.pages
+        f"[Strona {page.page_number}]\n" + "\n".join(page.lines) for page in ocr_result.pages
     )
 
 
@@ -439,9 +438,7 @@ def _classify_document(
     from app.services.classification import ClassificationService
 
     try:
-        document_type, confidence, _ = ClassificationService().classify(
-            text_content
-        )
+        document_type, confidence, _ = ClassificationService().classify(text_content)
         log.info(
             "Document classified",
             document_type=document_type,
@@ -452,6 +449,17 @@ def _classify_document(
         return fallback_type, fallback_confidence
     else:
         return document_type, confidence
+
+
+def _get_document_or_raise(
+    session: Session,
+    document_id: uuid.UUID,
+) -> Document:
+    """Return the document or raise if it does not exist."""
+    document = session.get(Document, document_id)
+    if document is None:
+        raise FileNotFoundError(f"Document {document_id} not found")
+    return document
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -491,9 +499,7 @@ def run_legal_analysis_task(
         if analysis.document_id != document_uuid:
             raise ValueError("Document does not match the processing request")
 
-        document = session.get(Document, document_uuid)
-        if document is None:
-            raise FileNotFoundError(f"Document {document_id} not found")
+        document = _get_document_or_raise(session, document_uuid)
 
         file_path = Path(document.storage_path)
         original_filename = document.original_filename
@@ -513,10 +519,7 @@ def run_legal_analysis_task(
 
         params = dict(analysis.pipeline_params or {})
         pending_task = params.get("pending_task")
-        if (
-            isinstance(pending_task, dict)
-            and pending_task.get("task_id") == task_id
-        ):
+        if isinstance(pending_task, dict) and pending_task.get("task_id") == task_id:
             params.pop("pending_task", None)
             analysis.pipeline_params = params
 
@@ -591,10 +594,7 @@ def run_legal_analysis_task(
         analysis.extracted_fields = extraction.fields
         analysis.status = AnalysisStatus.VALIDATING
 
-        document = session.get(Document, document_uuid)
-        if document is None:
-            raise FileNotFoundError(f"Document {document_id} not found")
-
+        document = _get_document_or_raise(session, document_uuid)
         document.suggested_document_type = document_type
         session.commit()
 
@@ -667,9 +667,7 @@ def run_legal_analysis_task(
                 "total_rules": total_rules_count,
                 "issues": len(issues),
                 "checked_fields": {
-                    key: value
-                    for key, value in extraction.fields.items()
-                    if key.startswith("has_")
+                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
                 },
                 "detected_sections": extraction.fields.get(
                     "detected_sections",
@@ -814,9 +812,7 @@ def _perform_legal_analysis(
                 validated_errors.append(
                     {
                         "issue": str(error.get("issue") or ""),
-                        "text_reference": str(
-                            error.get("text_reference") or ""
-                        ),
+                        "text_reference": str(error.get("text_reference") or ""),
                         "page": _coerce_page(error.get("page")),
                         "severity": str(error.get("severity") or "medium"),
                     }

@@ -31,11 +31,7 @@ class DocumentAnalysisRepository(BaseRepository[DocumentAnalysis]):
     async def lock_owner(self, owner_id: uuid.UUID) -> None:
         """Serialize queue operations for an owner until the transaction ends."""
         await self.session.execute(
-            text(
-                "SELECT pg_advisory_xact_lock("
-                "hashtextextended(CAST(:owner_id AS text), 0)"
-                ")"
-            ),
+            text("SELECT pg_advisory_xact_lock(hashtextextended(CAST(:owner_id AS text), 0))"),
             {"owner_id": str(owner_id)},
         )
 

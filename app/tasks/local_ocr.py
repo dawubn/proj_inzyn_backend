@@ -9,18 +9,21 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.adapters.local_ocr import LocalOCRAdapter
-from app.enums.analysis import (
-    ACTIVE_STATUSES,
-    TERMINAL_STATUSES,
-    AnalysisStatus,
-    ProcessingStage,
-)
+from app.enums.analysis import ACTIVE_STATUSES, TERMINAL_STATUSES, AnalysisStatus, ProcessingStage
 from app.enums.document import DocumentStatus
 from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
+
+
+class _LocalOCRStoppedError(Exception):
+    """Stop processing without treating the current state as a task failure."""
+
+    def __init__(self, result: dict[str, Any]) -> None:
+        super().__init__(str(result.get("status", "stopped")))
+        self.result = result
 
 
 def _get_db_session() -> Session:
@@ -48,11 +51,7 @@ def _lock_analysis(
         return None
 
     session.execute(
-        text(
-            "SELECT pg_advisory_xact_lock("
-            "hashtextextended(CAST(:owner_id AS text), 0)"
-            ")"
-        ),
+        text("SELECT pg_advisory_xact_lock(hashtextextended(CAST(:owner_id AS text), 0))"),
         {"owner_id": str(owner_id)},
     )
 
@@ -86,14 +85,10 @@ def _update_document_status(
     if any(status in ACTIVE_STATUSES for status in other_statuses):
         document.status = DocumentStatus.PROCESSING
     elif any(
-        status in {AnalysisStatus.QUEUED, AnalysisStatus.PENDING}
-        for status in other_statuses
+        status in {AnalysisStatus.QUEUED, AnalysisStatus.PENDING} for status in other_statuses
     ):
         document.status = DocumentStatus.QUEUED
-    elif (
-        fallback == DocumentStatus.UPLOADED
-        and AnalysisStatus.COMPLETED in other_statuses
-    ):
+    elif fallback == DocumentStatus.UPLOADED and AnalysisStatus.COMPLETED in other_statuses:
         document.status = DocumentStatus.PROCESSED
     else:
         document.status = fallback
@@ -116,10 +111,54 @@ def _finish_cancellation(
 
 
 def _cancellation_requested(analysis: DocumentAnalysis) -> bool:
-    return (
-        analysis.status == AnalysisStatus.CANCELLING
-        or analysis.cancel_requested_at is not None
-    )
+    return analysis.status == AnalysisStatus.CANCELLING or analysis.cancel_requested_at is not None
+
+
+def _local_ocr_checkpoint(
+    session: Session,
+    analysis_id: uuid.UUID,
+    task_id: str,
+    *,
+    document_id: uuid.UUID | None = None,
+    check_dispatch: bool = False,
+) -> DocumentAnalysis:
+    """Lock the analysis and stop if this task must not continue."""
+    analysis = _lock_analysis(session, analysis_id)
+
+    if analysis is None:
+        session.rollback()
+        raise _LocalOCRStoppedError({"status": "error", "detail": "analysis_not_found"})
+
+    if document_id is not None and analysis.document_id != document_id:
+        raise ValueError("Document does not match the processing request")
+
+    if analysis.status in TERMINAL_STATUSES:
+        result = {
+            "status": str(analysis.status),
+            "analysis_id": str(analysis_id),
+        }
+        session.rollback()
+        raise _LocalOCRStoppedError(result)
+
+    if analysis.task_id and analysis.task_id != task_id:
+        session.rollback()
+        raise _LocalOCRStoppedError({"status": "ignored", "detail": "stale_task"})
+
+    if _cancellation_requested(analysis):
+        _finish_cancellation(session, analysis)
+        raise _LocalOCRStoppedError(
+            {
+                "status": "cancelled",
+                "analysis_id": str(analysis_id),
+            }
+        )
+
+    # Only the dispatcher can reserve a queued request for execution.
+    if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
+        session.rollback()
+        raise _LocalOCRStoppedError({"status": "ignored", "detail": "not_dispatched"})
+
+    return analysis
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -143,35 +182,17 @@ def run_local_ocr_task(
 
     analysis_uuid = uuid.UUID(analysis_id)
     document_uuid = uuid.UUID(document_id)
+    task_id = str(self.request.id)
     session = _get_db_session()
 
     try:
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.document_id != document_uuid:
-            raise ValueError("Document does not match the processing request")
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
-
-        # Only the dispatcher can reserve a queued request for execution.
-        if analysis.status == AnalysisStatus.QUEUED:
-            session.rollback()
-            return {"status": "ignored", "detail": "not_dispatched"}
+        analysis = _local_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+            document_id=document_uuid,
+            check_dispatch=True,
+        )
 
         document = session.get(Document, document_uuid)
         if document is None:
@@ -183,7 +204,7 @@ def run_local_ocr_task(
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        analysis.task_id = self.request.id
+        analysis.task_id = task_id
         analysis.status = AnalysisStatus.OCR_IN_PROGRESS
         analysis.processing_stage = ProcessingStage.LOCAL_OCR
         analysis.started_at = analysis.started_at or datetime.now(UTC)
@@ -201,24 +222,11 @@ def run_local_ocr_task(
             words_per_page, _images = ocr_adapter.ocr_image(file_path)
 
         # Re-read under the owner lock before writing any results.
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        analysis = _local_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+        )
 
         analysis.ocr_raw_result = {
             "words_per_page": words_per_page,
@@ -239,30 +247,21 @@ def run_local_ocr_task(
 
         log.info("Local OCR processing completed", pages=len(words_per_page))
 
-        return {"status": "success", "analysis_id": analysis_id}
+    except _LocalOCRStoppedError as stopped:
+        return stopped.result
 
     except Exception as exc:
         session.rollback()
         log.exception("Local OCR processing failed")
 
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        try:
+            analysis = _local_ocr_checkpoint(
+                session,
+                analysis_uuid,
+                task_id,
+            )
+        except _LocalOCRStoppedError as stopped:
+            return stopped.result
 
         analysis.error_message = str(exc)
 
@@ -279,6 +278,9 @@ def run_local_ocr_task(
         session.commit()
 
         raise
+
+    else:
+        return {"status": "success", "analysis_id": analysis_id}
 
     finally:
         session.close()
