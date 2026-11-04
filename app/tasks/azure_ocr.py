@@ -118,7 +118,7 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         file_bytes = file_path.read_bytes()
         adapter = AzureOCRAdapter()
-        ocr_result = adapter.analyze_document(file_bytes, content_type)
+        ocr_result = adapter.analyze_paged(file_bytes, content_type)
 
         # Do not overwrite a cancellation requested during the Azure call.
         analysis = _lock_analysis(session, analysis_uuid)

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Azure AI Document Intelligence
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: str
     AZURE_DOCUMENT_INTELLIGENCE_KEY: str
+    # Free tier (F0) analyzes only the first 2 pages and accepts files up to 4 MB per request;
+    # documents are sent in chunks of this many pages (0 disables chunking)
+    AZURE_OCR_PAGES_PER_REQUEST: int = 2
 
     # Azure OpenAI (for legal analysis)
     AZURE_OPENAI_ENDPOINT: str | None = None
@@ -58,6 +61,7 @@ class Settings(BaseSettings):
     # Local OCR / Redaction
     LOCAL_OCR_LANG: str = "pol+eng"
     LOCAL_OCR_DPI: int = 150
+    LOCAL_OCR_MAX_PAGE_PX: int = 5000
     LOCAL_OCR_MIN_CONFIDENCE: float = 30.0
     REDACTION_BOX_PADDING_PX: int = 8
     REDACTION_TIMEOUT_SECONDS: int = 120

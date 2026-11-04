@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, computed_field
 
@@ -49,7 +49,9 @@ class DocumentAnalysisListResponse(UUIDSchema, TimestampSchema):
 
     @computed_field
     def irregularities_count(self) -> dict[str, int]:
-        if not self.legal_analysis_result or not isinstance(self.legal_analysis_result, dict):
+        if not self.legal_analysis_result or not isinstance(
+            self.legal_analysis_result, dict
+        ):
             return {"critical": 0, "high": 0, "medium": 0}
 
         errors = self.legal_analysis_result.get("errors", [])
@@ -80,3 +82,16 @@ class TriggerAnalysisResponse(OrmBase):
     queue_position: int | None = Field(default=None, ge=1)
     queued_at: datetime | None = None
     message: str
+
+
+class PageInfo(OrmBase):
+    """Page dimensions; clients use the aspect ratio to lay out previews before they load."""
+
+    page: int
+    width: float
+    height: float
+
+
+class PagesManifestResponse(OrmBase):
+    variants: list[Literal["original", "redacted"]]
+    pages: list[PageInfo]
