@@ -5,6 +5,8 @@ Cancellation is checked between stages. Running external calls are allowed
 to return before cancellation is confirmed and the owner's slot is released.
 """
 
+from __future__ import annotations
+
 import re
 import shutil
 import tempfile
@@ -47,6 +49,8 @@ from app.tasks.local_ocr import (
 )
 
 if TYPE_CHECKING:
+    from structlog.stdlib import BoundLogger
+
     from app.adapters.azure_ocr import OCRResult
 
 logger = structlog.get_logger(__name__)
@@ -55,7 +59,7 @@ _FUZZY_MATCH_THRESHOLD = 0.7
 _TOKEN_RE = re.compile(r"\w+")
 
 
-class _ProcessingStopped(Exception):
+class _ProcessingStoppedError(Exception):
     """Internal control flow; must not trigger a Celery retry."""
 
     def __init__(self, processing_status: str) -> None:
@@ -144,7 +148,7 @@ def _extract_tesseract_words(pdf_path: Path) -> list[dict[str, Any]]:
     return all_words
 
 
-def _build_paged_text(ocr_result: "OCRResult") -> str:
+def _build_paged_text(ocr_result: OCRResult) -> str:
     """Join OCR lines page by page with explicit page markers."""
     if not ocr_result.pages:
         return str(ocr_result.text_content)
@@ -270,11 +274,46 @@ def _union_bbox(
     return {key: round(value, digits) for key, value in union.items()}
 
 
+def _map_legal_errors(
+    errors: list[dict[str, Any]],
+    tesseract_words: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach word coordinates and viewer locations to legal analysis errors."""
+    mapped_errors: list[dict[str, Any]] = []
+
+    for error in errors:
+        error_copy = error.copy()
+        text_ref = error.get("text_reference", "")
+
+        if text_ref:
+            bbox_match = _map_error_to_bbox(
+                text_ref,
+                tesseract_words,
+                error.get("page"),
+            )
+            if bbox_match:
+                error_copy["bbox"] = bbox_match["bbox"]
+                error_copy["word_id"] = bbox_match["id"]
+                error_copy["page"] = bbox_match["page"]
+
+                if bbox_match.get("rects"):
+                    error_copy["locations"] = [
+                        {
+                            "page": bbox_match["page"],
+                            "rects": bbox_match["rects"],
+                        }
+                    ]
+
+        mapped_errors.append(error_copy)
+
+    return mapped_errors
+
+
 def _warm_page_previews(
     file_path: Path,
     mime_type: str,
     analysis_id: str,
-    log: Any,
+    log: BoundLogger,
 ) -> None:
     """Pre-render viewer previews; failures are not fatal."""
     from app.services.page_preview import PagePreviewService
@@ -311,24 +350,24 @@ def _checkpoint(
 
     if analysis is None:
         session.rollback()
-        raise _ProcessingStopped("not_found")
+        raise _ProcessingStoppedError("not_found")
 
     if analysis.status in TERMINAL_STATUSES:
         processing_status = str(analysis.status)
         session.rollback()
-        raise _ProcessingStopped(processing_status)
+        raise _ProcessingStoppedError(processing_status)
 
     if analysis.task_id and analysis.task_id != task_id:
         session.rollback()
-        raise _ProcessingStopped("stale_task")
+        raise _ProcessingStoppedError("stale_task")
 
     if _cancellation_requested(analysis):
         _finish_cancellation(session, analysis)
-        raise _ProcessingStopped("cancelled")
+        raise _ProcessingStoppedError("cancelled")
 
     if analysis.status == AnalysisStatus.QUEUED:
         session.rollback()
-        raise _ProcessingStopped("not_dispatched")
+        raise _ProcessingStoppedError("not_dispatched")
 
     return analysis
 
@@ -391,7 +430,7 @@ def _classify_document(
     text_content: str,
     fallback_type: DocumentType,
     fallback_confidence: float,
-    log: Any,
+    log: BoundLogger,
 ) -> tuple[DocumentType, float]:
     """Run the classifier and retain the extraction fallback on failure."""
     if not text_content:
@@ -496,8 +535,7 @@ def run_legal_analysis_task(
         analysis.processing_step = 2
         session.commit()
 
-        # Use the path expected by the page preview service.
-        # Preserve this artifact after processing for on-demand previews.
+        # Preserve this artifact for on-demand page previews.
         redacted_storage_path = redacted_path(file_path, analysis_id)
         shutil.move(str(temporary_output), str(redacted_storage_path))
         temporary_output = None
@@ -605,33 +643,10 @@ def run_legal_analysis_task(
             ocr_result.page_count,
         )
         legal_analysis = _perform_legal_analysis(prompt, log)
-
-        errors_with_bbox: list[dict[str, Any]] = []
-
-        for error in legal_analysis.get("errors", []):
-            error_copy = error.copy()
-            text_ref = error.get("text_reference", "")
-
-            if text_ref:
-                bbox_match = _map_error_to_bbox(
-                    text_ref,
-                    tesseract_words,
-                    error.get("page"),
-                )
-                if bbox_match:
-                    error_copy["bbox"] = bbox_match["bbox"]
-                    error_copy["word_id"] = bbox_match["id"]
-                    error_copy["page"] = bbox_match["page"]
-
-                    if bbox_match.get("rects"):
-                        error_copy["locations"] = [
-                            {
-                                "page": bbox_match["page"],
-                                "rects": bbox_match["rects"],
-                            }
-                        ]
-
-            errors_with_bbox.append(error_copy)
+        errors_with_bbox = _map_legal_errors(
+            legal_analysis.get("errors", []),
+            tesseract_words,
+        )
 
         # A cancellation requested during the LLM call wins over result saving.
         analysis = _checkpoint(session, analysis_uuid, task_id)
@@ -686,9 +701,8 @@ def run_legal_analysis_task(
         )
 
         log.info("Legal processing completed")
-        return {"status": "success", "analysis_id": analysis_id}
 
-    except _ProcessingStopped as stopped:
+    except _ProcessingStoppedError as stopped:
         log.info(
             "Legal processing stopped",
             processing_status=stopped.processing_status,
@@ -704,7 +718,7 @@ def run_legal_analysis_task(
 
         try:
             analysis = _checkpoint(session, analysis_uuid, task_id)
-        except _ProcessingStopped as stopped:
+        except _ProcessingStoppedError as stopped:
             return {
                 "status": stopped.processing_status,
                 "analysis_id": analysis_id,
@@ -725,6 +739,9 @@ def run_legal_analysis_task(
         session.commit()
 
         raise
+
+    else:
+        return {"status": "success", "analysis_id": analysis_id}
 
     finally:
         session.close()
@@ -748,7 +765,7 @@ def _coerce_page(value: object) -> int | None:
 
 def _perform_legal_analysis(
     prompt: str,
-    log: Any,
+    log: BoundLogger,
 ) -> dict[str, Any]:
     """Send the legal analysis prompt to Azure LLM."""
     import json
@@ -784,11 +801,11 @@ def _perform_legal_analysis(
 
         result = json.loads(response_text)
         if not isinstance(result, dict):
-            raise ValueError("LLM response must be a JSON object")
+            raise TypeError("LLM response must be a JSON object")
 
         errors = result.get("errors", [])
         if not isinstance(errors, list):
-            raise ValueError("LLM errors must be a list")
+            raise TypeError("LLM errors must be a list")
 
         validated_errors = []
 

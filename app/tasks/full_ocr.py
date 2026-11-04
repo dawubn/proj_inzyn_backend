@@ -5,11 +5,13 @@ The processing slot remains occupied across the pipeline.
 Cancellation is checked before redaction and before handing off to Azure OCR.
 """
 
+from __future__ import annotations
+
 import shutil
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from celery import Task
@@ -27,7 +29,18 @@ from app.tasks.local_ocr import (
     _update_document_status,
 )
 
+if TYPE_CHECKING:
+    from app.models.document_analysis import DocumentAnalysis
+
 logger = structlog.get_logger(__name__)
+
+
+class _FullOCRStoppedError(Exception):
+    """Stop processing without treating the current state as a task failure."""
+
+    def __init__(self, result: dict[str, Any]) -> None:
+        super().__init__(str(result.get("status", "stopped")))
+        self.result = result
 
 
 def _get_db_session() -> Session:
@@ -40,6 +53,58 @@ def _get_db_session() -> Session:
     sync_url = settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
     engine = create_engine(sync_url)
     return sessionmaker(bind=engine)()
+
+
+def _full_ocr_checkpoint(
+    session: Session,
+    analysis_id: uuid.UUID,
+    task_id: str,
+    *,
+    document_id: uuid.UUID | None = None,
+    check_dispatch: bool = False,
+) -> DocumentAnalysis:
+    """Lock the analysis and stop if this task must not continue."""
+    analysis = _lock_analysis(session, analysis_id)
+
+    if analysis is None:
+        session.rollback()
+        raise _FullOCRStoppedError(
+            {"status": "error", "detail": "analysis_not_found"}
+        )
+
+    if document_id is not None and analysis.document_id != document_id:
+        raise ValueError("Document does not match the processing request")
+
+    if analysis.status in TERMINAL_STATUSES:
+        result = {
+            "status": str(analysis.status),
+            "analysis_id": str(analysis_id),
+        }
+        session.rollback()
+        raise _FullOCRStoppedError(result)
+
+    if analysis.task_id and analysis.task_id != task_id:
+        session.rollback()
+        raise _FullOCRStoppedError(
+            {"status": "ignored", "detail": "stale_task"}
+        )
+
+    if _cancellation_requested(analysis):
+        _finish_cancellation(session, analysis)
+        raise _FullOCRStoppedError(
+            {
+                "status": "cancelled",
+                "analysis_id": str(analysis_id),
+            }
+        )
+
+    if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
+        session.rollback()
+        raise _FullOCRStoppedError(
+            {"status": "ignored", "detail": "not_dispatched"}
+        )
+
+    return analysis
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -63,37 +128,20 @@ def run_full_ocr_task(
 
     analysis_uuid = uuid.UUID(analysis_id)
     document_uuid = uuid.UUID(document_id)
+    task_id = str(self.request.id)
     session = _get_db_session()
 
     temporary_output: Path | None = None
     uncommitted_output: Path | None = None
 
     try:
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.document_id != document_uuid:
-            raise ValueError("Document does not match the processing request")
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
-
-        if analysis.status == AnalysisStatus.QUEUED:
-            session.rollback()
-            return {"status": "ignored", "detail": "not_dispatched"}
+        analysis = _full_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+            document_id=document_uuid,
+            check_dispatch=True,
+        )
 
         document = session.get(Document, document_uuid)
         if document is None:
@@ -106,7 +154,7 @@ def run_full_ocr_task(
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        analysis.task_id = self.request.id
+        analysis.task_id = task_id
         analysis.status = AnalysisStatus.OCR_IN_PROGRESS
         analysis.processing_stage = ProcessingStage.REDACTION
         analysis.processing_step = 1
@@ -128,24 +176,11 @@ def run_full_ocr_task(
         log.info("Redaction completed", output_filename=redaction_result.filename)
 
         # Cancellation may have been requested during redaction.
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        analysis = _full_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+        )
 
         document = session.get(Document, document_uuid)
         if document is None:
@@ -186,30 +221,21 @@ def run_full_ocr_task(
             path=str(redacted_storage_path),
         )
 
-        return {"status": "success", "analysis_id": analysis_id}
+    except _FullOCRStoppedError as stopped:
+        return stopped.result
 
     except Exception as exc:
         session.rollback()
         log.exception("Full OCR processing failed")
 
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        try:
+            analysis = _full_ocr_checkpoint(
+                session,
+                analysis_uuid,
+                task_id,
+            )
+        except _FullOCRStoppedError as stopped:
+            return stopped.result
 
         analysis.error_message = str(exc)
 
@@ -226,6 +252,9 @@ def run_full_ocr_task(
         session.commit()
 
         raise
+
+    else:
+        return {"status": "success", "analysis_id": analysis_id}
 
     finally:
         session.close()

@@ -32,10 +32,19 @@ from app.tasks.local_ocr import (
     _update_document_status,
 )
 
-logger = structlog.get_logger(__name__)
-
 if TYPE_CHECKING:
     from app.enums.document import DocumentType
+    from app.models.document_analysis import DocumentAnalysis
+
+logger = structlog.get_logger(__name__)
+
+
+class _AnalysisStoppedError(Exception):
+    """Stop processing without treating the current state as a task failure."""
+
+    def __init__(self, result: dict[str, Any]) -> None:
+        super().__init__(str(result.get("status", "stopped")))
+        self.result = result
 
 
 def _get_db_session() -> Session:
@@ -48,6 +57,54 @@ def _get_db_session() -> Session:
     sync_url = settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
     engine = create_engine(sync_url)
     return sessionmaker(bind=engine)()
+
+
+def _analysis_checkpoint(
+    session: Session,
+    analysis_id: uuid.UUID,
+    task_id: str,
+    *,
+    check_dispatch: bool = False,
+) -> DocumentAnalysis:
+    """Lock the analysis and stop if this task must not continue."""
+    analysis = _lock_analysis(session, analysis_id)
+
+    if analysis is None:
+        session.rollback()
+        raise _AnalysisStoppedError(
+            {"status": "error", "detail": "analysis_not_found"}
+        )
+
+    if analysis.status in TERMINAL_STATUSES:
+        result = {
+            "status": str(analysis.status),
+            "analysis_id": str(analysis_id),
+        }
+        session.rollback()
+        raise _AnalysisStoppedError(result)
+
+    if analysis.task_id and analysis.task_id != task_id:
+        session.rollback()
+        raise _AnalysisStoppedError(
+            {"status": "ignored", "detail": "stale_task"}
+        )
+
+    if _cancellation_requested(analysis):
+        _finish_cancellation(session, analysis)
+        raise _AnalysisStoppedError(
+            {
+                "status": "cancelled",
+                "analysis_id": str(analysis_id),
+            }
+        )
+
+    if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
+        session.rollback()
+        raise _AnalysisStoppedError(
+            {"status": "ignored", "detail": "not_dispatched"}
+        )
+
+    return analysis
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -65,31 +122,16 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
     log.info("Classification and validation started")
 
     analysis_uuid = uuid.UUID(analysis_id)
+    task_id = str(self.request.id)
     session = _get_db_session()
 
     try:
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
-
-        if analysis.status == AnalysisStatus.QUEUED:
-            session.rollback()
-            return {"status": "ignored", "detail": "not_dispatched"}
+        analysis = _analysis_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+            check_dispatch=True,
+        )
 
         document = session.get(Document, analysis.document_id)
         if document is None:
@@ -100,7 +142,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         fallback_type = _coerce_document_type(document.document_type)
         ocr_raw_result = analysis.ocr_raw_result
 
-        analysis.task_id = self.request.id
+        analysis.task_id = task_id
         analysis.status = AnalysisStatus.CLASSIFYING
         analysis.started_at = analysis.started_at or datetime.now(UTC)
         analysis.error_message = None
@@ -110,7 +152,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         pending_task = params.get("pending_task")
         if (
             isinstance(pending_task, dict)
-            and pending_task.get("task_id") == self.request.id
+            and pending_task.get("task_id") == task_id
         ):
             params.pop("pending_task", None)
             analysis.pipeline_params = params
@@ -132,8 +174,8 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
             classifier = ClassificationService()
             try:
-                document_type, classification_confidence, _ = classifier.classify(
-                    text_content
+                document_type, classification_confidence, _ = (
+                    classifier.classify(text_content)
                 )
                 log.info(
                     "Document classified",
@@ -147,24 +189,11 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
                 )
 
         # Re-read the state before persisting classification results.
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        analysis = _analysis_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+        )
 
         analysis.detected_document_type = document_type.value
         analysis.classification_confidence = classification_confidence
@@ -209,24 +238,11 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         # End the rules read transaction before taking the owner lock again.
         session.rollback()
 
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        analysis = _analysis_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+        )
 
         # Save the report and final status atomically under the owner lock.
         _upsert_report(
@@ -267,30 +283,21 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         log.info("Classification and validation completed")
 
-        return {"analysis_id": analysis_id, "status": "completed"}
+    except _AnalysisStoppedError as stopped:
+        return stopped.result
 
     except Exception as exc:
         session.rollback()
         log.exception("Classification or validation failed")
 
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        try:
+            analysis = _analysis_checkpoint(
+                session,
+                analysis_uuid,
+                task_id,
+            )
+        except _AnalysisStoppedError as stopped:
+            return stopped.result
 
         analysis.error_message = str(exc)
 
@@ -307,6 +314,9 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         session.commit()
 
         raise
+
+    else:
+        return {"analysis_id": analysis_id, "status": "completed"}
 
     finally:
         session.close()

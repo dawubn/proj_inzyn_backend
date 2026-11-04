@@ -5,10 +5,12 @@ After OCR succeeds, persist a handoff to classification and validation.
 Cancellation is checked before and after the Azure OCR call.
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from celery import Task
@@ -26,7 +28,18 @@ from app.tasks.local_ocr import (
     _update_document_status,
 )
 
+if TYPE_CHECKING:
+    from app.models.document_analysis import DocumentAnalysis
+
 logger = structlog.get_logger(__name__)
+
+
+class _AzureOCRStoppedError(Exception):
+    """Stop processing without treating the current state as a task failure."""
+
+    def __init__(self, result: dict[str, Any]) -> None:
+        super().__init__(str(result.get("status", "stopped")))
+        self.result = result
 
 
 def _get_db_session() -> Session:
@@ -39,6 +52,54 @@ def _get_db_session() -> Session:
     sync_url = settings.DATABASE_URL.replace("+asyncpg", "+psycopg2")
     engine = create_engine(sync_url)
     return sessionmaker(bind=engine)()
+
+
+def _azure_ocr_checkpoint(
+    session: Session,
+    analysis_id: uuid.UUID,
+    task_id: str,
+    *,
+    check_dispatch: bool = False,
+) -> DocumentAnalysis:
+    """Lock the analysis and stop if this task must not continue."""
+    analysis = _lock_analysis(session, analysis_id)
+
+    if analysis is None:
+        session.rollback()
+        raise _AzureOCRStoppedError(
+            {"status": "error", "detail": "analysis_not_found"}
+        )
+
+    if analysis.status in TERMINAL_STATUSES:
+        result = {
+            "status": str(analysis.status),
+            "analysis_id": str(analysis_id),
+        }
+        session.rollback()
+        raise _AzureOCRStoppedError(result)
+
+    if analysis.task_id and analysis.task_id != task_id:
+        session.rollback()
+        raise _AzureOCRStoppedError(
+            {"status": "ignored", "detail": "stale_task"}
+        )
+
+    if _cancellation_requested(analysis):
+        _finish_cancellation(session, analysis)
+        raise _AzureOCRStoppedError(
+            {
+                "status": "cancelled",
+                "analysis_id": str(analysis_id),
+            }
+        )
+
+    if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
+        session.rollback()
+        raise _AzureOCRStoppedError(
+            {"status": "ignored", "detail": "not_dispatched"}
+        )
+
+    return analysis
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -56,31 +117,16 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
     log.info("Azure OCR processing started")
 
     analysis_uuid = uuid.UUID(analysis_id)
+    task_id = str(self.request.id)
     session = _get_db_session()
 
     try:
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
-
-        if analysis.status == AnalysisStatus.QUEUED:
-            session.rollback()
-            return {"status": "ignored", "detail": "not_dispatched"}
+        analysis = _azure_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+            check_dispatch=True,
+        )
 
         document = session.get(Document, analysis.document_id)
         if document is None:
@@ -94,7 +140,7 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        analysis.task_id = self.request.id
+        analysis.task_id = task_id
         analysis.status = AnalysisStatus.OCR_IN_PROGRESS
         analysis.processing_stage = ProcessingStage.AZURE_OCR
         analysis.processing_step = max(analysis.processing_step, 2)
@@ -108,7 +154,7 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
         pending_task = params.get("pending_task")
         if (
             isinstance(pending_task, dict)
-            and pending_task.get("task_id") == self.request.id
+            and pending_task.get("task_id") == task_id
         ):
             params.pop("pending_task", None)
             analysis.pipeline_params = params
@@ -121,24 +167,11 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
         ocr_result = adapter.analyze_paged(file_bytes, content_type)
 
         # Do not overwrite a cancellation requested during the Azure call.
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        analysis = _azure_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+        )
 
         analysis.ocr_raw_result = ocr_result.raw
         analysis.ocr_provider = ocr_result.provider
@@ -167,33 +200,21 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
             next_task_id=next_task_id,
         )
 
-        return {
-            "analysis_id": analysis_id,
-            "status": "ocr_completed",
-        }
+    except _AzureOCRStoppedError as stopped:
+        return stopped.result
 
     except Exception as exc:
         session.rollback()
         log.exception("Azure OCR processing failed")
 
-        analysis = _lock_analysis(session, analysis_uuid)
-
-        if analysis is None:
-            session.rollback()
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        if analysis.status in TERMINAL_STATUSES:
-            result = {"status": str(analysis.status), "analysis_id": analysis_id}
-            session.rollback()
-            return result
-
-        if analysis.task_id and analysis.task_id != self.request.id:
-            session.rollback()
-            return {"status": "ignored", "detail": "stale_task"}
-
-        if _cancellation_requested(analysis):
-            _finish_cancellation(session, analysis)
-            return {"status": "cancelled", "analysis_id": analysis_id}
+        try:
+            analysis = _azure_ocr_checkpoint(
+                session,
+                analysis_uuid,
+                task_id,
+            )
+        except _AzureOCRStoppedError as stopped:
+            return stopped.result
 
         analysis.error_message = str(exc)
 
@@ -210,6 +231,12 @@ def run_azure_ocr_task(self: Task, analysis_id: str) -> dict[str, Any]:
         session.commit()
 
         raise
+
+    else:
+        return {
+            "analysis_id": analysis_id,
+            "status": "ocr_completed",
+        }
 
     finally:
         session.close()

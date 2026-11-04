@@ -22,7 +22,6 @@ from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
 
-
 PIPELINE_TASKS: dict[str, tuple[str, str, bool]] = {
     "local_ocr": (
         "app.tasks.local_ocr.run_local_ocr_task",
@@ -133,9 +132,7 @@ def _reserve_next(
     if pipeline not in PIPELINE_TASKS:
         analysis.status = AnalysisStatus.FAILED
         analysis.finished_at = datetime.now(UTC)
-        analysis.error_message = (
-            f"Unsupported processing pipeline: {pipeline}"
-        )
+        analysis.error_message = f"Unsupported processing pipeline: {pipeline}"
         session.commit()
 
         logger.error(
@@ -210,7 +207,7 @@ def _validate_pending_task(
     queue = pending_task.get("queue")
 
     if not isinstance(task_name, str):
-        raise ValueError("Pending task name must be a string")
+        raise TypeError("Pending task name must be a string")
 
     expected_queue = ALLOWED_TASK_QUEUES.get(task_name)
     if expected_queue is None or queue != expected_queue:
