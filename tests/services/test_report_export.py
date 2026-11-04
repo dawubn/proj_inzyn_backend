@@ -8,6 +8,9 @@ from app.models.analysis_report import AnalysisReport
 from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 from app.services.report_export import (
+    FormalCheck,
+    Mark,
+    collect_marks,
     content_disposition,
     formal_checks,
     render_report_pdf,
@@ -105,9 +108,9 @@ def _pdf_text(pdf: bytes) -> str:
 def test_formal_checks_include_issues_without_rule_result() -> None:
     checks = formal_checks(_v2_report())
 
-    assert [check["label"] for check in checks] == ["Data dokumentu", "Podpis", "Rodzaj dokumentu"]
-    assert checks[1]["message"] == "To pole jest puste. Uzupełnij je w dokumencie."
-    assert checks[2]["outcome"] == "unknown"
+    assert [check.label for check in checks] == ["Data dokumentu", "Podpis", "Rodzaj dokumentu"]
+    assert checks[1].message == "To pole jest puste. Uzupełnij je w dokumencie."
+    assert checks[2].outcome == "unknown"
 
 
 def test_formal_checks_keep_backend_message_for_unknown_reason() -> None:
@@ -128,8 +131,50 @@ def test_formal_checks_keep_backend_message_for_unknown_reason() -> None:
 
     checks = formal_checks(report)
 
-    assert checks == [
-        {"label": "Podpis mocodawcy", "outcome": "fail", "message": "Brak podpisu mocodawcy"}
+    assert checks == [FormalCheck("Podpis mocodawcy", "fail", "Brak podpisu mocodawcy")]
+
+
+def test_formal_checks_match_locations_of_repeated_rule_in_order() -> None:
+    report = _v2_report()
+    first = {
+        "kind": "placeholder",
+        "page": 1,
+        "rects": [{"x": 0.1, "y": 0.1, "width": 0.2, "height": 0.02}],
+    }
+    second = {"kind": "expected", "page": 2, "rects": []}
+    report.errors = [
+        {**report.errors[0], "details": {**report.errors[0]["details"], "location": first}},
+        {**report.errors[0], "details": {**report.errors[0]["details"], "location": second}},
+    ]
+    summary = report.summary or {}
+    summary["rule_results"].append(summary["rule_results"][1])
+
+    checks = formal_checks(report)
+
+    assert [check.location for check in checks if check.label == "Podpis"] == [first, second]
+
+
+def test_collect_marks_numbers_formal_checks_then_legal_errors() -> None:
+    rect = {"x": 0.1, "y": 0.2, "width": 0.3, "height": 0.02}
+    checks = [
+        FormalCheck("Data dokumentu", "pass", "ok"),
+        FormalCheck("Podpis", "fail", "brak", {"kind": "expected", "page": 2, "rects": [rect]}),
+        FormalCheck("Rodzaj dokumentu", "unknown", "?"),
+    ]
+    errors: list[dict[str, Any]] = [
+        {"issue": "a", "severity": "high", "page": 1, "locations": [{"page": 1, "rects": [rect]}]},
+        {"issue": "b", "severity": "medium", "page": 3},
+        {"issue": "c", "severity": "critical"},
+    ]
+
+    marks = collect_marks(checks, errors)
+
+    assert marks == [
+        [Mark(1, 2, [rect], "#dc2626", expected=True)],
+        [],
+        [Mark(3, 1, [rect], "#ea580c")],
+        [Mark(4, 3, [], "#ca8a04")],
+        [],
     ]
 
 
@@ -183,6 +228,60 @@ def test_render_report_pdf_spans_multiple_pages() -> None:
 
     assert doc.page_count > 1
     assert f"Strona {doc.page_count} z {doc.page_count}" in doc[-1].get_text()
+
+
+def _page_png() -> bytes:
+    doc = fitz.open()
+    page = doc.new_page(width=300, height=400)
+    page.insert_text((40, 60), "Udzielam pelnomocnictwa")
+    return bytes(page.get_pixmap().tobytes("png"))
+
+
+def test_render_report_pdf_appends_marked_pages() -> None:
+    legal = {
+        "errors": [
+            {
+                "issue": "Zbyt ogólny zakres",
+                "severity": "high",
+                "page": 1,
+                "locations": [
+                    {"page": 1, "rects": [{"x": 0.1, "y": 0.1, "width": 0.5, "height": 0.05}]}
+                ],
+            },
+            {"issue": "Brak wskazania sądu", "severity": "medium", "page": 1},
+            {"issue": "Strona bez podglądu", "severity": "medium", "page": 5},
+        ]
+    }
+    requested: list[int] = []
+
+    def page_image(page: int) -> bytes | None:
+        requested.append(page)
+        return _page_png() if page == 1 else None
+
+    doc = fitz.open(
+        stream=render_report_pdf(_document(), _analysis(legal), None, page_image),
+        filetype="pdf",
+    )
+    preview = " ".join(doc[-1].get_text().split())
+
+    assert requested == [1, 5]
+    assert doc.page_count == 2
+    assert "Numery z kolumny „Nr”" in doc[0].get_text()
+    assert "Strona 1 dokumentu" in preview
+    assert "Podgląd z zamaskowanymi danymi wrażliwymi." in preview
+    assert "bez dokładnego położenia: 2." in preview
+    assert len(doc[-1].get_images()) == 1
+    assert any(drawing["fill"] for drawing in doc[-1].get_drawings())
+
+
+def test_render_report_pdf_skips_previews_without_marks() -> None:
+    doc = fitz.open(
+        stream=render_report_pdf(_document(), _analysis(), None, lambda _page: _page_png()),
+        filetype="pdf",
+    )
+
+    assert doc.page_count == 1
+    assert "Numery z kolumny" not in doc[0].get_text()
 
 
 def test_content_disposition_keeps_polish_filename() -> None:

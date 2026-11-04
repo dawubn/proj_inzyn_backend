@@ -15,7 +15,12 @@ from app.repositories.document import DocumentRepository
 from app.repositories.document_analysis import DocumentAnalysisRepository
 from app.schemas.analysis_report import AnalysisReportResponse
 from app.services.document_analysis import DocumentAnalysisService
-from app.services.report_export import content_disposition, render_report_pdf, report_filename
+from app.services.report_export import (
+    content_disposition,
+    preview_loader,
+    render_report_pdf,
+    report_filename,
+)
 
 router = APIRouter()
 
@@ -66,7 +71,11 @@ async def download_report_pdf(
     reports: AnalysisReportRepository = Depends(_report_repo),
     documents: DocumentRepository = Depends(_document_repo),
 ) -> Response:
-    """Download the analysis report (formal validation and legal analysis) as a PDF file."""
+    """Download the analysis report (formal validation and legal analysis) as a PDF file.
+
+    Pages with located issues are appended as previews (redacted when available) with the
+    issues marked and numbered as in the report tables.
+    """
     owner_id = current_user.id if current_user.role != UserRole.ADMIN else None
     analysis = await analysis_svc.get_or_raise(analysis_id, owner_id)
     if analysis.status != AnalysisStatus.COMPLETED:
@@ -77,7 +86,10 @@ async def download_report_pdf(
         raise NotFoundError("Document not found")
     report = await reports.get_by_analysis_id(analysis_id)
 
-    pdf = await run_in_threadpool(render_report_pdf, document, analysis, report)
+    page_image, redacted = preview_loader(document, analysis)
+    pdf = await run_in_threadpool(
+        render_report_pdf, document, analysis, report, page_image, redacted
+    )
     return Response(
         content=pdf,
         media_type="application/pdf",
