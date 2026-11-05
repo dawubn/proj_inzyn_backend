@@ -10,6 +10,7 @@ from celery import Task
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.services.formal_report import coerce_document_type
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.document_analysis import DocumentAnalysis
     from app.schemas.analysis_report import ValidationIssue
+    from app.services.formal_validation import FormalExtractionResult
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -73,7 +75,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         session.commit()
 
         document = session.get(Document, analysis.document_id)
-        fallback_type = _coerce_document_type(document.document_type if document else None)
+        fallback_type = coerce_document_type(document.document_type if document else None)
         extraction = FormalDocumentExtractor().extract(
             analysis.ocr_raw_result,
             fallback_document_type=fallback_type,
@@ -98,7 +100,6 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
 
         analysis.detected_document_type = document_type.value
         analysis.classification_confidence = classification_confidence
-        analysis.extracted_fields = extraction.fields
         if document:
             document.suggested_document_type = document_type
         session.commit()
@@ -107,7 +108,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         session.commit()
 
         _validate_and_save_report(
-            session, analysis, document, document_type, classification_confidence
+            session, analysis, document, document_type, classification_confidence, extraction
         )
         if document:
             document.status = DocumentStatus.PROCESSED
@@ -128,19 +129,6 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
     finally:
         if session:
             session.close()
-
-
-def _coerce_document_type(value: object) -> "DocumentType":
-    from app.enums.document import DocumentType
-
-    if isinstance(value, DocumentType):
-        return value
-    if isinstance(value, str):
-        try:
-            return DocumentType(value)
-        except ValueError:
-            return DocumentType.UNKNOWN
-    return DocumentType.UNKNOWN
 
 
 def _load_rules_for_document_type(
@@ -170,38 +158,10 @@ def _load_rules_for_document_type(
     return fallback_profile.name, build_rule_models(fallback_profile)
 
 
-def _add_profile_availability_warning(
-    issues: list["ValidationIssue"],
-    profile_name: str | None,
-    rules: list[Any],
-    document_type: "DocumentType",
-) -> bool:
-    if profile_name or rules:
-        return True
-
-    from app.enums.analysis import ValidationSeverity
-    from app.schemas.analysis_report import ValidationIssue
-
-    issues.append(
-        ValidationIssue(
-            rule_name="Formal validation profile",
-            field_name="document_type",
-            severity=ValidationSeverity.WARNING,
-            message="Formal validation is not available for this document type yet.",
-            details={
-                "document_type": document_type.value,
-                "reason": "unsupported_document_type",
-            },
-        )
-    )
-    return False
-
-
 def _upsert_report(
     session: Session,
     analysis_id: uuid.UUID,
     issues: list["ValidationIssue"],
-    _total_rules: int,
     summary: dict[str, Any],
 ) -> None:
     from app.enums.analysis import ReportStatus, ValidationSeverity
@@ -231,32 +191,28 @@ def _upsert_report(
     session.add(report)
 
 
-def _validate_and_save_report(
+def _validate_and_save_report(  # noqa: PLR0913
     session: Session,
     analysis: "DocumentAnalysis",
     document: "Document | None",
     detected_type: "DocumentType",
     confidence: float,
+    extraction: "FormalExtractionResult | None" = None,
 ) -> None:
     from app.services.formal_issue_locator import locate_formal_issues
-    from app.services.formal_report import FormalValidationService, effective_document_type
+    from app.services.formal_report import FormalValidationService, resolve_document_type
     from app.services.formal_validation import FormalDocumentExtractor
 
-    requested = _coerce_document_type(document.document_type if document else None)
-    effective = effective_document_type(requested, detected_type, confidence)
-    extraction = FormalDocumentExtractor().extract(analysis.ocr_raw_result, effective)
+    effective, type_summary = resolve_document_type(
+        document.document_type if document else None, detected_type, confidence
+    )
+    if extraction is None or extraction.validation_document_type != effective:
+        extraction = FormalDocumentExtractor().extract(analysis.ocr_raw_result, effective)
     analysis.extracted_fields = extraction.fields
     profile_name, rules = _load_rules_for_document_type(session, effective)
     issues, summary = FormalValidationService().build_report(
         rules, extraction.fields, profile_name, effective
     )
     issues = locate_formal_issues(issues, analysis.tesseract_words or [])
-    summary.update(
-        {
-            "requested_document_type": requested.value,
-            "detected_document_type": detected_type.value,
-            "classification_confidence": confidence,
-            "type_source": "user" if requested.value != "unknown" else "automatic",
-        }
-    )
-    _upsert_report(session, analysis.id, issues, len(rules), summary)
+    summary.update(type_summary)
+    _upsert_report(session, analysis.id, issues, summary)

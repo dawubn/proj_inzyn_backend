@@ -72,6 +72,7 @@ class FormalExtractionResult:
     document_type: DocumentType
     confidence: float
     fields: dict[str, Any]
+    validation_document_type: DocumentType | None = None
 
 
 def normalize_text(text: str) -> str:
@@ -951,7 +952,7 @@ class FormalDocumentExtractor:
         fields.update(
             {key: item["state"] in {"present", "masked"} for key, item in observations.items()}
         )
-        return FormalExtractionResult(detected_type, confidence, fields)
+        return FormalExtractionResult(detected_type, confidence, fields, effective_type)
 
     def _classify(
         self, search_text: str, fallback_document_type: DocumentType

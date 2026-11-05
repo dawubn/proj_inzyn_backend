@@ -14,8 +14,9 @@ Steps:
 import re
 import shutil
 import uuid
+from bisect import bisect_right
 from collections import defaultdict
-from itertools import groupby
+from itertools import groupby, pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -46,6 +47,8 @@ def _extract_azure_words(raw: dict[str, Any]) -> list[dict[str, Any]]:
         if page.get("unit") != "pixel":
             continue
         width, height = page.get("width"), page.get("height")
+        lines = page.get("lines") or []
+        line_index = _azure_line_index(lines)
         for word_index, word in enumerate(page.get("words") or []):
             polygon = word.get("polygon") or []
             if len(polygon) < _MIN_POLYGON_COORDINATES or not all(
@@ -78,19 +81,45 @@ def _extract_azure_words(raw: dict[str, Any]) -> list[dict[str, Any]]:
                     "width": (max(xs) - min(xs)) / width,
                     "height": (max(ys) - min(ys)) / height,
                 }
-            entry["line"] = _azure_word_line(word, page.get("lines") or [], word_index)
+            entry["line"] = _azure_word_line(word, lines, word_index, line_index)
             words.append(entry)
     return words
 
 
-def _azure_word_line(word: dict[str, Any], lines: list[dict[str, Any]], word_index: int) -> str:
+def _azure_line_index(
+    lines: list[dict[str, Any]],
+) -> tuple[list[int], list[tuple[int, int, int]]] | None:
+    spans = sorted(
+        (span.get("offset", 0), span.get("offset", 0) + span.get("length", 0), index)
+        for index, line in enumerate(lines)
+        for span in line.get("spans") or []
+        if span.get("length", 0) > 0
+    )
+    if any(left[1] > right[0] for left, right in pairwise(spans)):
+        # Ambiguous spans retain Azure's original line order.
+        return None
+    return [span[0] for span in spans], spans
+
+
+def _azure_word_line(
+    word: dict[str, Any],
+    lines: list[dict[str, Any]],
+    word_index: int,
+    line_index: tuple[list[int], list[tuple[int, int, int]]] | None,
+) -> str:
     offset = (word.get("span") or {}).get("offset")
     if isinstance(offset, int):
-        for index, line in enumerate(lines):
-            for span in line.get("spans") or []:
-                start = span.get("offset", 0)
-                if start <= offset < start + span.get("length", 0):
-                    return f"line-{index}"
+        if line_index is not None:
+            starts, spans = line_index
+            position = bisect_right(starts, offset) - 1
+            if position >= 0 and offset < spans[position][1]:
+                return f"line-{spans[position][2]}"
+        else:
+            for index, line in enumerate(lines):
+                for span in line.get("spans") or []:
+                    start = span.get("offset", 0)
+                    if start <= offset < start + span.get("length", 0):
+                        return f"line-{index}"
     return f"word-{word_index}"
 
 
@@ -317,8 +346,9 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
     from app.enums.analysis import AnalysisStatus, ProcessingStage
     from app.models.document import Document
     from app.models.document_analysis import DocumentAnalysis
+    from app.services.formal_report import coerce_document_type
     from app.services.formal_validation import FormalDocumentExtractor
-    from app.tasks.analysis import _coerce_document_type, _validate_and_save_report
+    from app.tasks.analysis import _validate_and_save_report
 
     log = logger.bind(analysis_id=analysis_id, document_id=document_id, task_id=self.request.id)
     log.info("Legal analysis task started")
@@ -401,7 +431,7 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
 
         extraction = FormalDocumentExtractor().extract(
             ocr_result.raw,
-            fallback_document_type=_coerce_document_type(document.document_type),
+            fallback_document_type=coerce_document_type(document.document_type),
         )
 
         # Classify document type using TF-IDF + Logistic Regression
@@ -412,11 +442,10 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
 
         analysis.detected_document_type = document_type.value
         analysis.classification_confidence = classification_confidence
-        analysis.extracted_fields = extraction.fields
         document.suggested_document_type = document_type
 
         _validate_and_save_report(
-            session, analysis, document, document_type, classification_confidence
+            session, analysis, document, document_type, classification_confidence, extraction
         )
         session.commit()
 

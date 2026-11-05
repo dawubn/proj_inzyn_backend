@@ -33,7 +33,12 @@ def _make_extraction(
     confidence: float = 0.5,
 ) -> Any:
     fields = {"has_text": bool(text), "document_text": text}
-    return SimpleNamespace(document_type=document_type, confidence=confidence, fields=fields)
+    return SimpleNamespace(
+        document_type=document_type,
+        confidence=confidence,
+        fields=fields,
+        validation_document_type=document_type,
+    )
 
 
 def _make_ocr_result(text: str = "invoice content netto VAT brutto") -> Any:

@@ -367,7 +367,7 @@ def test_pipeline_selects_user_profile_and_preserves_detected_type():
 def test_report_persistence_keeps_unknown_aggregate_nullable():
     session = MagicMock()
     session.execute.return_value.scalar_one_or_none.return_value = None
-    _upsert_report(session, uuid.uuid4(), [], 0, {"is_complete": None, "completeness_score": None})
+    _upsert_report(session, uuid.uuid4(), [], {"is_complete": None, "completeness_score": None})
     report = session.add.call_args.args[0]
     assert report.is_complete is None
     assert report.completeness_score is None
@@ -550,7 +550,7 @@ def test_worker_preserves_formal_results_and_adds_azure_viewer_locations():
         _validate_and_save_report(MagicMock(), analysis, document, DocumentType.INVOICE, 0.99)
 
     issues = save.call_args.args[2]
-    summary = save.call_args.args[4]
+    summary = save.call_args.args[3]
     date = next(issue for issue in issues if issue.field_name == "has_date")
     assert date.details["outcome"] == "fail"
     assert date.details["evidence"]

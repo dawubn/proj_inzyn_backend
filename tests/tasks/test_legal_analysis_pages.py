@@ -167,3 +167,29 @@ def test_azure_words_provide_normalized_multiline_highlights() -> None:
         {"x": 0.1, "y": 0.1, "width": 0.18, "height": 0.02},
         {"x": 0.1, "y": 0.15, "width": 0.18, "height": 0.02},
     ]
+
+
+def test_azure_line_lookup_preserves_boundaries_and_original_line_numbers():
+    from app.tasks.legal_analysis import _azure_line_index, _azure_word_line
+
+    lines = [{"spans": [{"offset": 20, "length": 5}]}, {"spans": [{"offset": 0, "length": 10}]}]
+    index = _azure_line_index(lines)
+    assert index is not None
+    for offset, expected in [
+        (0, "line-1"),
+        (9, "line-1"),
+        (10, "word-7"),
+        (20, "line-0"),
+        (25, "word-7"),
+    ]:
+        assert _azure_word_line({"span": {"offset": offset}}, lines, 7, index) == expected
+    assert _azure_word_line({}, lines, 7, index) == "word-7"
+
+
+def test_overlapping_azure_lines_keep_first_match():
+    from app.tasks.legal_analysis import _azure_line_index, _azure_word_line
+
+    lines = [{"spans": [{"offset": 0, "length": 20}]}, {"spans": [{"offset": 5, "length": 10}]}]
+    index = _azure_line_index(lines)
+    assert index is None
+    assert _azure_word_line({"span": {"offset": 8}}, lines, 0, index) == "line-0"
