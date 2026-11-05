@@ -130,3 +130,90 @@ def test_template_label_is_a_placeholder_without_blank() -> None:
     assert location is not None
     assert location["kind"] == "placeholder"
     assert location["rects"][0]["y"] == 0.4
+
+
+def test_invalid_date_uses_ocr_evidence_instead_of_unrelated_blank_on_first_page():
+    issue = _issue("has_date")
+    issue.details.update(
+        reason_code="INVALID_DATE",
+        evidence=[
+            {
+                "source": "azure_ocr",
+                "text": "Data: 31.02.2026",
+                "page": 3,
+                "polygon": [100, 300, 500, 300, 500, 340, 100, 340],
+                "page_width": 1000,
+                "page_height": 2000,
+                "unit": "pixel",
+            }
+        ],
+    )
+    location = _location(locate_formal_issues([issue], WORDS), "has_date")
+    assert location == {
+        "kind": "evidence",
+        "page": 3,
+        "rects": [
+            {"x": 0.1, "y": 0.15, "width": 0.4, "height": 0.02},
+        ],
+    }
+
+
+def test_catalog_field_can_be_located_from_evidence_without_legacy_words():
+    issue = _issue("has_invoice_number")
+    issue.details.update(
+        reason_code="EMPTY_FIELD",
+        evidence=[
+            {
+                "source": "azure_ocr",
+                "text": "Numer faktury: ...",
+                "page": 2,
+                "polygon": [1, 2, 4, 2, 4, 3, 1, 3],
+                "page_width": 10,
+                "page_height": 10,
+                "unit": "inch",
+            }
+        ],
+    )
+    location = _location(locate_formal_issues([issue], []), "has_invoice_number")
+    assert location == {
+        "kind": "placeholder",
+        "page": 2,
+        "rects": [
+            {"x": 0.1, "y": 0.2, "width": 0.3, "height": 0.1},
+        ],
+    }
+
+
+def test_evidence_without_valid_geometry_keeps_page_without_guessing_a_box():
+    issue = _issue("has_date")
+    issue.details["evidence"] = [
+        {
+            "source": "azure_ocr",
+            "page": 3,
+            "polygon": [float("nan")] * 8,
+            "page_width": 100,
+            "page_height": 100,
+        }
+    ]
+    assert _location(locate_formal_issues([issue], WORDS), "has_date") == {
+        "kind": "page",
+        "page": 3,
+        "rects": [],
+    }
+
+
+def test_evidence_rectangles_are_clipped_and_deduplicated():
+    issue = _issue("has_date")
+    entry = {
+        "source": "azure_ocr",
+        "page": 2,
+        "polygon": [-1, 9, 11, 9, 11, 11, -1, 11],
+        "page_width": 10,
+        "page_height": 10,
+    }
+    issue.details["evidence"] = [entry, entry]
+    assert _location(locate_formal_issues([issue], []), "has_date") == {
+        "kind": "evidence",
+        "page": 2,
+        "rects": [{"x": 0.0, "y": 0.9, "width": 1.0, "height": 0.1}],
+    }

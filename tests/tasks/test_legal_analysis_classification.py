@@ -33,7 +33,12 @@ def _make_extraction(
     confidence: float = 0.5,
 ) -> Any:
     fields = {"has_text": bool(text), "document_text": text}
-    return SimpleNamespace(document_type=document_type, confidence=confidence, fields=fields)
+    return SimpleNamespace(
+        document_type=document_type,
+        confidence=confidence,
+        fields=fields,
+        validation_document_type=document_type,
+    )
 
 
 def _make_ocr_result(text: str = "invoice content netto VAT brutto") -> Any:
@@ -98,7 +103,7 @@ def _run_task_with_patches(
 
     patch_map = [
         ("app.tasks.legal_analysis._get_db_session", MagicMock(return_value=session)),
-        ("app.tasks.legal_analysis._extract_tesseract_words", MagicMock(return_value=[])),
+        ("app.tasks.legal_analysis._extract_azure_words", MagicMock(return_value=[])),
         (
             "app.tasks.legal_analysis._perform_legal_analysis",
             MagicMock(return_value={"summary": "", "errors": [], "applicable_laws": []}),
@@ -148,7 +153,7 @@ def test_classification_called_when_text_present() -> None:
     session = MagicMock()
     tmp_path = _make_temp_pdf()
     try:
-        fake_doc, fake_analysis = _build_db_objects(session, tmp_path)
+        _fake_doc, fake_analysis = _build_db_objects(session, tmp_path)
 
         mock_extractor_inst = MagicMock()
         mock_extractor_inst.extract.return_value = extraction
@@ -179,7 +184,7 @@ def test_classification_fallback_when_classifier_raises() -> None:
     session = MagicMock()
     tmp_path = _make_temp_pdf()
     try:
-        fake_doc, fake_analysis = _build_db_objects(session, tmp_path)
+        _fake_doc, fake_analysis = _build_db_objects(session, tmp_path)
 
         mock_extractor_inst = MagicMock()
         mock_extractor_inst.extract.return_value = extraction
@@ -210,7 +215,7 @@ def test_classification_skipped_when_no_text() -> None:
     session = MagicMock()
     tmp_path = _make_temp_pdf()
     try:
-        fake_doc, fake_analysis = _build_db_objects(session, tmp_path)
+        _fake_doc, _fake_analysis = _build_db_objects(session, tmp_path)
 
         mock_extractor_inst = MagicMock()
         mock_extractor_inst.extract.return_value = extraction

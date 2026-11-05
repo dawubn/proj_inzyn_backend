@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from statistics import median
 from typing import Any
 
 import spacy
@@ -11,6 +12,27 @@ from langdetect.lang_detect_exception import LangDetectException
 DetectorFactory.seed = 0
 
 _MIN_TEXT_LEN_FOR_NLP = 5  # skip spaCy on near-empty pages
+_FORM_LABELS = {
+    "mocodawca:",
+    "pełnomocnik:",
+    "pelnomocnik:",
+    "petnomocnik:",  # Common Tesseract substitution of ł with t.
+    "powód:",
+    "powod:",
+    "powódka:",
+    "powodka:",
+    "pozwany:",
+    "pozwana:",
+    "zamawiający:",
+    "zamawiajacy:",
+    "wykonawca:",
+    "zleceniodawca:",
+    "zleceniobiorca:",
+    "data:",
+    "podpis:",
+    "adres:",
+    "pesel:",
+}
 
 logger = structlog.get_logger(__name__)
 
@@ -83,6 +105,33 @@ def find_personal_data(words: list[WordDict]) -> list[WordDict]:
     """Return copies of word dicts that contain sensitive data, extended with 'rodzaj_danych'."""
     full_text = " ".join(s["tekst"] for s in words)
     found: list[WordDict] = []
+    heights = [word["wysokosc"] for word in words if any(c.isalnum() for c in word["tekst"])]
+    typical_height = median(heights) if heights else 0
+    offsets = []
+    offset = 0
+    for word in words:
+        offsets.append((offset, offset + len(word["tekst"]), word))
+        offset += len(word["tekst"]) + 1
+
+    def add_span(start: int, end: int, label: str) -> None:
+        # Match the occurrence, not every identical token on the page. NLP can
+        # include dotted form fillers in a person's span; these are not data.
+        for left, right, word in offsets:
+            if (
+                left < end
+                and right > start
+                and any(c.isalnum() for c in word["tekst"])
+                and not _already_added(word, found)
+                and word["tekst"].casefold().strip() not in _FORM_LABELS
+            ):
+                # Tesseract reads dotted rules as "aaa/ccc" and NLP calls
+                # them people. Still cover the pixels conservatively, but
+                # do not manufacture a semantic presence marker on a line.
+                thin_rule = (
+                    word["wysokosc"] < typical_height / 3
+                    and word["szerokosc"] > 5 * word["wysokosc"]
+                )
+                found.append({**word, "rodzaj_danych": "" if thin_rule else label})
 
     for word in words:
         text = word["tekst"]
@@ -102,14 +151,7 @@ def find_personal_data(words: list[WordDict]) -> list[WordDict]:
 
     for pattern in [_DATE_RE, _DATE_PL_RE]:
         for match in pattern.finditer(full_text):
-            for fragment in match.group().split():
-                for word in words:
-                    if word["tekst"].lower() == fragment.lower() and not _already_added(
-                        word, found
-                    ):
-                        item = word.copy()
-                        item["rodzaj_danych"] = "[UTAJNIONO: DATA]"
-                        found.append(item)
+            add_span(match.start(), match.end(), "[UTAJNIONO: DATA]")
 
     if len(full_text.strip()) < _MIN_TEXT_LEN_FOR_NLP or not _load_spacy():
         return found
@@ -129,13 +171,6 @@ def find_personal_data(words: list[WordDict]) -> list[WordDict]:
     for ent in doc.ents:
         if ent.label_ in active:
             label = _NLP_LABELS.get(ent.label_, "[UTAJNIONO]")
-            for fragment in ent.text.split():
-                for word in words:
-                    if word["tekst"].lower() == fragment.lower() and not _already_added(
-                        word, found
-                    ):
-                        item = word.copy()
-                        item["rodzaj_danych"] = label
-                        found.append(item)
+            add_span(ent.start_char, ent.end_char, label)
 
     return found

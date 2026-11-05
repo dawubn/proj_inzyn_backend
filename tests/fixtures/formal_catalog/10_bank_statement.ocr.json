@@ -1,0 +1,43 @@
+{
+  "content": "WYCIĄG BANKOWY - DANE FIKCYJNE\nBank: Bank Testowy\n[UTAJNIONO: IMII [UTAJNIONO: IMIE/NAZWISKO] Posiadacz rachunku:\nNumer rachunku:\n...\nOkres wyciągu: [UTAJNIONO: DATA]\n[UTAJNIONO: DATA]\n-\nSaldo początkowe: 0,00 PLN\nSaldo końcowe: 0,00 PLN\nHistoria operacji: Brak operacji w okresie\nDOKUMENT TESTOWY. Wszystkie dane są fikcyjne. Nie jest to dokument urzędowy ani dokument do użycia w obrocie prawnym.\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "width": 2481,
+      "height": 3508,
+      "unit": "pixel",
+      "lines": [
+        {"content": "WYCIĄG BANKOWY - DANE FIKCYJNE", "polygon": [251, 251, 1763, 249, 1763, 327, 251, 335], "spans": [{"offset": 0, "length": 30}]},
+        {"content": "Bank: Bank Testowy", "polygon": [250, 453, 670, 455, 669, 507, 250, 505], "spans": [{"offset": 31, "length": 18}]},
+        {"content": "[UTAJNIONO: IMII [UTAJNIONO: IMIE/NAZWISKO]", "polygon": [674, 593, 909, 592, 909, 610, 674, 613], "spans": [{"offset": 50, "length": 43}]},
+        {"content": "Posiadacz rachunku:", "polygon": [248, 595, 675, 596, 675, 649, 248, 648], "spans": [{"offset": 94, "length": 19}]},
+        {"content": "Numer rachunku:", "polygon": [251, 739, 616, 739, 616, 786, 251, 788], "spans": [{"offset": 114, "length": 15}]},
+        {"content": "...", "polygon": [1045, 765, 1072, 766, 1072, 783, 1044, 783], "spans": [{"offset": 130, "length": 3}]},
+        {"content": "Okres wyciągu:", "polygon": [251, 879, 566, 880, 566, 933, 251, 932], "spans": [{"offset": 134, "length": 14}]},
+        {"content": "[UTAJNIONO: DATA]", "polygon": [568, 874, 667, 876, 667, 895, 568, 893], "spans": [{"offset": 149, "length": 17}]},
+        {"content": "[UTAJNIONO: DATA]", "polygon": [837, 878, 931, 878, 931, 892, 837, 892], "spans": [{"offset": 167, "length": 17}]},
+        {"content": "-", "polygon": [818, 899, 832, 901, 833, 911, 817, 912], "spans": [{"offset": 185, "length": 1}]},
+        {"content": "Saldo początkowe: 0,00 PLN", "polygon": [249, 1023, 839, 1022, 839, 1072, 249, 1075], "spans": [{"offset": 187, "length": 26}]},
+        {"content": "Saldo końcowe: 0,00 PLN", "polygon": [250, 1163, 776, 1163, 776, 1212, 250, 1212], "spans": [{"offset": 214, "length": 23}]},
+        {"content": "Historia operacji: Brak operacji w okresie", "polygon": [250, 1305, 1098, 1304, 1098, 1357, 250, 1358], "spans": [{"offset": 238, "length": 42}]},
+        {"content": "DOKUMENT TESTOWY. Wszystkie dane są fikcyjne. Nie jest to dokument urzędowy ani dokument do użycia w obrocie prawnym.", "polygon": [250, 1525, 2181, 1526, 2181, 1568, 250, 1566], "spans": [{"offset": 281, "length": 117}]}
+      ],
+      "words": [
+        {"content": "-", "polygon": [1065, 250, 1090, 250, 1089, 324, 1064, 324], "confidence": 0.992, "span": {"offset": 15, "length": 1}},
+        {"content": "Bank", "polygon": [383, 456, 484, 457, 482, 507, 380, 507], "confidence": 0.989, "span": {"offset": 37, "length": 4}},
+        {"content": "IMII", "polygon": [741, 593, 756, 593, 756, 611, 740, 611], "confidence": 0.69, "span": {"offset": 62, "length": 4}},
+        {"content": "rachunku:", "polygon": [473, 598, 676, 598, 676, 649, 471, 648], "confidence": 0.993, "span": {"offset": 104, "length": 9}},
+        {"content": "rachunku:", "polygon": [402, 741, 617, 740, 616, 786, 401, 786], "confidence": 0.993, "span": {"offset": 120, "length": 9}},
+        {"content": "...", "polygon": [1044, 765, 1073, 765, 1072, 783, 1044, 782], "confidence": 0.716, "span": {"offset": 130, "length": 3}},
+        {"content": "wyciągu:", "polygon": [389, 882, 566, 882, 567, 932, 389, 933], "confidence": 0.994, "span": {"offset": 140, "length": 8}},
+        {"content": "[UTAJNIONO:", "polygon": [569, 874, 633, 876, 633, 895, 568, 894], "confidence": 0.878, "span": {"offset": 149, "length": 11}},
+        {"content": "[UTAJNIONO:", "polygon": [839, 878, 902, 879, 901, 892, 838, 892], "confidence": 0.623, "span": {"offset": 167, "length": 11}},
+        {"content": "-", "polygon": [817, 899, 833, 899, 833, 912, 817, 911], "confidence": 0.96, "span": {"offset": 185, "length": 1}},
+        {"content": "0,00", "polygon": [655, 1023, 740, 1023, 739, 1073, 654, 1074], "confidence": 0.991, "span": {"offset": 205, "length": 4}},
+        {"content": "0,00", "polygon": [591, 1163, 676, 1163, 675, 1213, 590, 1213], "confidence": 0.989, "span": {"offset": 229, "length": 4}},
+        {"content": "Brak", "polygon": [619, 1306, 710, 1305, 710, 1359, 619, 1359], "confidence": 0.992, "span": {"offset": 257, "length": 4}},
+        {"content": "są", "polygon": [856, 1525, 885, 1525, 885, 1568, 855, 1568], "confidence": 0.983, "span": {"offset": 314, "length": 2}}
+      ]
+    }
+  ]
+}
