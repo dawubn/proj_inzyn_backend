@@ -562,3 +562,49 @@ def test_worker_preserves_formal_results_and_adds_azure_viewer_locations():
     )
     assert principal["outcome"] == "pass"
     assert summary["effective_document_type"] == "power_of_attorney"
+
+
+@pytest.mark.parametrize(
+    "kind,config",
+    [("regex_match", {"pattern": r"\d{4}-\d{2}-\d{2}"}), ("date_range", {"min": "2026-01-01"})],
+)
+def test_content_rules_cannot_confirm_uncertain_ocr(kind, config):
+    evidence = [{"text": "2026-05-12", "page": 2}]
+    item = rule("date", kind, config)
+    result = RuleEngineService().evaluate(
+        [item],
+        {
+            "date": "2026-05-12",
+            "observations": {
+                "date": {
+                    "state": "unknown",
+                    "reason_code": "LOW_OCR_CONFIDENCE",
+                    "evidence": evidence,
+                }
+            },
+        },
+    )[0]
+    assert result.outcome == "unknown"
+    assert result.reason_code == "LOW_OCR_CONFIDENCE"
+    assert result.evidence == evidence
+
+
+@pytest.mark.parametrize("observations", ["invalid", {"value": "invalid"}])
+def test_malformed_observation_does_not_abort_other_checks(observations):
+    results = RuleEngineService().evaluate(
+        [rule("value"), rule("other")],
+        {
+            "value": "ok",
+            "other": "ok",
+            "observations": observations,
+        },
+    )
+    assert len(results) == 2
+    assert results[0].outcome == "error"
+    assert results[0].reason_code == "INVALID_OBSERVATION"
+
+
+def test_success_message_does_not_expose_ocr_implementation():
+    result = RuleEngineService().evaluate([rule("value")], {"value": "ok"})[0]
+    assert result.outcome == "pass"
+    assert "Azure" not in result.message and "OCR" not in result.message

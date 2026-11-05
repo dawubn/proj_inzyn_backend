@@ -294,3 +294,17 @@ def test_actual_azure_after_redaction(case):
     fields = FormalDocumentExtractor().extract(raw, DocumentType(case["type"])).fields
     result = report(case, fields)
     assert {r["field_name"]: r["outcome"] for r in result["rule_results"]} == case["expected"]
+
+
+@pytest.mark.parametrize("page_lines", [[], [{"content": "   "}]])
+def test_unreadable_extra_page_prevents_complete_report(page_lines):
+    case = BY_TYPE["invoice"]
+    raw = azure(document(case))
+    raw["pages"].append({"pageNumber": 2, "lines": page_lines})
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.INVOICE).fields
+    result = report(case, fields)
+    assert "UNREADABLE_PAGE" in fields["ocr_limitations"]
+    assert result["validation_status"] == "indeterminate"
+    assert result["is_complete"] is None
+    assert result["completeness_score"] is None
+    assert any(r["reason_code"] == "UNREADABLE_PAGE" for r in result["rule_results"])

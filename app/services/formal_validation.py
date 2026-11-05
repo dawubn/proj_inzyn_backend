@@ -184,7 +184,7 @@ def _keyword_pattern(keyword: str) -> re.Pattern[str]:
     return re.compile(rf"\b{pattern}\b")
 
 
-EXTRACTOR_VERSION = "azure-formal-3.0"
+EXTRACTOR_VERSION = "azure-formal-3.1"
 _YEAR_DIGITS = 4
 _HEADER_LAST_LINE = 5
 _MIN_CLASSIFICATION_CUES = 2

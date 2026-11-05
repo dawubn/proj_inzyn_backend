@@ -68,7 +68,21 @@ class FormalValidationService:
                     "unknown",
                     ValidationSeverity.ERROR,
                     "NO_TEXT",
-                    "Nie odczytano tekstu z Azure OCR; nie można ocenić kompletności dokumentu.",
+                    "Nie odczytano tekstu; nie można ocenić kompletności dokumentu.",
+                ),
+            )
+        elif "UNREADABLE_PAGE" in fields.get("ocr_limitations", []):
+            results.insert(
+                0,
+                RuleResult(
+                    "ocr.readable_pages",
+                    "Czytelność stron dokumentu",
+                    None,
+                    "unknown",
+                    ValidationSeverity.ERROR,
+                    "UNREADABLE_PAGE",
+                    "Nie odczytano tekstu z co najmniej jednej strony. "
+                    "Sprawdź, czy jest pusta, czy wymaga wyraźniejszej kopii.",
                 ),
             )
         summary = aggregate_results(results, available)

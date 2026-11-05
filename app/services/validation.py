@@ -13,7 +13,7 @@ from app.enums.analysis import ValidationSeverity
 from app.models.validation_rule import ValidationRule
 from app.schemas.analysis_report import ValidationIssue
 
-ENGINE_VERSION = "formal-rules-2.1"
+ENGINE_VERSION = "formal-rules-2.2"
 
 _REASON_MESSAGES = {
     "MASK_TYPE_MISMATCH": "Ukryta wartość dotyczy innego rodzaju danych. Sprawdź właściwe pole.",
@@ -120,7 +120,9 @@ class RuleEngineService:
             if rule.is_active
         ]
 
-    def _evaluate(self, rule: ValidationRule, fields: dict[str, Any]) -> RuleResult:
+    def _evaluate(  # noqa: PLR0911 - explicit outcomes keep uncertain data out of value checks
+        self, rule: ValidationRule, fields: dict[str, Any]
+    ) -> RuleResult:
         snapshot = json.dumps(rule_snapshot(rule), sort_keys=True, ensure_ascii=False)
         result = RuleResult(
             rule_id=hashlib.sha256(snapshot.encode()).hexdigest()[:16],
@@ -138,9 +140,25 @@ class RuleEngineService:
             return result
         if not rule.field_name or not isinstance(rule.rule_config, dict):
             return result
+        observations = fields.get("observations") or {}
+        observation = observations.get(rule.field_name) if isinstance(observations, dict) else None
+        if not isinstance(observations, dict) or (
+            observation is not None and not isinstance(observation, dict)
+        ):
+            result.reason_code = "INVALID_OBSERVATION"
+            result.message = "Nie udało się odczytać zapisanych wyników. Uruchom analizę ponownie."
+            return result
         if rule.rule_type == "required_field":
-            return self._required(rule, fields, result)
-        observation = fields.get("observations", {}).get(rule.field_name, {})
+            return self._required(rule, fields, result, observation)
+        observation = observation or {}
+        result.evidence = observation.get("evidence", [])
+        if observation.get("state") in {"unknown", "not_applicable"}:
+            result.outcome = observation["state"]
+            result.reason_code = observation.get("reason_code", "VALUE_UNAVAILABLE")
+            result.message = _REASON_MESSAGES.get(
+                result.reason_code, "Nie można rozstrzygnąć wyniku tej kontroli. Sprawdź dokument."
+            )
+            return result
         if observation.get("state") == "masked":
             result.outcome, result.reason_code = "unknown", "MASKED_CONTENT_UNVERIFIABLE"
             result.evidence = observation.get("evidence", [])
@@ -198,9 +216,12 @@ class RuleEngineService:
             )
 
     def _required(
-        self, rule: ValidationRule, fields: dict[str, Any], result: RuleResult
+        self,
+        rule: ValidationRule,
+        fields: dict[str, Any],
+        result: RuleResult,
+        observation: dict[str, Any] | None,
     ) -> RuleResult:
-        observation = fields.get("observations", {}).get(rule.field_name or "")
         if not isinstance(observation, dict):
             if rule.field_name and rule.field_name.startswith("has_"):
                 result.outcome, result.reason_code = "unknown", "LEGACY_EXTRACTION"
@@ -228,7 +249,7 @@ class RuleEngineService:
                 "Zawartość ukrytej wartości nie była sprawdzana."
             )
         elif result.outcome == "pass":
-            result.message = f"{rule.name}: potwierdzono na podstawie wyniku Azure OCR."
+            result.message = f"{rule.name}: potwierdzono obecność wymaganego elementu."
         elif result.outcome == "not_applicable":
             result.message = f"{rule.name}: kontrola nie dotyczy tego dokumentu."
         elif result.reason_code in _REASON_MESSAGES:

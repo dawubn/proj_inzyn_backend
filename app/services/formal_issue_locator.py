@@ -17,11 +17,14 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from collections.abc import Callable
+from math import isfinite
 from typing import Any, Literal
 
 from app.schemas.analysis_report import ValidationIssue
 
-LocationKind = Literal["placeholder", "expected", "page"]
+LocationKind = Literal["placeholder", "expected", "page", "evidence"]
+
+_POLYGON_COORDINATES = 8
 
 _TOKEN_RE = re.compile(r"\w+")
 
@@ -62,18 +65,67 @@ def locate_formal_issues(
 ) -> list[ValidationIssue]:
     """Return the issues with `details["location"]` set wherever a location can be derived."""
     pages = _Pages(tesseract_words)
-    if not pages.has_text:
-        return issues
-
     missing = {issue.field_name for issue in issues}
     return [
         (
             issue.model_copy(update={"details": {**issue.details, "location": location}})
-            if (location := _locate(issue.field_name, pages, missing)) is not None
+            if (
+                location := _evidence_location(issue)
+                or (_locate(issue.field_name, pages, missing) if pages.has_text else None)
+            )
+            is not None
             else issue
         )
         for issue in issues
     ]
+
+
+def _evidence_location(issue: ValidationIssue) -> dict[str, Any] | None:
+    evidence = issue.details.get("evidence")
+    if not isinstance(evidence, list):
+        return None
+    by_page: dict[int, list[dict[str, float]]] = {}
+    for entry in evidence:
+        if not isinstance(entry, dict) or entry.get("source") != "azure_ocr":
+            continue
+        page = entry.get("page")
+        if not isinstance(page, int) or isinstance(page, bool) or page < 1:
+            continue
+        rects = by_page.setdefault(page, [])
+        if (rect := _evidence_rect(entry)) is not None and rect not in rects:
+            rects.append(rect)
+    if not by_page:
+        return None
+    page = next(iter(by_page))
+    rects = by_page[page]
+    kind: LocationKind = (
+        "placeholder"
+        if issue.details.get("reason_code")
+        in {
+            "EMPTY_FIELD",
+            "PARTY_FIELD_EMPTY",
+        }
+        else "evidence"
+    )
+    return _location(kind if rects else "page", page, rects)
+
+
+def _evidence_rect(entry: dict[str, Any]) -> dict[str, float] | None:
+    polygon = entry.get("polygon")
+    width, height = entry.get("page_width"), entry.get("page_height")
+    if not isinstance(polygon, list) or len(polygon) < _POLYGON_COORDINATES or len(polygon) % 2:
+        return None
+    if not all(isinstance(v, int | float) and isfinite(v) for v in [width, height, *polygon]):
+        return None
+    if not isinstance(width, int | float) or not isinstance(height, int | float):
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    left, right = max(0.0, min(polygon[::2]) / width), min(1.0, max(polygon[::2]) / width)
+    top, bottom = max(0.0, min(polygon[1::2]) / height), min(1.0, max(polygon[1::2]) / height)
+    if right <= left or bottom <= top:
+        return None
+    return {"x": left, "y": top, "width": right - left, "height": bottom - top}
 
 
 def _locate_date(pages: _Pages, _missing: set[str | None]) -> dict[str, Any]:

@@ -168,8 +168,7 @@ class DocumentContext:
         for index, page in enumerate(raw.get("pages") or []):
             page_number = int(page.get("pageNumber", page.get("page_number", index + 1)))
             page_lines = page.get("lines") or []
-            if not page_lines:
-                limitations.append("UNREADABLE_PAGE")
+            first_line_index = len(lines)
             for entry in page_lines:
                 line: dict[str, Any] = {"content": entry} if isinstance(entry, str) else entry
                 content = str(line.get("content", "")).strip()
@@ -192,6 +191,8 @@ class DocumentContext:
                         page.get("height"),
                     )
                 )
+            if len(lines) == first_line_index:
+                limitations.append("UNREADABLE_PAGE")
         if not lines:
             limitations.append("LAYOUT_UNAVAILABLE")
             lines = [
