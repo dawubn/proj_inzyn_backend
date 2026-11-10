@@ -1,21 +1,18 @@
 """
-Celery task: run full OCR pipeline + legal analysis via Azure LLM.
+Celery task: full OCR pipeline and legal processing via Azure LLM.
 
-Steps:
-1. Load document from DB
-2. Run RedactionService (local OCR + sensitive data masking)
-3. Save redacted file
-4. Trigger Azure OCR on redacted file
-5. Wait for Azure OCR results
-6. Send OCR text to Azure LLM for legal analysis
-7. Save legal analysis results to DB
+Cancellation is checked between stages. Running external calls are allowed
+to return before cancellation is confirmed and the owner's slot is released.
 """
+
+from __future__ import annotations
 
 import re
 import shutil
 import tempfile
 import uuid
 from collections import defaultdict
+from datetime import UTC, datetime
 from itertools import groupby
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,79 +22,134 @@ from celery import Task
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import OCRServiceError
-from app.enums.document import DocumentType
+from app.enums.analysis import (
+    TERMINAL_STATUSES,
+    AnalysisStatus,
+    ProcessingStage,
+    ValidationSeverity,
+)
+from app.enums.document import DocumentStatus, DocumentType
+from app.models.document import Document
+from app.models.document_analysis import DocumentAnalysis
+from app.schemas.analysis_report import ValidationIssue
+from app.services.formal_validation import FormalDocumentExtractor
+from app.services.validation import RuleEngineService
+from app.tasks.analysis import (
+    _add_profile_availability_warning,
+    _coerce_document_type,
+    _load_rules_for_document_type,
+    _upsert_report,
+)
 from app.tasks.celery_app import celery_app
+from app.tasks.local_ocr import (
+    _cancellation_requested,
+    _finish_cancellation,
+    _lock_analysis,
+    _update_document_status,
+)
 
 if TYPE_CHECKING:
+    from structlog.stdlib import BoundLogger
+
     from app.adapters.azure_ocr import OCRResult
 
 logger = structlog.get_logger(__name__)
 
+_FUZZY_MATCH_THRESHOLD = 0.7
+_TOKEN_RE = re.compile(r"\w+")
+
+
+class _ProcessingStoppedError(Exception):
+    """Internal control flow; must not trigger a Celery retry."""
+
+    def __init__(self, processing_status: str) -> None:
+        super().__init__(processing_status)
+        self.processing_status = processing_status
+
 
 def _extract_tesseract_words(pdf_path: Path) -> list[dict[str, Any]]:
-    """Extract Tesseract words with bounding boxes from PDF (per-page, memory-efficient)."""
+    """Extract Tesseract words with bounding boxes, processing one page at a time."""
     import fitz
 
     from app.adapters.local_ocr import LocalOCRAdapter, page_render_zoom
 
     adapter = LocalOCRAdapter()
-    all_words = []
+    all_words: list[dict[str, Any]] = []
     word_id = 0
 
     try:
-        doc = fitz.open(str(pdf_path))
-        page_count = len(doc)
-
-        for page_num in range(page_count):
-            page = doc[page_num]
-            zoom = page_render_zoom(page, 1.0)
-            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-            png_bytes = pix.tobytes("png")
-
-            # Save to temp file for local_ocr to process
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                tmp.write(png_bytes)
-                tmp_path = Path(tmp.name)
+        with fitz.open(str(pdf_path)) as source:
+            if source.is_pdf:
+                pdf_document = None
+                doc = source
+            else:
+                # Convert image documents before using PDF-style page rendering.
+                pdf_document = fitz.open(
+                    stream=source.convert_to_pdf(),
+                    filetype="pdf",
+                )
+                doc = pdf_document
 
             try:
-                # Extract words for this page
-                words_per_page, _ = adapter.ocr_image(tmp_path)
-                for words in words_per_page:
-                    for word in words:
-                        all_words.append(
-                            {
-                                "id": f"w{word_id}",
-                                "text": word["tekst"],
-                                "bbox": {
-                                    "x": word["x"],
-                                    "y": word["y"],
-                                    "width": word["szerokosc"],
-                                    "height": word["wysokosc"],
-                                },
-                                # Relative to the page (0-1), independent of render resolution
-                                "nbbox": {
-                                    "x": round(word["x"] / pix.width, 5),
-                                    "y": round(word["y"] / pix.height, 5),
-                                    "width": round(word["szerokosc"] / pix.width, 5),
-                                    "height": round(word["wysokosc"] / pix.height, 5),
-                                },
-                                "line": word.get("linia"),
-                                "page": page_num + 1,
-                            }
-                        )
-                        word_id += 1
-            finally:
-                tmp_path.unlink(missing_ok=True)
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    zoom = page_render_zoom(page, 1.0)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+                    png_bytes = pix.tobytes("png")
 
-        doc.close()
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".png",
+                        delete=False,
+                    ) as tmp:
+                        tmp.write(png_bytes)
+                        tmp_path = Path(tmp.name)
+
+                    try:
+                        words_per_page, _ = adapter.ocr_image(tmp_path)
+
+                        for words in words_per_page:
+                            for word in words:
+                                all_words.append(
+                                    {
+                                        "id": f"w{word_id}",
+                                        "text": word["tekst"],
+                                        "bbox": {
+                                            "x": word["x"],
+                                            "y": word["y"],
+                                            "width": word["szerokosc"],
+                                            "height": word["wysokosc"],
+                                        },
+                                        "nbbox": {
+                                            "x": round(word["x"] / pix.width, 5),
+                                            "y": round(word["y"] / pix.height, 5),
+                                            "width": round(
+                                                word["szerokosc"] / pix.width,
+                                                5,
+                                            ),
+                                            "height": round(
+                                                word["wysokosc"] / pix.height,
+                                                5,
+                                            ),
+                                        },
+                                        "line": word.get("linia"),
+                                        "page": page_num + 1,
+                                    }
+                                )
+                                word_id += 1
+                    finally:
+                        tmp_path.unlink(missing_ok=True)
+            finally:
+                if pdf_document is not None:
+                    pdf_document.close()
+
     except Exception as exc:
         raise OCRServiceError(f"Tesseract extraction failed: {exc}") from exc
 
     return all_words
 
 
-def _build_paged_text(ocr_result: "OCRResult") -> str:
-    """Join OCR lines page by page with explicit page markers so the LLM can cite pages."""
+def _build_paged_text(ocr_result: OCRResult) -> str:
+    """Join OCR lines page by page with explicit page markers."""
     if not ocr_result.pages:
         return str(ocr_result.text_content)
 
@@ -106,16 +158,13 @@ def _build_paged_text(ocr_result: "OCRResult") -> str:
     )
 
 
-_FUZZY_MATCH_THRESHOLD = 0.7
-_TOKEN_RE = re.compile(r"\w+")
-
-
 def _normalize_tokens(text: str) -> list[str]:
     return _TOKEN_RE.findall(text.lower())
 
 
 def _best_window_match(
-    ref_tokens: list[str], words: list[dict[str, Any]]
+    ref_tokens: list[str],
+    words: list[dict[str, Any]],
 ) -> tuple[float, list[dict[str, Any]]]:
     """Find the run of consecutive words most similar to the reference phrase."""
     from difflib import SequenceMatcher
@@ -127,11 +176,14 @@ def _best_window_match(
 
     best_ratio = 0.0
     best_words: list[dict[str, Any]] = []
+
     for start in range(max(len(words) - window + 1, 1)):
         matcher.set_seq1(" ".join(word_texts[start : start + window]))
         floor = max(best_ratio, _FUZZY_MATCH_THRESHOLD)
+
         if matcher.real_quick_ratio() <= floor or matcher.quick_ratio() <= floor:
             continue
+
         ratio = matcher.ratio()
         if ratio > floor:
             best_ratio = ratio
@@ -141,13 +193,15 @@ def _best_window_match(
 
 
 def _map_error_to_bbox(
-    text_reference: str, tesseract_words: list[dict[str, Any]], page: int | None = None
+    text_reference: str,
+    tesseract_words: list[dict[str, Any]],
+    page: int | None = None,
 ) -> dict[str, Any] | None:
     """
-    Find the Tesseract bbox covering the error text_reference (fuzzy phrase matching).
+    Find the Tesseract bbox covering the error text_reference.
 
-    The page suggested by the LLM is searched first; other pages only if nothing matches there.
-    Returns the id of the first matched word, the union bbox of the matched words and the page.
+    The page suggested by the LLM is searched first.
+    Other pages are searched only if nothing matches there.
     """
     ref_tokens = _normalize_tokens(text_reference)
     if not ref_tokens or ref_tokens == ["brak"]:
@@ -159,16 +213,22 @@ def _map_error_to_bbox(
             words_by_page[word["page"]].append(word)
 
     matched: list[dict[str, Any]] = []
-    if page in words_by_page:
+
+    if page is not None and page in words_by_page:
         _, matched = _best_window_match(ref_tokens, words_by_page[page])
+
     if not matched:
         best_ratio = 0.0
+
         for page_num, page_words in words_by_page.items():
             if page_num == page:
                 continue
+
             ratio, page_match = _best_window_match(ref_tokens, page_words)
             if ratio > best_ratio:
-                best_ratio, matched = ratio, page_match
+                best_ratio = ratio
+                matched = page_match
+
     if not matched:
         return None
 
@@ -177,30 +237,84 @@ def _map_error_to_bbox(
         "bbox": _union_bbox([word["bbox"] for word in matched], digits=None),
         "page": matched[0]["page"],
     }
+
     if all("nbbox" in word for word in matched):
-        # One normalized rect per text line, so multi-line references highlight as line strips
+        # Keep one normalized rectangle per text line.
         match["rects"] = [
             _union_bbox([word["nbbox"] for word in line_words], digits=5)
-            for _, line_words in groupby(matched, key=lambda word: word.get("line"))
+            for _, line_words in groupby(
+                matched,
+                key=lambda word: word.get("line"),
+            )
         ]
+
     return match
 
 
-def _union_bbox(boxes: list[dict[str, Any]], digits: int | None) -> dict[str, Any]:
+def _union_bbox(
+    boxes: list[dict[str, Any]],
+    digits: int | None,
+) -> dict[str, Any]:
     x0 = min(box["x"] for box in boxes)
     y0 = min(box["y"] for box in boxes)
     x1 = max(box["x"] + box["width"] for box in boxes)
     y1 = max(box["y"] + box["height"] for box in boxes)
-    union = {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0}
+
+    union = {
+        "x": x0,
+        "y": y0,
+        "width": x1 - x0,
+        "height": y1 - y0,
+    }
+
     if digits is None:
         return union
+
     return {key: round(value, digits) for key, value in union.items()}
 
 
+def _map_legal_errors(
+    errors: list[dict[str, Any]],
+    tesseract_words: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach word coordinates and viewer locations to legal analysis errors."""
+    mapped_errors: list[dict[str, Any]] = []
+
+    for error in errors:
+        error_copy = error.copy()
+        text_ref = error.get("text_reference", "")
+
+        if text_ref:
+            bbox_match = _map_error_to_bbox(
+                text_ref,
+                tesseract_words,
+                error.get("page"),
+            )
+            if bbox_match:
+                error_copy["bbox"] = bbox_match["bbox"]
+                error_copy["word_id"] = bbox_match["id"]
+                error_copy["page"] = bbox_match["page"]
+
+                if bbox_match.get("rects"):
+                    error_copy["locations"] = [
+                        {
+                            "page": bbox_match["page"],
+                            "rects": bbox_match["rects"],
+                        }
+                    ]
+
+        mapped_errors.append(error_copy)
+
+    return mapped_errors
+
+
 def _warm_page_previews(
-    file_path: Path, mime_type: str, analysis_id: str, log: structlog.PrintLogger
+    file_path: Path,
+    mime_type: str,
+    analysis_id: str,
+    log: BoundLogger,
 ) -> None:
-    """Pre-render viewer previews; failures are not fatal, previews also render on demand."""
+    """Pre-render viewer previews; failures are not fatal."""
     from app.services.page_preview import PagePreviewService
 
     try:
@@ -221,9 +335,48 @@ def _get_db_session() -> Session:
     return sessionmaker(bind=engine)()
 
 
-def _build_legal_analysis_prompt(ocr_text: str, filename: str, page_count: int) -> str:
-    """Build a structured prompt for Azure LLM legal analysis."""
+def _checkpoint(
+    session: Session,
+    analysis_id: uuid.UUID,
+    task_id: str,
+) -> DocumentAnalysis:
+    """
+    Refresh and lock processing state.
 
+    The caller must commit or roll back before starting expensive work.
+    """
+    analysis = _lock_analysis(session, analysis_id)
+
+    if analysis is None:
+        session.rollback()
+        raise _ProcessingStoppedError("not_found")
+
+    if analysis.status in TERMINAL_STATUSES:
+        processing_status = str(analysis.status)
+        session.rollback()
+        raise _ProcessingStoppedError(processing_status)
+
+    if analysis.task_id and analysis.task_id != task_id:
+        session.rollback()
+        raise _ProcessingStoppedError("stale_task")
+
+    if _cancellation_requested(analysis):
+        _finish_cancellation(session, analysis)
+        raise _ProcessingStoppedError("cancelled")
+
+    if analysis.status == AnalysisStatus.QUEUED:
+        session.rollback()
+        raise _ProcessingStoppedError("not_dispatched")
+
+    return analysis
+
+
+def _build_legal_analysis_prompt(
+    ocr_text: str,
+    filename: str,
+    page_count: int,
+) -> str:
+    """Build a structured prompt for Azure LLM legal analysis."""
     return f"""Jesteś prawnikiem specjalizującym się w prawie polskim. Przeanalizuj poniższy dokument:
 
 Dokument: {filename}
@@ -252,13 +405,14 @@ Odpowiedź sformatuj jako JSON z dokładnie tymi kluczami:
       "text_reference": "dokładny fragment tekstu z dokumentu do którego się odnosi",
       "page": 1,
       "severity": "critical|high|medium"
-    }},
-    ...
+    }}
   ],
   "applicable_laws": [
-    {{"law": "nazwa przepisu", "description": "opis zastosowania",
-      "reference": "artykuł/paragraf"}},
-    ...
+    {{
+      "law": "nazwa przepisu",
+      "description": "opis zastosowania",
+      "reference": "artykuł/paragraf"
+    }}
   ]
 }}
 
@@ -273,11 +427,11 @@ WAŻNE:
 
 def _classify_document(
     text_content: str,
-    fallback_type: "DocumentType",
+    fallback_type: DocumentType,
     fallback_confidence: float,
-    log: structlog.PrintLogger,
-) -> "tuple[DocumentType, float]":
-    """Run TF-IDF + LR classifier; fall back to extraction result on failure."""
+    log: BoundLogger,
+) -> tuple[DocumentType, float]:
+    """Run the classifier and retain the extraction fallback on failure."""
     if not text_content:
         return fallback_type, fallback_confidence
 
@@ -297,145 +451,167 @@ def _classify_document(
         return document_type, confidence
 
 
+def _get_document_or_raise(
+    session: Session,
+    document_id: uuid.UUID,
+) -> Document:
+    """Return the document or raise if it does not exist."""
+    document = session.get(Document, document_id)
+    if document is None:
+        raise FileNotFoundError(f"Document {document_id} not found")
+    return document
+
+
 @celery_app.task(  # type: ignore[misc]
     bind=True,
     name="app.tasks.legal_analysis.run_legal_analysis_task",
     max_retries=3,
     default_retry_delay=30,
 )
-def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> dict[str, Any]:
-    """
-    Complete OCR pipeline + legal analysis: local OCR, redaction, Azure OCR, LLM analysis.
-
-    Steps:
-    1. Load analysis + document from DB
-    2. Run RedactionService (local OCR + masking)
-    3. Save redacted file
-    4. Trigger Azure OCR
-    5. Retrieve OCR results
-    6. Send to Azure LLM for legal analysis
-    7. Save legal_analysis_result to DB
-    """
-    from app.enums.analysis import AnalysisStatus, ProcessingStage, ValidationSeverity
-    from app.models.document import Document
-    from app.models.document_analysis import DocumentAnalysis
-    from app.schemas.analysis_report import ValidationIssue
+def run_legal_analysis_task(
+    self: Task,
+    analysis_id: str,
+    document_id: str,
+) -> dict[str, Any]:
+    """Run OCR, redaction, validation and LLM processing with cancellation."""
+    from app.adapters.azure_ocr import AzureOCRAdapter
     from app.services.formal_issue_locator import locate_formal_issues
-    from app.services.formal_validation import FormalDocumentExtractor
-    from app.services.validation import RuleEngineService
-    from app.tasks.analysis import (
-        _add_profile_availability_warning,
-        _coerce_document_type,
-        _load_rules_for_document_type,
-        _upsert_report,
+    from app.services.page_preview import redacted_path
+    from app.services.redaction_service import RedactionService
+
+    log = logger.bind(
+        analysis_id=analysis_id,
+        document_id=document_id,
+        task_id=self.request.id,
     )
+    log.info("Legal processing started")
 
-    log = logger.bind(analysis_id=analysis_id, document_id=document_id, task_id=self.request.id)
-    log.info("Legal analysis task started")
-
+    analysis_uuid = uuid.UUID(analysis_id)
+    document_uuid = uuid.UUID(document_id)
+    task_id = str(self.request.id)
     session = _get_db_session()
-    analysis = None
+
+    temporary_output: Path | None = None
 
     try:
-        # 1. Load analysis from DB
-        analysis = session.get(DocumentAnalysis, uuid.UUID(analysis_id))
-        if not analysis:
-            log.warning("Analysis not found, retrying...")
-            raise self.retry(exc=FileNotFoundError(f"Analysis {analysis_id} not found")) from None
+        analysis = _checkpoint(session, analysis_uuid, task_id)
 
-        # 2. Set status to IN_PROGRESS - LOCAL OCR (step 1/4)
-        analysis.status = AnalysisStatus.IN_PROGRESS
-        analysis.processing_stage = ProcessingStage.LOCAL_OCR
-        analysis.processing_step = 1
-        session.commit()
-        log.info("Status updated to LOCAL_OCR")
+        if analysis.document_id != document_uuid:
+            raise ValueError("Document does not match the processing request")
 
-        # Load document
-        document = session.get(Document, uuid.UUID(document_id))
-        if not document:
-            raise FileNotFoundError(f"Document {document_id} not found in DB")
+        document = _get_document_or_raise(session, document_uuid)
 
-        # Check file exists
         file_path = Path(document.storage_path)
+        original_filename = document.original_filename
+        content_type = document.mime_type
+        fallback_type = _coerce_document_type(document.document_type)
+
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        # 3. Run RedactionService (local OCR + masking)
-        from app.services.redaction_service import RedactionService
+        analysis.task_id = task_id
+        analysis.status = AnalysisStatus.IN_PROGRESS
+        analysis.processing_stage = ProcessingStage.LOCAL_OCR
+        analysis.processing_step = 1
+        analysis.started_at = analysis.started_at or datetime.now(UTC)
+        analysis.error_message = None
+        document.status = DocumentStatus.PROCESSING
 
-        redaction_svc = RedactionService()
-        redaction_result = redaction_svc.anonymize_file(
+        params = dict(analysis.pipeline_params or {})
+        pending_task = params.get("pending_task")
+        if isinstance(pending_task, dict) and pending_task.get("task_id") == task_id:
+            params.pop("pending_task", None)
+            analysis.pipeline_params = params
+
+        session.commit()
+
+        # Local OCR and redaction run without holding the owner lock.
+        redaction_result = RedactionService().anonymize_file(
             input_path=file_path,
-            original_filename=document.original_filename,
-            content_type=document.mime_type,
+            original_filename=original_filename,
+            content_type=content_type,
         )
+        temporary_output = Path(redaction_result.output_path)
 
-        log.info(
-            "Redaction completed",
-            output_filename=redaction_result.filename,
-            output_path=str(redaction_result.output_path),
-        )
-
-        # Update progress - REDACTION (step 2/4)
+        analysis = _checkpoint(session, analysis_uuid, task_id)
         analysis.processing_stage = ProcessingStage.REDACTION
         analysis.processing_step = 2
         session.commit()
 
-        # 4. Save redacted TIFF as a per-analysis artifact alongside the original.
-        #    Named by analysis_id so re-runs never collide and the original is never touched.
-        from app.services.page_preview import redacted_path
-
+        # Preserve this artifact for on-demand page previews.
         redacted_storage_path = redacted_path(file_path, analysis_id)
-        shutil.move(str(redaction_result.output_path), str(redacted_storage_path))
+        shutil.move(str(temporary_output), str(redacted_storage_path))
+        temporary_output = None
 
         log.info("Redacted file saved", path=str(redacted_storage_path))
 
-        # 5.5 Extract Tesseract words with bounding boxes
-        log.info("Extracting Tesseract words")
-        tesseract_words = _extract_tesseract_words(redacted_storage_path)
-        analysis.tesseract_words = tesseract_words
+        # Check again before the additional Tesseract pass.
+        _checkpoint(session, analysis_uuid, task_id)
         session.commit()
 
-        log.info("Tesseract extraction completed", word_count=len(tesseract_words))
+        tesseract_words = _extract_tesseract_words(redacted_storage_path)
 
-        # 6. Run Azure OCR on redacted file - AZURE OCR (step 3/4)
+        analysis = _checkpoint(session, analysis_uuid, task_id)
+        analysis.tesseract_words = tesseract_words
         analysis.processing_stage = ProcessingStage.AZURE_OCR
         analysis.processing_step = 3
         session.commit()
 
-        from app.adapters.azure_ocr import AzureOCRAdapter
+        log.info(
+            "Tesseract extraction completed",
+            word_count=len(tesseract_words),
+        )
 
         adapter = AzureOCRAdapter()
-        ocr_result = adapter.analyze_paged(redacted_storage_path.read_bytes(), "image/tiff")
+        ocr_result = adapter.analyze_paged(
+            redacted_storage_path.read_bytes(),
+            "image/tiff",
+        )
 
-        # 7. Save OCR results
+        analysis = _checkpoint(session, analysis_uuid, task_id)
         analysis.ocr_raw_result = ocr_result.raw
         analysis.ocr_provider = ocr_result.provider
+        analysis.status = AnalysisStatus.CLASSIFYING
         session.commit()
 
         log.info("Azure OCR completed", page_count=ocr_result.page_count)
 
         extraction = FormalDocumentExtractor().extract(
             ocr_result.raw,
-            fallback_document_type=_coerce_document_type(document.document_type),
+            fallback_document_type=fallback_type,
         )
-
-        # Classify document type using TF-IDF + Logistic Regression
         text_content = str(extraction.fields.get("document_text", "")).strip()
         document_type, classification_confidence = _classify_document(
-            text_content, extraction.document_type, extraction.confidence, log
+            text_content,
+            extraction.document_type,
+            extraction.confidence,
+            log,
         )
 
+        analysis = _checkpoint(session, analysis_uuid, task_id)
         analysis.detected_document_type = document_type.value
         analysis.classification_confidence = classification_confidence
         analysis.extracted_fields = extraction.fields
-        document.suggested_document_type = document_type
+        analysis.status = AnalysisStatus.VALIDATING
 
-        profile_name, rules = _load_rules_for_document_type(session, document_type)
+        document = _get_document_or_raise(session, document_uuid)
+        document.suggested_document_type = document_type
+        session.commit()
+
+        profile_name, rules = _load_rules_for_document_type(
+            session,
+            document_type,
+        )
+        total_rules_count = len(rules)
+
         issues = RuleEngineService().run(rules, extraction.fields)
         validation_profile_available = _add_profile_availability_warning(
-            issues, profile_name, rules, document_type
+            issues,
+            profile_name,
+            rules,
+            document_type,
         )
+
         if not extraction.fields.get("has_text"):
             issues.insert(
                 0,
@@ -447,58 +623,59 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
                     details={"expected_field": "has_text"},
                 ),
             )
-        issues = locate_formal_issues(issues, tesseract_words)
-        _upsert_report(
-            session=session,
-            analysis_id=analysis.id,
-            issues=issues,
-            total_rules=max(len(rules), 1 if not extraction.fields.get("has_text") else 0),
-            summary={
-                "document_type": document_type.value,
-                "classification_confidence": classification_confidence,
-                "profile_name": profile_name,
-                "validation_profile_available": validation_profile_available,
-                "total_rules": len(rules),
-                "issues": len(issues),
-                "checked_fields": {
-                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
-                },
-                "detected_sections": extraction.fields.get("detected_sections", []),
-            },
-        )
-        session.commit()
 
-        # 8. Use OCR text for legal analysis - LLM ANALYSIS (step 4/4)
+        issues = locate_formal_issues(issues, tesseract_words)
+
+        # End the rules read transaction before checking cancellation.
+        # Persist the report only after the final cancellation checkpoint.
+        session.rollback()
+
+        analysis = _checkpoint(session, analysis_uuid, task_id)
+        analysis.status = AnalysisStatus.IN_PROGRESS
         analysis.processing_stage = ProcessingStage.LLM_ANALYSIS
         analysis.processing_step = 4
         session.commit()
 
         ocr_text = _build_paged_text(ocr_result)
         prompt = _build_legal_analysis_prompt(
-            ocr_text, document.original_filename, ocr_result.page_count
+            ocr_text,
+            original_filename,
+            ocr_result.page_count,
+        )
+        legal_analysis = _perform_legal_analysis(prompt, log)
+        errors_with_bbox = _map_legal_errors(
+            legal_analysis.get("errors", []),
+            tesseract_words,
         )
 
-        # 9. Send to Azure LLM for legal analysis
-        legal_analysis = _perform_legal_analysis(prompt, log)
+        # A cancellation requested during the LLM call wins over result saving.
+        analysis = _checkpoint(session, analysis_uuid, task_id)
 
-        # 10. Map LLM errors to Tesseract bbox
-        errors_with_bbox = []
-        for error in legal_analysis.get("errors", []):
-            error_copy = error.copy()
-            text_ref = error.get("text_reference", "")
-            if text_ref:
-                bbox_match = _map_error_to_bbox(text_ref, tesseract_words, error.get("page"))
-                if bbox_match:
-                    error_copy["bbox"] = bbox_match["bbox"]
-                    error_copy["word_id"] = bbox_match["id"]
-                    error_copy["page"] = bbox_match["page"]
-                    if bbox_match.get("rects"):
-                        error_copy["locations"] = [
-                            {"page": bbox_match["page"], "rects": bbox_match["rects"]}
-                        ]
-            errors_with_bbox.append(error_copy)
+        _upsert_report(
+            session=session,
+            analysis_id=analysis.id,
+            issues=issues,
+            total_rules=max(
+                total_rules_count,
+                1 if not extraction.fields.get("has_text") else 0,
+            ),
+            summary={
+                "document_type": document_type.value,
+                "classification_confidence": classification_confidence,
+                "profile_name": profile_name,
+                "validation_profile_available": validation_profile_available,
+                "total_rules": total_rules_count,
+                "issues": len(issues),
+                "checked_fields": {
+                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
+                },
+                "detected_sections": extraction.fields.get(
+                    "detected_sections",
+                    [],
+                ),
+            },
+        )
 
-        # 11. Save legal analysis results and mark as completed
         analysis.legal_analysis_result = {
             "prompt": prompt,
             "summary": legal_analysis.get("summary", ""),
@@ -507,19 +684,59 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
         }
         analysis.status = AnalysisStatus.COMPLETED
         analysis.processing_stage = ProcessingStage.COMPLETED
+        analysis.processing_step = 4
+        analysis.finished_at = datetime.now(UTC)
+        analysis.error_message = None
+
+        _update_document_status(session, analysis, DocumentStatus.PROCESSED)
         session.commit()
 
-        _warm_page_previews(file_path, document.mime_type, analysis_id, log)
+        _warm_page_previews(
+            file_path,
+            content_type,
+            analysis_id,
+            log,
+        )
 
-        log.info("Legal analysis completed and saved")
+        log.info("Legal processing completed")
+
+    except _ProcessingStoppedError as stopped:
+        log.info(
+            "Legal processing stopped",
+            processing_status=stopped.processing_status,
+        )
+        return {
+            "status": stopped.processing_status,
+            "analysis_id": analysis_id,
+        }
 
     except Exception as exc:
-        log.exception("Legal analysis task failed")
-        if analysis:
-            analysis.status = AnalysisStatus.OCR_FAILED
-            analysis.error_message = str(exc)
+        session.rollback()
+        log.exception("Legal processing failed")
+
+        try:
+            analysis = _checkpoint(session, analysis_uuid, task_id)
+        except _ProcessingStoppedError as stopped:
+            return {
+                "status": stopped.processing_status,
+                "analysis_id": analysis_id,
+            }
+
+        analysis.error_message = str(exc)
+
+        if self.request.retries < self.max_retries:
+            # Retain the owner's slot while Celery waits to retry.
+            analysis.status = AnalysisStatus.IN_PROGRESS
             session.commit()
-        raise self.retry(exc=exc) from exc
+            raise self.retry(exc=exc) from exc
+
+        analysis.status = AnalysisStatus.FAILED
+        analysis.finished_at = datetime.now(UTC)
+
+        _update_document_status(session, analysis, DocumentStatus.FAILED)
+        session.commit()
+
+        raise
 
     else:
         return {"status": "success", "analysis_id": analysis_id}
@@ -527,18 +744,27 @@ def run_legal_analysis_task(self: Task, analysis_id: str, document_id: str) -> d
     finally:
         session.close()
 
+        if temporary_output is not None:
+            temporary_output.unlink(missing_ok=True)
+
 
 def _coerce_page(value: object) -> int | None:
     if isinstance(value, bool):
         return None
+
     if isinstance(value, int):
         return value
+
     if isinstance(value, str) and value.strip().isdigit():
         return int(value.strip())
+
     return None
 
 
-def _perform_legal_analysis(prompt: str, log: structlog.PrintLogger) -> dict[str, Any]:
+def _perform_legal_analysis(
+    prompt: str,
+    log: BoundLogger,
+) -> dict[str, Any]:
     """Send the legal analysis prompt to Azure LLM."""
     import json
 
@@ -551,44 +777,47 @@ def _perform_legal_analysis(prompt: str, log: structlog.PrintLogger) -> dict[str
         return {"summary": "", "errors": [], "applicable_laws": []}
 
     try:
-        client = AzureOpenAI(
+        with AzureOpenAI(
             api_key=settings.AZURE_OPENAI_KEY,
             api_version="2024-02-15-preview",
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-        )
+        ) as client:
+            response = client.chat.completions.create(
+                model="gpt-4.1",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+                response_format={"type": "json_object"},
+            )
 
-        response = client.chat.completions.create(
-            model="gpt-4.1",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.5,
-            response_format={"type": "json_object"},
-        )
+            response_text = response.choices[0].message.content or ""
 
-        response_text = response.choices[0].message.content or ""
         if not response_text:
             log.warning("LLM response was empty")
             return {"summary": "", "errors": [], "applicable_laws": []}
 
         log.info("LLM response received", length=len(response_text))
 
-        # Parse JSON response
         result = json.loads(response_text)
+        if not isinstance(result, dict):
+            raise TypeError("LLM response must be a JSON object")
 
-        # Validate errors have text_reference
         errors = result.get("errors", [])
+        if not isinstance(errors, list):
+            raise TypeError("LLM errors must be a list")
+
         validated_errors = []
+
         for error in errors:
             if isinstance(error, dict):
                 validated_errors.append(
                     {
-                        "issue": error.get("issue", ""),
-                        "text_reference": error.get("text_reference", ""),
+                        "issue": str(error.get("issue") or ""),
+                        "text_reference": str(error.get("text_reference") or ""),
                         "page": _coerce_page(error.get("page")),
-                        "severity": error.get("severity", "medium"),
+                        "severity": str(error.get("severity") or "medium"),
                     }
                 )
             else:
-                # Handle case where error is just a string
                 validated_errors.append(
                     {
                         "issue": str(error),
@@ -598,16 +827,16 @@ def _perform_legal_analysis(prompt: str, log: structlog.PrintLogger) -> dict[str
                     }
                 )
 
+        applicable_laws = result.get("applicable_laws", [])
+        if not isinstance(applicable_laws, list):
+            applicable_laws = []
+
         return {
-            "summary": result.get("summary", ""),
+            "summary": str(result.get("summary") or ""),
             "errors": validated_errors,
-            "applicable_laws": result.get("applicable_laws", []),
+            "applicable_laws": applicable_laws,
         }
 
     except Exception as exc:
         log.exception("LLM analysis failed", error=str(exc))
-        return {
-            "summary": "",
-            "errors": [],
-            "applicable_laws": [],
-        }
+        raise
