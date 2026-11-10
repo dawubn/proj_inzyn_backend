@@ -1,21 +1,24 @@
 """
 Tests verifying that legal_analysis task includes TF-IDF + LR classification step.
 
-All imports inside run_legal_analysis_task are done locally, so patches target
-the source modules (e.g. app.services.classification.ClassificationService),
-not the task module.
+Some dependencies are imported at module level in app.tasks.legal_analysis
+(FormalDocumentExtractor, RuleEngineService, rule/report helpers, lock/status helpers)
+and some locally inside the task (ClassificationService, RedactionService,
+AzureOCRAdapter). _target() patches the name where it is actually looked up.
 """
 
 from __future__ import annotations
 
 import contextlib
 import tempfile
+import uuid
 from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import app.tasks.legal_analysis as task_module
 from app.enums.document import DocumentType
 
 ANALYSIS_UUID = "00000000-0000-0000-0000-000000000001"
@@ -27,6 +30,16 @@ DOCUMENT_UUID = "00000000-0000-0000-0000-000000000002"
 # ---------------------------------------------------------------------------
 
 
+def _target(names: tuple[str, ...], source_module: str | None = None) -> str:
+    """Patch target: task module if it holds the name, otherwise the source module."""
+    for name in names:
+        if hasattr(task_module, name):
+            return f"app.tasks.legal_analysis.{name}"
+    if source_module is None:
+        raise AttributeError(f"None of {names} found in app.tasks.legal_analysis")
+    return f"{source_module}.{names[0]}"
+
+
 def _make_extraction(
     document_type: DocumentType = DocumentType.UNKNOWN,
     text: str = "",
@@ -35,9 +48,9 @@ def _make_extraction(
     fields = {"has_text": bool(text), "document_text": text}
     return SimpleNamespace(
         document_type=document_type,
+        validation_document_type=document_type,
         confidence=confidence,
         fields=fields,
-        validation_document_type=document_type,
     )
 
 
@@ -54,7 +67,7 @@ def _make_temp_pdf() -> Path:
 
 
 def _build_db_objects(session: MagicMock, tmp_path: Path) -> tuple[MagicMock, MagicMock]:
-    """Configure mock session.get to return fake DocumentAnalysis + Document."""
+    """Build fake Document + DocumentAnalysis and wire session.get to return them."""
     from app.enums.analysis import AnalysisStatus, ProcessingStage
 
     fake_doc = MagicMock()
@@ -65,12 +78,17 @@ def _build_db_objects(session: MagicMock, tmp_path: Path) -> tuple[MagicMock, Ma
 
     fake_analysis = MagicMock()
     fake_analysis.id = ANALYSIS_UUID
+    fake_analysis.document_id = uuid.UUID(DOCUMENT_UUID)
     fake_analysis.status = AnalysisStatus.PENDING
     fake_analysis.processing_stage = ProcessingStage.PENDING
     fake_analysis.processing_step = 0
     fake_analysis.ocr_raw_result = None
     fake_analysis.tesseract_words = []
     fake_analysis.legal_analysis_result = None
+    # fields read by checkpoint() / cancellation_requested() / pending-task handoff
+    fake_analysis.task_id = None
+    fake_analysis.cancel_requested_at = None
+    fake_analysis.pipeline_params = {}
 
     def _get(model_class: Any, pk: Any) -> Any:
         name = getattr(model_class, "__name__", str(model_class))
@@ -84,11 +102,15 @@ def _build_db_objects(session: MagicMock, tmp_path: Path) -> tuple[MagicMock, Ma
     return fake_doc, fake_analysis
 
 
-def _run_task_with_patches(
+def _run_task_with_patches(  # noqa: PLR0913 - pipeline dependencies and scenario controls
     ocr_result: Any,
     extractor_inst: MagicMock,
     classifier_cls: MagicMock,
     session: MagicMock,
+    fake_analysis: MagicMock,
+    *,
+    cancel_during_llm: bool = False,
+    expected_profile: DocumentType | None = None,
 ) -> dict[str, Any]:
     """Apply all required patches and call run_legal_analysis_task.run()."""
     mock_redaction_result = MagicMock()
@@ -101,41 +123,74 @@ def _run_task_with_patches(
     mock_adapter_inst = MagicMock()
     mock_adapter_inst.analyze_paged.return_value = ocr_result
 
+    # Works whether the task calls FormalDocumentExtractor.extract(...) (static/classmethod)
+    # or FormalDocumentExtractor().extract(...).
+    mock_extractor_cls = MagicMock(return_value=extractor_inst)
+    mock_extractor_cls.extract = extractor_inst.extract
+
+    report_write = MagicMock()
+    load_rules = MagicMock(return_value=(None, []))
+
+    def legal_result(*_args: Any) -> dict[str, Any]:
+        if cancel_during_llm:
+            from app.enums.analysis import AnalysisStatus
+
+            fake_analysis.status = AnalysisStatus.CANCELLING
+        return {"summary": "", "errors": [], "applicable_laws": []}
+
     patch_map = [
         ("app.tasks.legal_analysis._get_db_session", MagicMock(return_value=session)),
+        (_target(("_lock_analysis", "lock_analysis")), MagicMock(return_value=fake_analysis)),
+        (_target(("_update_document_status", "update_document_status")), MagicMock()),
         ("app.tasks.legal_analysis._extract_azure_words", MagicMock(return_value=[])),
         (
             "app.tasks.legal_analysis._perform_legal_analysis",
-            MagicMock(return_value={"summary": "", "errors": [], "applicable_laws": []}),
+            MagicMock(side_effect=legal_result),
         ),
+        ("app.tasks.legal_analysis._warm_page_previews", MagicMock()),
         (
-            "app.services.redaction_service.RedactionService",
+            _target(("RedactionService",), "app.services.redaction_service"),
             MagicMock(return_value=mock_redaction_svc),
         ),
-        ("app.adapters.azure_ocr.AzureOCRAdapter", MagicMock(return_value=mock_adapter_inst)),
         (
-            "app.services.formal_validation.FormalDocumentExtractor",
-            MagicMock(return_value=extractor_inst),
+            _target(("AzureOCRAdapter",), "app.adapters.azure_ocr"),
+            MagicMock(return_value=mock_adapter_inst),
         ),
         (
-            "app.services.validation.RuleEngineService",
-            MagicMock(return_value=MagicMock(run=MagicMock(return_value=[]))),
+            _target(("FormalDocumentExtractor",), "app.services.formal_validation"),
+            mock_extractor_cls,
         ),
-        ("app.tasks.analysis._load_rules_for_document_type", MagicMock(return_value=(None, []))),
-        ("app.tasks.analysis._upsert_report", MagicMock()),
+        (
+            _target(("RuleEngineService",), "app.services.validation"),
+            MagicMock(run=MagicMock(return_value=[])),
+        ),
+        (
+            _target(
+                ("_load_rules_for_document_type", "load_rules_for_document_type"),
+                "app.tasks.analysis",
+            ),
+            load_rules,
+        ),
+        (_target(("_upsert_report", "upsert_report"), "app.tasks.analysis"), report_write),
         ("shutil.move", MagicMock()),
         # Prevent read_bytes() failing because redacted file doesn't exist on disk
         ("pathlib.Path.read_bytes", MagicMock(return_value=b"%PDF-1.4 test")),
-        ("app.services.classification.ClassificationService", classifier_cls),
+        (_target(("ClassificationService",), "app.services.classification"), classifier_cls),
     ]
 
     with ExitStack() as stack:
         for target, mock_obj in patch_map:
             stack.enter_context(patch(target, mock_obj))
 
-        from app.tasks.legal_analysis import run_legal_analysis_task
-
-        result: dict[str, Any] = run_legal_analysis_task.run(ANALYSIS_UUID, DOCUMENT_UUID)
+        result: dict[str, Any] = task_module.run_legal_analysis_task.run(
+            ANALYSIS_UUID, DOCUMENT_UUID
+        )
+        if cancel_during_llm:
+            report_write.assert_not_called()
+        else:
+            report_write.assert_called_once()
+        if expected_profile is not None:
+            assert load_rules.call_args.args[1] == expected_profile
         return result
 
 
@@ -153,7 +208,7 @@ def test_classification_called_when_text_present() -> None:
     session = MagicMock()
     tmp_path = _make_temp_pdf()
     try:
-        _fake_doc, fake_analysis = _build_db_objects(session, tmp_path)
+        _, fake_analysis = _build_db_objects(session, tmp_path)
 
         mock_extractor_inst = MagicMock()
         mock_extractor_inst.extract.return_value = extraction
@@ -163,13 +218,13 @@ def test_classification_called_when_text_present() -> None:
         mock_classifier_cls = MagicMock(return_value=mock_classifier)
 
         result = _run_task_with_patches(
-            ocr_result, mock_extractor_inst, mock_classifier_cls, session
+            ocr_result, mock_extractor_inst, mock_classifier_cls, session, fake_analysis
         )
 
+        assert result["status"] == "success", result
         mock_classifier.classify.assert_called_once_with(ocr_text)
         assert fake_analysis.detected_document_type == DocumentType.INVOICE.value
         assert fake_analysis.classification_confidence == 0.95
-        assert result["status"] == "success"
     finally:
         with contextlib.suppress(FileNotFoundError):
             tmp_path.unlink()
@@ -184,7 +239,7 @@ def test_classification_fallback_when_classifier_raises() -> None:
     session = MagicMock()
     tmp_path = _make_temp_pdf()
     try:
-        _fake_doc, fake_analysis = _build_db_objects(session, tmp_path)
+        _, fake_analysis = _build_db_objects(session, tmp_path)
 
         mock_extractor_inst = MagicMock()
         mock_extractor_inst.extract.return_value = extraction
@@ -194,13 +249,13 @@ def test_classification_fallback_when_classifier_raises() -> None:
         mock_classifier_cls = MagicMock(return_value=mock_classifier)
 
         result = _run_task_with_patches(
-            ocr_result, mock_extractor_inst, mock_classifier_cls, session
+            ocr_result, mock_extractor_inst, mock_classifier_cls, session, fake_analysis
         )
 
+        assert result["status"] == "success", result
         mock_classifier.classify.assert_called_once()
         assert fake_analysis.detected_document_type == DocumentType.CONTRACT.value
         assert fake_analysis.classification_confidence == 0.7
-        assert result["status"] == "success"
     finally:
         with contextlib.suppress(FileNotFoundError):
             tmp_path.unlink()
@@ -215,16 +270,58 @@ def test_classification_skipped_when_no_text() -> None:
     session = MagicMock()
     tmp_path = _make_temp_pdf()
     try:
-        _fake_doc, _fake_analysis = _build_db_objects(session, tmp_path)
+        _, fake_analysis = _build_db_objects(session, tmp_path)
 
         mock_extractor_inst = MagicMock()
         mock_extractor_inst.extract.return_value = extraction
 
         mock_classifier_cls = MagicMock()
 
-        _run_task_with_patches(ocr_result, mock_extractor_inst, mock_classifier_cls, session)
+        result = _run_task_with_patches(
+            ocr_result, mock_extractor_inst, mock_classifier_cls, session, fake_analysis
+        )
 
+        # Guards against the task bailing out early (e.g. stale_task) and passing vacuously.
+        assert result["status"] == "success", result
         mock_classifier_cls.assert_not_called()
+        assert fake_analysis.detected_document_type == DocumentType.UNKNOWN.value
     finally:
         with contextlib.suppress(FileNotFoundError):
             tmp_path.unlink()
+
+
+def test_cancellation_during_llm_does_not_save_report(tmp_path: Path) -> None:
+    path = tmp_path / "document.pdf"
+    path.write_bytes(b"%PDF-1.4 test")
+    session = MagicMock()
+    _, analysis = _build_db_objects(session, path)
+    extractor = MagicMock()
+    extractor.extract.return_value = _make_extraction(DocumentType.CONTRACT, "Umowa", 0.8)
+    classifier = MagicMock()
+    classifier.return_value.classify.return_value = (DocumentType.CONTRACT, 0.9, {})
+    result = _run_task_with_patches(
+        _make_ocr_result("Umowa"), extractor, classifier, session, analysis, cancel_during_llm=True
+    )
+    assert result["status"] == "cancelled"
+    assert analysis.status == "cancelled"
+
+
+def test_user_selected_profile_survives_queue_pipeline(tmp_path: Path) -> None:
+    path = tmp_path / "document.pdf"
+    path.write_bytes(b"%PDF-1.4 test")
+    session = MagicMock()
+    document, analysis = _build_db_objects(session, path)
+    document.document_type = DocumentType.POWER_OF_ATTORNEY
+    extractor = MagicMock()
+    extractor.extract.return_value = _make_extraction(DocumentType.INVOICE, "Treść dokumentu", 0.9)
+    classifier = MagicMock()
+    classifier.return_value.classify.return_value = (DocumentType.INVOICE, 0.95, {})
+    result = _run_task_with_patches(
+        _make_ocr_result(),
+        extractor,
+        classifier,
+        session,
+        analysis,
+        expected_profile=DocumentType.POWER_OF_ATTORNEY,
+    )
+    assert result["status"] == "success"
