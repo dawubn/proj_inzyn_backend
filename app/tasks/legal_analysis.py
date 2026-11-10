@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import re
 import shutil
-import tempfile
 import uuid
+from bisect import bisect_right
 from collections import defaultdict
 from datetime import UTC, datetime
-from itertools import groupby
+from itertools import groupby, pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -21,25 +21,13 @@ import structlog
 from celery import Task
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import OCRServiceError
-from app.enums.analysis import (
-    TERMINAL_STATUSES,
-    AnalysisStatus,
-    ProcessingStage,
-    ValidationSeverity,
-)
+from app.enums.analysis import TERMINAL_STATUSES, AnalysisStatus, ProcessingStage
 from app.enums.document import DocumentStatus, DocumentType
 from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
-from app.schemas.analysis_report import ValidationIssue
+from app.services.formal_report import coerce_document_type
 from app.services.formal_validation import FormalDocumentExtractor
-from app.services.validation import RuleEngineService
-from app.tasks.analysis import (
-    _add_profile_availability_warning,
-    _coerce_document_type,
-    _load_rules_for_document_type,
-    _upsert_report,
-)
+from app.tasks.analysis import _validate_and_save_report
 from app.tasks.celery_app import celery_app
 from app.tasks.local_ocr import (
     _cancellation_requested,
@@ -67,85 +55,94 @@ class _ProcessingStoppedError(Exception):
         self.processing_status = processing_status
 
 
-def _extract_tesseract_words(pdf_path: Path) -> list[dict[str, Any]]:
-    """Extract Tesseract words with bounding boxes, processing one page at a time."""
-    import fitz
+_MIN_POLYGON_COORDINATES = 8
 
-    from app.adapters.local_ocr import LocalOCRAdapter, page_render_zoom
 
-    adapter = LocalOCRAdapter()
-    all_words: list[dict[str, Any]] = []
-    word_id = 0
+def _extract_azure_words(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """Keep the legacy preview-word contract while sourcing every word from Azure.
 
-    try:
-        with fitz.open(str(pdf_path)) as source:
-            if source.is_pdf:
-                pdf_document = None
-                doc = source
-            else:
-                # Convert image documents before using PDF-style page rendering.
-                pdf_document = fitz.open(
-                    stream=source.convert_to_pdf(),
-                    filetype="pdf",
-                )
-                doc = pdf_document
+    The pipeline sends TIFF images, for which Azure returns pixel coordinates.
+    Unknown coordinate units are omitted rather than projected incorrectly.
+    """
+    words: list[dict[str, Any]] = []
+    for index, page in enumerate(raw.get("pages") or []):
+        if page.get("unit") != "pixel":
+            continue
+        width, height = page.get("width"), page.get("height")
+        lines = page.get("lines") or []
+        line_index = _azure_line_index(lines)
+        for word_index, word in enumerate(page.get("words") or []):
+            polygon = word.get("polygon") or []
+            if len(polygon) < _MIN_POLYGON_COORDINATES or not all(
+                isinstance(v, int | float) for v in polygon
+            ):
+                continue
+            xs, ys = polygon[::2], polygon[1::2]
+            entry = {
+                "id": f"az{len(words)}",
+                "text": word.get("content", ""),
+                "page": page.get("pageNumber", page.get("page_number", index + 1)),
+                "source": "azure_ocr",
+                "confidence": word.get("confidence"),
+                "bbox": {
+                    "x": min(xs),
+                    "y": min(ys),
+                    "width": max(xs) - min(xs),
+                    "height": max(ys) - min(ys),
+                },
+            }
+            if (
+                isinstance(width, int | float)
+                and isinstance(height, int | float)
+                and width > 0
+                and height > 0
+            ):
+                entry["nbbox"] = {
+                    "x": min(xs) / width,
+                    "y": min(ys) / height,
+                    "width": (max(xs) - min(xs)) / width,
+                    "height": (max(ys) - min(ys)) / height,
+                }
+            entry["line"] = _azure_word_line(word, lines, word_index, line_index)
+            words.append(entry)
+    return words
 
-            try:
-                for page_num in range(len(doc)):
-                    page = doc[page_num]
-                    zoom = page_render_zoom(page, 1.0)
-                    pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-                    png_bytes = pix.tobytes("png")
 
-                    with tempfile.NamedTemporaryFile(
-                        suffix=".png",
-                        delete=False,
-                    ) as tmp:
-                        tmp.write(png_bytes)
-                        tmp_path = Path(tmp.name)
+def _azure_line_index(
+    lines: list[dict[str, Any]],
+) -> tuple[list[int], list[tuple[int, int, int]]] | None:
+    spans = sorted(
+        (span.get("offset", 0), span.get("offset", 0) + span.get("length", 0), index)
+        for index, line in enumerate(lines)
+        for span in line.get("spans") or []
+        if span.get("length", 0) > 0
+    )
+    if any(left[1] > right[0] for left, right in pairwise(spans)):
+        # Ambiguous spans retain Azure's original line order.
+        return None
+    return [span[0] for span in spans], spans
 
-                    try:
-                        words_per_page, _ = adapter.ocr_image(tmp_path)
 
-                        for words in words_per_page:
-                            for word in words:
-                                all_words.append(
-                                    {
-                                        "id": f"w{word_id}",
-                                        "text": word["tekst"],
-                                        "bbox": {
-                                            "x": word["x"],
-                                            "y": word["y"],
-                                            "width": word["szerokosc"],
-                                            "height": word["wysokosc"],
-                                        },
-                                        "nbbox": {
-                                            "x": round(word["x"] / pix.width, 5),
-                                            "y": round(word["y"] / pix.height, 5),
-                                            "width": round(
-                                                word["szerokosc"] / pix.width,
-                                                5,
-                                            ),
-                                            "height": round(
-                                                word["wysokosc"] / pix.height,
-                                                5,
-                                            ),
-                                        },
-                                        "line": word.get("linia"),
-                                        "page": page_num + 1,
-                                    }
-                                )
-                                word_id += 1
-                    finally:
-                        tmp_path.unlink(missing_ok=True)
-            finally:
-                if pdf_document is not None:
-                    pdf_document.close()
-
-    except Exception as exc:
-        raise OCRServiceError(f"Tesseract extraction failed: {exc}") from exc
-
-    return all_words
+def _azure_word_line(
+    word: dict[str, Any],
+    lines: list[dict[str, Any]],
+    word_index: int,
+    line_index: tuple[list[int], list[tuple[int, int, int]]] | None,
+) -> str:
+    offset = (word.get("span") or {}).get("offset")
+    if isinstance(offset, int):
+        if line_index is not None:
+            starts, spans = line_index
+            position = bisect_right(starts, offset) - 1
+            if position >= 0 and offset < spans[position][1]:
+                return f"line-{spans[position][2]}"
+        else:
+            for index, line in enumerate(lines):
+                for span in line.get("spans") or []:
+                    start = span.get("offset", 0)
+                    if start <= offset < start + span.get("length", 0):
+                        return f"line-{index}"
+    return f"word-{word_index}"
 
 
 def _build_paged_text(ocr_result: OCRResult) -> str:
@@ -475,7 +472,6 @@ def run_legal_analysis_task(
 ) -> dict[str, Any]:
     """Run OCR, redaction, validation and LLM processing with cancellation."""
     from app.adapters.azure_ocr import AzureOCRAdapter
-    from app.services.formal_issue_locator import locate_formal_issues
     from app.services.page_preview import redacted_path
     from app.services.redaction_service import RedactionService
 
@@ -504,7 +500,7 @@ def run_legal_analysis_task(
         file_path = Path(document.storage_path)
         original_filename = document.original_filename
         content_type = document.mime_type
-        fallback_type = _coerce_document_type(document.document_type)
+        fallback_type = coerce_document_type(document.document_type)
 
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -545,22 +541,10 @@ def run_legal_analysis_task(
 
         log.info("Redacted file saved", path=str(redacted_storage_path))
 
-        # Check again before the additional Tesseract pass.
-        _checkpoint(session, analysis_uuid, task_id)
-        session.commit()
-
-        tesseract_words = _extract_tesseract_words(redacted_storage_path)
-
         analysis = _checkpoint(session, analysis_uuid, task_id)
-        analysis.tesseract_words = tesseract_words
         analysis.processing_stage = ProcessingStage.AZURE_OCR
         analysis.processing_step = 3
         session.commit()
-
-        log.info(
-            "Tesseract extraction completed",
-            word_count=len(tesseract_words),
-        )
 
         adapter = AzureOCRAdapter()
         ocr_result = adapter.analyze_paged(
@@ -570,6 +554,8 @@ def run_legal_analysis_task(
 
         analysis = _checkpoint(session, analysis_uuid, task_id)
         analysis.ocr_raw_result = ocr_result.raw
+        tesseract_words = _extract_azure_words(ocr_result.raw)
+        analysis.tesseract_words = tesseract_words  # Legacy column; words come from Azure.
         analysis.ocr_provider = ocr_result.provider
         analysis.status = AnalysisStatus.CLASSIFYING
         session.commit()
@@ -598,38 +584,6 @@ def run_legal_analysis_task(
         document.suggested_document_type = document_type
         session.commit()
 
-        profile_name, rules = _load_rules_for_document_type(
-            session,
-            document_type,
-        )
-        total_rules_count = len(rules)
-
-        issues = RuleEngineService().run(rules, extraction.fields)
-        validation_profile_available = _add_profile_availability_warning(
-            issues,
-            profile_name,
-            rules,
-            document_type,
-        )
-
-        if not extraction.fields.get("has_text"):
-            issues.insert(
-                0,
-                ValidationIssue(
-                    rule_name="Tekst dokumentu",
-                    field_name="has_text",
-                    severity=ValidationSeverity.ERROR,
-                    message="Nie udało się odczytać tekstu dokumentu.",
-                    details={"expected_field": "has_text"},
-                ),
-            )
-
-        issues = locate_formal_issues(issues, tesseract_words)
-
-        # End the rules read transaction before checking cancellation.
-        # Persist the report only after the final cancellation checkpoint.
-        session.rollback()
-
         analysis = _checkpoint(session, analysis_uuid, task_id)
         analysis.status = AnalysisStatus.IN_PROGRESS
         analysis.processing_stage = ProcessingStage.LLM_ANALYSIS
@@ -651,29 +605,9 @@ def run_legal_analysis_task(
         # A cancellation requested during the LLM call wins over result saving.
         analysis = _checkpoint(session, analysis_uuid, task_id)
 
-        _upsert_report(
-            session=session,
-            analysis_id=analysis.id,
-            issues=issues,
-            total_rules=max(
-                total_rules_count,
-                1 if not extraction.fields.get("has_text") else 0,
-            ),
-            summary={
-                "document_type": document_type.value,
-                "classification_confidence": classification_confidence,
-                "profile_name": profile_name,
-                "validation_profile_available": validation_profile_available,
-                "total_rules": total_rules_count,
-                "issues": len(issues),
-                "checked_fields": {
-                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
-                },
-                "detected_sections": extraction.fields.get(
-                    "detected_sections",
-                    [],
-                ),
-            },
+        document = _get_document_or_raise(session, document_uuid)
+        _validate_and_save_report(
+            session, analysis, document, document_type, classification_confidence, extraction
         )
 
         analysis.legal_analysis_result = {

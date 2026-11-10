@@ -1,0 +1,53 @@
+[
+  {
+    "file": "09_invoice.pdf",
+    "type": "invoice",
+    "expected": {
+      "has_invoice_number": "pass",
+      "has_issue_date": "pass",
+      "has_seller": "pass",
+      "has_buyer": "fail",
+      "has_invoice_items": "pass",
+      "has_invoice_total": "pass",
+      "has_tax_details": "pass"
+    }
+  },
+  {
+    "file": "10_bank_statement.pdf",
+    "type": "bank_statement",
+    "expected": {
+      "has_bank": "pass",
+      "has_account_holder": "pass",
+      "has_account_number": "fail",
+      "has_statement_period": "pass",
+      "has_opening_balance": "pass",
+      "has_closing_balance": "pass",
+      "has_transactions": "pass"
+    }
+  },
+  {
+    "file": "11_passport.pdf",
+    "type": "passport",
+    "expected": {
+      "has_surname": "pass",
+      "has_given_names": "pass",
+      "has_birth_date": "pass",
+      "has_document_number": "pass",
+      "has_expiry_date": "fail",
+      "has_issuing_authority": "pass",
+      "has_nationality": "pass",
+      "has_document_image": "unknown"
+    }
+  },
+  {
+    "file": "12_scientific_article.pdf",
+    "type": "scientific_article",
+    "expected": {
+      "has_article_title": "pass",
+      "has_authors": "pass",
+      "has_article_content": "pass",
+      "has_article_abstract": "fail",
+      "has_references": "pass"
+    }
+  }
+]

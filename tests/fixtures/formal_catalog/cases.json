@@ -1,0 +1,434 @@
+[
+  {
+    "type": "application",
+    "title": "WNIOSEK",
+    "rows": [
+      [
+        "has_applicant",
+        "Wnioskodawca",
+        "Jan Testowski"
+      ],
+      [
+        "has_recipient",
+        "Adresat",
+        "Urząd Miasta Testowo"
+      ],
+      [
+        "has_request",
+        "Treść wniosku",
+        "Wydanie zaświadczenia o wpisie do ewidencji"
+      ],
+      [
+        "has_application_date",
+        "Data sporządzenia",
+        "29.10.2026"
+      ],
+      [
+        "has_signature",
+        "Podpis wnioskodawcy",
+        "................"
+      ],
+      [
+        "has_application_justification",
+        "Uzasadnienie",
+        "Zaświadczenie potrzebne do przedstawienia pracodawcy"
+      ]
+    ]
+  },
+  {
+    "type": "invoice",
+    "title": "FAKTURA VAT",
+    "rows": [
+      [
+        "has_invoice_number",
+        "Numer faktury",
+        "TEST/29/2026"
+      ],
+      [
+        "has_issue_date",
+        "Data wystawienia",
+        "29.10.2026"
+      ],
+      [
+        "has_seller",
+        "Sprzedawca",
+        "Testowa Firma Alfa"
+      ],
+      [
+        "has_buyer",
+        "Nabywca",
+        "Testowa Firma Beta"
+      ],
+      [
+        "has_invoice_items",
+        "Nazwa towaru lub usługi",
+        "Przegląd instalacji grzewczej"
+      ],
+      [
+        "has_invoice_total",
+        "Do zapłaty",
+        "1230,00 PLN"
+      ],
+      [
+        "has_tax_details",
+        "Stawka VAT",
+        "23%"
+      ]
+    ]
+  },
+  {
+    "type": "id_card",
+    "title": "DOWÓD OSOBISTY — WZÓR TESTOWY",
+    "rows": [
+      [
+        "has_surname",
+        "Nazwisko",
+        "Testowski"
+      ],
+      [
+        "has_given_names",
+        "Imiona",
+        "Jan"
+      ],
+      [
+        "has_birth_date",
+        "Data urodzenia",
+        "10.02.1990"
+      ],
+      [
+        "has_document_number",
+        "Numer dowodu osobistego",
+        "TEST000000"
+      ],
+      [
+        "has_expiry_date",
+        "Data ważności",
+        "29.10.2036"
+      ],
+      [
+        "has_issuing_authority",
+        "Organ wydający",
+        "Organ Testowy"
+      ],
+      [
+        "has_pesel",
+        "PESEL",
+        "00000000000"
+      ]
+    ]
+  },
+  {
+    "type": "passport",
+    "title": "PASZPORT — WZÓR TESTOWY",
+    "rows": [
+      [
+        "has_surname",
+        "Nazwisko",
+        "Testowski"
+      ],
+      [
+        "has_given_names",
+        "Imiona",
+        "Jan"
+      ],
+      [
+        "has_birth_date",
+        "Data urodzenia",
+        "10.02.1990"
+      ],
+      [
+        "has_document_number",
+        "Numer paszportu",
+        "TEST000000"
+      ],
+      [
+        "has_expiry_date",
+        "Data ważności",
+        "29.10.2036"
+      ],
+      [
+        "has_issuing_authority",
+        "Organ wydający",
+        "Organ Testowy"
+      ],
+      [
+        "has_nationality",
+        "Obywatelstwo",
+        "polskie"
+      ]
+    ]
+  },
+  {
+    "type": "bank_statement",
+    "title": "WYCIĄG BANKOWY — DANE FIKCYJNE",
+    "rows": [
+      [
+        "has_bank",
+        "Bank",
+        "Bank Testowy"
+      ],
+      [
+        "has_account_holder",
+        "Posiadacz rachunku",
+        "Jan Testowski"
+      ],
+      [
+        "has_account_number",
+        "Numer rachunku",
+        "00 0000 0000 0000 0000 0000 0000"
+      ],
+      [
+        "has_statement_period",
+        "Okres wyciągu",
+        "01.10.2026 - 29.10.2026"
+      ],
+      [
+        "has_opening_balance",
+        "Saldo początkowe",
+        "0,00 PLN"
+      ],
+      [
+        "has_closing_balance",
+        "Saldo końcowe",
+        "0,00 PLN"
+      ],
+      [
+        "has_transactions",
+        "Historia operacji",
+        "Brak operacji w okresie"
+      ]
+    ]
+  },
+  {
+    "type": "tax_form",
+    "title": "DEKLARACJA TESTOWA",
+    "rows": [
+      [
+        "has_tax_form",
+        "Formularz",
+        "PIT-37"
+      ],
+      [
+        "has_taxpayer",
+        "Podatnik",
+        "Jan Testowski"
+      ],
+      [
+        "has_tax_identifier",
+        "NIP",
+        "0000000000"
+      ],
+      [
+        "has_tax_period",
+        "Rok podatkowy",
+        "2025"
+      ],
+      [
+        "has_tax_office",
+        "Urząd skarbowy",
+        "Urząd Testowy"
+      ],
+      [
+        "has_tax_values",
+        "Podatek należny",
+        "0,00 PLN"
+      ]
+    ]
+  },
+  {
+    "type": "financial_report",
+    "title": "SPRAWOZDANIE FINANSOWE — PRZYKŁAD",
+    "rows": [
+      [
+        "has_reporting_entity",
+        "Nazwa jednostki",
+        "Firma Testowa Alfa"
+      ],
+      [
+        "has_reporting_period",
+        "Rok obrotowy",
+        "2025"
+      ],
+      [
+        "has_financial_data",
+        "Aktywa razem",
+        "10000,00 PLN"
+      ],
+      [
+        "has_balance_sheet",
+        "Bilans",
+        "Aktywa trwałe stanowią całość majątku jednostki"
+      ],
+      [
+        "has_income_statement",
+        "Rachunek zysków i strat",
+        "Przychody jednostki równają się kosztom działalności"
+      ],
+      [
+        "has_financial_notes",
+        "Informacja dodatkowa",
+        "Jednostka nie posiada zobowiązań warunkowych"
+      ]
+    ]
+  },
+  {
+    "type": "government_tender",
+    "title": "OGŁOSZENIE O ZAMÓWIENIU — TEST",
+    "rows": [
+      [
+        "has_contracting_authority",
+        "Zamawiający",
+        "Gmina Testowo"
+      ],
+      [
+        "has_tender_subject",
+        "Przedmiot zamówienia",
+        "Dostawa dwudziestu komputerów do szkoły"
+      ],
+      [
+        "has_tender_reference",
+        "Numer postępowania",
+        "TEST/1/2026"
+      ],
+      [
+        "has_submission_deadline",
+        "Termin składania ofert",
+        "20.11.2026"
+      ],
+      [
+        "has_submission_method",
+        "Sposób składania ofert",
+        "Elektronicznie przez platformę zamawiającego"
+      ],
+      [
+        "has_award_criteria",
+        "Kryteria oceny ofert",
+        "Cena stanowi sześćdziesiąt procent oceny"
+      ]
+    ]
+  },
+  {
+    "type": "law_and_regulation",
+    "title": "AKT PRAWNY — DOKUMENT FIKCYJNY",
+    "rows": [
+      [
+        "has_act_title",
+        "Tytuł aktu",
+        "Ustawa o testowaniu dokumentów demonstracyjnych"
+      ],
+      [
+        "has_act_date",
+        "Data aktu",
+        "29.10.2026"
+      ],
+      [
+        "has_provisions",
+        "Art. 1",
+        "Ustawa określa zasady tworzenia dokumentów testowych."
+      ],
+      [
+        "has_publication_reference",
+        "Publikacja",
+        "2026 poz. 0000"
+      ],
+      [
+        "has_effective_date",
+        "Wejście w życie",
+        "Po upływie czternastu dni od ogłoszenia"
+      ]
+    ]
+  },
+  {
+    "type": "manual",
+    "title": "INSTRUKCJA TESTOWA",
+    "rows": [
+      [
+        "has_manual_subject",
+        "Produkt",
+        "Pompa testowa model T100"
+      ],
+      [
+        "has_operating_instructions",
+        "Sposób obsługi",
+        "Podłącz przewód zasilający i naciśnij przycisk start"
+      ],
+      [
+        "has_safety_instructions",
+        "Bezpieczeństwo",
+        "Odłącz zasilanie przed otwarciem obudowy"
+      ],
+      [
+        "has_manual_version",
+        "Wersja",
+        "1.0"
+      ]
+    ]
+  },
+  {
+    "type": "patent",
+    "title": "DOKUMENT PATENTOWY — TEST",
+    "rows": [
+      [
+        "has_invention_title",
+        "Tytuł wynalazku",
+        "Urządzenie do pomiaru temperatury cieczy"
+      ],
+      [
+        "has_patent_applicant",
+        "Zgłaszający",
+        "Jan Testowski"
+      ],
+      [
+        "has_invention_description",
+        "Opis wynalazku",
+        "Układ zawiera czujnik i moduł pomiarowy połączony przewodem"
+      ],
+      [
+        "has_patent_claims",
+        "Zastrzeżenia patentowe",
+        "Urządzenie znamienne tym że posiada izolowany czujnik"
+      ],
+      [
+        "has_patent_abstract",
+        "Skrót opisu",
+        "Rozwiązanie umożliwia pomiar temperatury bez kontaktu użytkownika"
+      ],
+      [
+        "has_patent_number",
+        "Numer zgłoszenia",
+        "TEST/000001"
+      ]
+    ]
+  },
+  {
+    "type": "scientific_article",
+    "title": "ARTYKUŁ NAUKOWY — TEST",
+    "rows": [
+      [
+        "has_article_title",
+        "Tytuł artykułu",
+        "Porównanie metod odczytu dokumentów drukowanych"
+      ],
+      [
+        "has_authors",
+        "Autorzy",
+        "Anna Testowa i Jan Przykładowy"
+      ],
+      [
+        "has_article_content",
+        "Wyniki",
+        "Metoda pierwsza osiągnęła większą dokładność na zbiorze testowym"
+      ],
+      [
+        "has_article_abstract",
+        "Streszczenie",
+        "Porównano dwie metody odczytu tekstu na dokumentach"
+      ],
+      [
+        "has_references",
+        "Bibliografia",
+        "Testowa A. Metody przetwarzania dokumentów. Wydawnictwo Testowe 2025"
+      ]
+    ]
+  }
+]

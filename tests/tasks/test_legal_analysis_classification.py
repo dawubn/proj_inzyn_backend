@@ -46,7 +46,12 @@ def _make_extraction(
     confidence: float = 0.5,
 ) -> Any:
     fields = {"has_text": bool(text), "document_text": text}
-    return SimpleNamespace(document_type=document_type, confidence=confidence, fields=fields)
+    return SimpleNamespace(
+        document_type=document_type,
+        validation_document_type=document_type,
+        confidence=confidence,
+        fields=fields,
+    )
 
 
 def _make_ocr_result(text: str = "invoice content netto VAT brutto") -> Any:
@@ -97,12 +102,15 @@ def _build_db_objects(session: MagicMock, tmp_path: Path) -> tuple[MagicMock, Ma
     return fake_doc, fake_analysis
 
 
-def _run_task_with_patches(
+def _run_task_with_patches(  # noqa: PLR0913 - pipeline dependencies and scenario controls
     ocr_result: Any,
     extractor_inst: MagicMock,
     classifier_cls: MagicMock,
     session: MagicMock,
     fake_analysis: MagicMock,
+    *,
+    cancel_during_llm: bool = False,
+    expected_profile: DocumentType | None = None,
 ) -> dict[str, Any]:
     """Apply all required patches and call run_legal_analysis_task.run()."""
     mock_redaction_result = MagicMock()
@@ -120,14 +128,24 @@ def _run_task_with_patches(
     mock_extractor_cls = MagicMock(return_value=extractor_inst)
     mock_extractor_cls.extract = extractor_inst.extract
 
+    report_write = MagicMock()
+    load_rules = MagicMock(return_value=(None, []))
+
+    def legal_result(*_args: Any) -> dict[str, Any]:
+        if cancel_during_llm:
+            from app.enums.analysis import AnalysisStatus
+
+            fake_analysis.status = AnalysisStatus.CANCELLING
+        return {"summary": "", "errors": [], "applicable_laws": []}
+
     patch_map = [
         ("app.tasks.legal_analysis._get_db_session", MagicMock(return_value=session)),
         (_target(("_lock_analysis", "lock_analysis")), MagicMock(return_value=fake_analysis)),
         (_target(("_update_document_status", "update_document_status")), MagicMock()),
-        ("app.tasks.legal_analysis._extract_tesseract_words", MagicMock(return_value=[])),
+        ("app.tasks.legal_analysis._extract_azure_words", MagicMock(return_value=[])),
         (
             "app.tasks.legal_analysis._perform_legal_analysis",
-            MagicMock(return_value={"summary": "", "errors": [], "applicable_laws": []}),
+            MagicMock(side_effect=legal_result),
         ),
         ("app.tasks.legal_analysis._warm_page_previews", MagicMock()),
         (
@@ -151,9 +169,9 @@ def _run_task_with_patches(
                 ("_load_rules_for_document_type", "load_rules_for_document_type"),
                 "app.tasks.analysis",
             ),
-            MagicMock(return_value=(None, [])),
+            load_rules,
         ),
-        (_target(("_upsert_report", "upsert_report"), "app.tasks.analysis"), MagicMock()),
+        (_target(("_upsert_report", "upsert_report"), "app.tasks.analysis"), report_write),
         ("shutil.move", MagicMock()),
         # Prevent read_bytes() failing because redacted file doesn't exist on disk
         ("pathlib.Path.read_bytes", MagicMock(return_value=b"%PDF-1.4 test")),
@@ -167,6 +185,12 @@ def _run_task_with_patches(
         result: dict[str, Any] = task_module.run_legal_analysis_task.run(
             ANALYSIS_UUID, DOCUMENT_UUID
         )
+        if cancel_during_llm:
+            report_write.assert_not_called()
+        else:
+            report_write.assert_called_once()
+        if expected_profile is not None:
+            assert load_rules.call_args.args[1] == expected_profile
         return result
 
 
@@ -264,3 +288,40 @@ def test_classification_skipped_when_no_text() -> None:
     finally:
         with contextlib.suppress(FileNotFoundError):
             tmp_path.unlink()
+
+
+def test_cancellation_during_llm_does_not_save_report(tmp_path: Path) -> None:
+    path = tmp_path / "document.pdf"
+    path.write_bytes(b"%PDF-1.4 test")
+    session = MagicMock()
+    _, analysis = _build_db_objects(session, path)
+    extractor = MagicMock()
+    extractor.extract.return_value = _make_extraction(DocumentType.CONTRACT, "Umowa", 0.8)
+    classifier = MagicMock()
+    classifier.return_value.classify.return_value = (DocumentType.CONTRACT, 0.9, {})
+    result = _run_task_with_patches(
+        _make_ocr_result("Umowa"), extractor, classifier, session, analysis, cancel_during_llm=True
+    )
+    assert result["status"] == "cancelled"
+    assert analysis.status == "cancelled"
+
+
+def test_user_selected_profile_survives_queue_pipeline(tmp_path: Path) -> None:
+    path = tmp_path / "document.pdf"
+    path.write_bytes(b"%PDF-1.4 test")
+    session = MagicMock()
+    document, analysis = _build_db_objects(session, path)
+    document.document_type = DocumentType.POWER_OF_ATTORNEY
+    extractor = MagicMock()
+    extractor.extract.return_value = _make_extraction(DocumentType.INVOICE, "Treść dokumentu", 0.9)
+    classifier = MagicMock()
+    classifier.return_value.classify.return_value = (DocumentType.INVOICE, 0.95, {})
+    result = _run_task_with_patches(
+        _make_ocr_result(),
+        extractor,
+        classifier,
+        session,
+        analysis,
+        expected_profile=DocumentType.POWER_OF_ATTORNEY,
+    )
+    assert result["status"] == "success"

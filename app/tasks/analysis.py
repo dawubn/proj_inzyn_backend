@@ -13,17 +13,11 @@ from celery import Task
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.enums.analysis import (
-    TERMINAL_STATUSES,
-    AnalysisStatus,
-    ProcessingStage,
-    ValidationSeverity,
-)
+from app.enums.analysis import TERMINAL_STATUSES, AnalysisStatus, ProcessingStage
 from app.enums.document import DocumentStatus
 from app.models.document import Document
-from app.schemas.analysis_report import ValidationIssue
+from app.services.formal_report import coerce_document_type
 from app.services.formal_validation import FormalDocumentExtractor
-from app.services.validation import RuleEngineService
 from app.tasks.celery_app import celery_app
 from app.tasks.local_ocr import (
     _cancellation_requested,
@@ -35,6 +29,8 @@ from app.tasks.local_ocr import (
 if TYPE_CHECKING:
     from app.enums.document import DocumentType
     from app.models.document_analysis import DocumentAnalysis
+    from app.schemas.analysis_report import ValidationIssue
+    from app.services.formal_validation import FormalExtractionResult
 
 logger = structlog.get_logger(__name__)
 
@@ -131,7 +127,7 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         if document is None:
             raise FileNotFoundError(f"Document {analysis.document_id} not found")
 
-        fallback_type = _coerce_document_type(document.document_type)
+        fallback_type = coerce_document_type(document.document_type)
         ocr_raw_result = analysis.ocr_raw_result
 
         analysis.task_id = task_id
@@ -194,65 +190,10 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         document.suggested_document_type = document_type
         session.commit()
 
-        profile_name, rules = _load_rules_for_document_type(
-            session,
-            document_type,
-        )
-        total_rules_count = len(rules)
-
-        issues = RuleEngineService().run(rules, extraction.fields)
-        validation_profile_available = _add_profile_availability_warning(
-            issues,
-            profile_name,
-            rules,
-            document_type,
-        )
-
-        if not extraction.fields.get("has_text"):
-            issues.insert(
-                0,
-                ValidationIssue(
-                    rule_name="Tekst dokumentu",
-                    field_name="has_text",
-                    severity=ValidationSeverity.ERROR,
-                    message="Nie udało się odczytać tekstu dokumentu.",
-                    details={"expected_field": "has_text"},
-                ),
-            )
-
-        # End the rules read transaction before taking the owner lock again.
-        session.rollback()
-
-        analysis = _analysis_checkpoint(
-            session,
-            analysis_uuid,
-            task_id,
-        )
-
-        # Save the report and final status atomically under the owner lock.
-        _upsert_report(
-            session=session,
-            analysis_id=analysis.id,
-            issues=issues,
-            total_rules=max(
-                total_rules_count,
-                1 if not extraction.fields.get("has_text") else 0,
-            ),
-            summary={
-                "document_type": document_type.value,
-                "classification_confidence": classification_confidence,
-                "profile_name": profile_name,
-                "validation_profile_available": validation_profile_available,
-                "total_rules": total_rules_count,
-                "issues": len(issues),
-                "checked_fields": {
-                    key: value for key, value in extraction.fields.items() if key.startswith("has_")
-                },
-                "detected_sections": extraction.fields.get(
-                    "detected_sections",
-                    [],
-                ),
-            },
+        analysis = _analysis_checkpoint(session, analysis_uuid, task_id)
+        document = session.get(Document, analysis.document_id)
+        _validate_and_save_report(
+            session, analysis, document, document_type, classification_confidence, extraction
         )
 
         analysis.status = AnalysisStatus.COMPLETED
@@ -305,21 +246,6 @@ def run_analysis_task(self: Task, analysis_id: str) -> dict[str, Any]:
         session.close()
 
 
-def _coerce_document_type(value: object) -> DocumentType:
-    from app.enums.document import DocumentType
-
-    if isinstance(value, DocumentType):
-        return value
-
-    if isinstance(value, str):
-        try:
-            return DocumentType(value)
-        except ValueError:
-            return DocumentType.UNKNOWN
-
-    return DocumentType.UNKNOWN
-
-
 def _load_rules_for_document_type(
     session: Session,
     document_type: DocumentType,
@@ -348,51 +274,25 @@ def _load_rules_for_document_type(
     return fallback_profile.name, build_rule_models(fallback_profile)
 
 
-def _add_profile_availability_warning(
-    issues: list[ValidationIssue],
-    profile_name: str | None,
-    rules: list[Any],
-    document_type: DocumentType,
-) -> bool:
-    if profile_name or rules:
-        return True
-
-    issues.append(
-        ValidationIssue(
-            rule_name="Formal validation profile",
-            field_name="document_type",
-            severity=ValidationSeverity.WARNING,
-            message="Formal validation is not available for this document type yet.",
-            details={
-                "document_type": document_type.value,
-                "reason": "unsupported_document_type",
-            },
-        )
-    )
-    return False
-
-
 def _upsert_report(
     session: Session,
     analysis_id: uuid.UUID,
     issues: list[ValidationIssue],
-    total_rules: int,
     summary: dict[str, Any],
 ) -> None:
-    from app.enums.analysis import ReportStatus
+    from app.enums.analysis import ReportStatus, ValidationSeverity
     from app.models.analysis_report import AnalysisReport
 
     errors = [issue for issue in issues if issue.severity == ValidationSeverity.ERROR]
     warnings = [issue for issue in issues if issue.severity == ValidationSeverity.WARNING]
     infos = [issue for issue in issues if issue.severity == ValidationSeverity.INFO]
 
-    score = 1.0 if total_rules == 0 else round(max(0.0, 1.0 - len(errors) / total_rules), 4)
-
+    score = summary.get("completeness_score")
     report = session.execute(
         select(AnalysisReport).where(AnalysisReport.analysis_id == analysis_id)
     ).scalar_one_or_none()
 
-    if report is None:
+    if not report:
         report = AnalysisReport(analysis_id=analysis_id)
 
     report.status = ReportStatus.COMPLETED
@@ -401,8 +301,34 @@ def _upsert_report(
     report.infos = [issue.model_dump() for issue in infos]
     report.error_count = len(errors)
     report.warning_count = len(warnings)
-    report.is_complete = len(errors) == 0
+    report.is_complete = summary.get("is_complete")
     report.completeness_score = score
     report.summary = summary
-
     session.add(report)
+
+
+def _validate_and_save_report(  # noqa: PLR0913
+    session: Session,
+    analysis: DocumentAnalysis,
+    document: Document | None,
+    detected_type: DocumentType,
+    confidence: float,
+    extraction: FormalExtractionResult | None = None,
+) -> None:
+    from app.services.formal_issue_locator import locate_formal_issues
+    from app.services.formal_report import FormalValidationService, resolve_document_type
+    from app.services.formal_validation import FormalDocumentExtractor
+
+    effective, type_summary = resolve_document_type(
+        document.document_type if document else None, detected_type, confidence
+    )
+    if extraction is None or extraction.validation_document_type != effective:
+        extraction = FormalDocumentExtractor().extract(analysis.ocr_raw_result, effective)
+    analysis.extracted_fields = extraction.fields
+    profile_name, rules = _load_rules_for_document_type(session, effective)
+    issues, summary = FormalValidationService().build_report(
+        rules, extraction.fields, profile_name, effective
+    )
+    issues = locate_formal_issues(issues, analysis.tesseract_words or [])
+    summary.update(type_summary)
+    _upsert_report(session, analysis.id, issues, summary)

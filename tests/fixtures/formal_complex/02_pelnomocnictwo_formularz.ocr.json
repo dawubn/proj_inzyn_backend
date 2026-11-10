@@ -1,0 +1,4100 @@
+{
+  "content": "Testowo, [UTAJNIONO: DATA]\nmiejscowość, data\n[UTAJNIONO: IMIE/NAZ Przykładowa imię i nazwisko/nazwa wnioskodawcy\n[UTAJNION [UTAJNIONO: ADRES]\n15 /3\n00-000 Testowo adres\n[UTAJNIONO: PESEL]\nPESEL/NIP\nPEŁNOMOCNICTWO\nJa, niżej podpisany/a [UTAJNIONO: IMIE/NAZY Przykładowa imię i nazwisko wnioskodawcy /osoby reprezentującej wnioskodawcy 1 ,\nlegitymujący/a się dowodem tożsamości o numerze TST 000000\nseria i numer dowodu osobistego\noraz numerem PESEL [UTAJNIONO: PESEL]\n[reprezentujący nie dotyczy - osoba fizyczna nazwa i NIP osoby prawnej/ jednostki organizacyjnej nieposiadającej osobowości prawnej L\nudzielam pełnomocnictwa\nPanu/i\nimię i nazwisko pełnomocnika\nzamieszkałemu/ej przy\nadres zamieszkania pełnomocnika\nlegitymujący/a się dowodem tożsamości o numerze\nseria i numer dowodu osobistego pełnomocnika\noraz numerem PESEL\ndo:\n1. Złożenia wniosku o dofinansowanie w systemie teleinformatycznym CST2021.\n2. Podpisywania i składania oświadczeń i dokumentów w imieniu wnioskodawcy w toku postępowania o przyznanie pomocy w ramach działania rozwój lokalnej infrastruktury\n3. Odbioru korespondencji dotyczącej złożonego wniosku.\npodpis wnioskodawcy\nOświadczam, że pełnomocnictwo przyjąłem/ęłam:\npodpis pełnomocnika\n1Do usunięcia w przypadku wnioskodawcy będącego osobą fizyczną; należy wypełnić w przypadku, gdy wnioskodawcą jest osoba prawna albo jednostka organizacyjna nieposiadająca osobności prawnej\nDOKUMENT TESTOWY - wszystkie wpisane dane są fikcyjne\n1/1\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "angle": 0,
+      "width": 2481,
+      "height": 3508,
+      "unit": "pixel",
+      "words": [
+        {
+          "content": "Testowo,",
+          "polygon": [
+            1634,
+            180,
+            1811,
+            183,
+            1811,
+            232,
+            1634,
+            233
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 0,
+            "length": 8
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            1818,
+            181,
+            1882,
+            181,
+            1882,
+            196,
+            1818,
+            198
+          ],
+          "confidence": 0.596,
+          "span": {
+            "offset": 9,
+            "length": 11
+          }
+        },
+        {
+          "content": "DATA]",
+          "polygon": [
+            1885,
+            181,
+            1917,
+            182,
+            1916,
+            196,
+            1885,
+            196
+          ],
+          "confidence": 0.986,
+          "span": {
+            "offset": 21,
+            "length": 5
+          }
+        },
+        {
+          "content": "miejscowość,",
+          "polygon": [
+            1817,
+            242,
+            2017,
+            241,
+            2016,
+            278,
+            1817,
+            279
+          ],
+          "confidence": 0.981,
+          "span": {
+            "offset": 27,
+            "length": 12
+          }
+        },
+        {
+          "content": "data",
+          "polygon": [
+            2030,
+            241,
+            2099,
+            241,
+            2099,
+            278,
+            2029,
+            278
+          ],
+          "confidence": 0.991,
+          "span": {
+            "offset": 40,
+            "length": 4
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            298,
+            280,
+            358,
+            280,
+            358,
+            294,
+            298,
+            294
+          ],
+          "confidence": 0.794,
+          "span": {
+            "offset": 45,
+            "length": 11
+          }
+        },
+        {
+          "content": "IMIE/NAZ",
+          "polygon": [
+            361,
+            280,
+            408,
+            280,
+            408,
+            293,
+            361,
+            294
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 57,
+            "length": 8
+          }
+        },
+        {
+          "content": "Przykładowa",
+          "polygon": [
+            417,
+            288,
+            657,
+            288,
+            657,
+            328,
+            417,
+            329
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 66,
+            "length": 11
+          }
+        },
+        {
+          "content": "imię",
+          "polygon": [
+            292,
+            342,
+            360,
+            342,
+            359,
+            380,
+            291,
+            379
+          ],
+          "confidence": 0.99,
+          "span": {
+            "offset": 78,
+            "length": 4
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            370,
+            342,
+            380,
+            342,
+            379,
+            380,
+            369,
+            380
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 83,
+            "length": 1
+          }
+        },
+        {
+          "content": "nazwisko/nazwa",
+          "polygon": [
+            390,
+            342,
+            632,
+            342,
+            632,
+            382,
+            389,
+            380
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 85,
+            "length": 14
+          }
+        },
+        {
+          "content": "wnioskodawcy",
+          "polygon": [
+            643,
+            342,
+            863,
+            345,
+            863,
+            382,
+            643,
+            382
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 100,
+            "length": 12
+          }
+        },
+        {
+          "content": "[UTAJNION",
+          "polygon": [
+            301,
+            436,
+            350,
+            437,
+            350,
+            451,
+            301,
+            452
+          ],
+          "confidence": 0.958,
+          "span": {
+            "offset": 113,
+            "length": 9
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            353,
+            437,
+            417,
+            437,
+            417,
+            451,
+            353,
+            451
+          ],
+          "confidence": 0.669,
+          "span": {
+            "offset": 123,
+            "length": 11
+          }
+        },
+        {
+          "content": "ADRES]",
+          "polygon": [
+            420,
+            437,
+            456,
+            437,
+            456,
+            451,
+            420,
+            451
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 135,
+            "length": 6
+          }
+        },
+        {
+          "content": "15",
+          "polygon": [
+            567,
+            440,
+            612,
+            440,
+            612,
+            490,
+            567,
+            489
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 142,
+            "length": 2
+          }
+        },
+        {
+          "content": "/3",
+          "polygon": [
+            624,
+            440,
+            677,
+            440,
+            677,
+            490,
+            623,
+            490
+          ],
+          "confidence": 0.963,
+          "span": {
+            "offset": 145,
+            "length": 2
+          }
+        },
+        {
+          "content": "00-000",
+          "polygon": [
+            304,
+            504,
+            432,
+            506,
+            431,
+            542,
+            303,
+            542
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 148,
+            "length": 6
+          }
+        },
+        {
+          "content": "Testowo",
+          "polygon": [
+            444,
+            506,
+            608,
+            505,
+            607,
+            542,
+            443,
+            542
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 155,
+            "length": 7
+          }
+        },
+        {
+          "content": "adres",
+          "polygon": [
+            292,
+            560,
+            380,
+            559,
+            380,
+            589,
+            292,
+            590
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 163,
+            "length": 5
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            299,
+            622,
+            361,
+            625,
+            360,
+            638,
+            298,
+            638
+          ],
+          "confidence": 0.808,
+          "span": {
+            "offset": 169,
+            "length": 11
+          }
+        },
+        {
+          "content": "PESEL]",
+          "polygon": [
+            364,
+            625,
+            399,
+            625,
+            398,
+            638,
+            363,
+            638
+          ],
+          "confidence": 0.988,
+          "span": {
+            "offset": 181,
+            "length": 6
+          }
+        },
+        {
+          "content": "PESEL/NIP",
+          "polygon": [
+            293,
+            681,
+            475,
+            683,
+            475,
+            716,
+            292,
+            716
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 188,
+            "length": 9
+          }
+        },
+        {
+          "content": "PEŁNOMOCNICTWO",
+          "polygon": [
+            985,
+            785,
+            1497,
+            783,
+            1497,
+            833,
+            984,
+            830
+          ],
+          "confidence": 0.991,
+          "span": {
+            "offset": 198,
+            "length": 14
+          }
+        },
+        {
+          "content": "Ja,",
+          "polygon": [
+            292,
+            910,
+            348,
+            910,
+            347,
+            966,
+            291,
+            966
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 213,
+            "length": 3
+          }
+        },
+        {
+          "content": "niżej",
+          "polygon": [
+            362,
+            910,
+            455,
+            910,
+            454,
+            966,
+            360,
+            966
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 217,
+            "length": 5
+          }
+        },
+        {
+          "content": "podpisany/a",
+          "polygon": [
+            469,
+            910,
+            715,
+            911,
+            715,
+            965,
+            469,
+            966
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 223,
+            "length": 11
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            719,
+            904,
+            781,
+            906,
+            781,
+            926,
+            718,
+            927
+          ],
+          "confidence": 0.844,
+          "span": {
+            "offset": 235,
+            "length": 11
+          }
+        },
+        {
+          "content": "IMIE/NAZY",
+          "polygon": [
+            786,
+            906,
+            837,
+            905,
+            837,
+            926,
+            785,
+            926
+          ],
+          "confidence": 0.58,
+          "span": {
+            "offset": 247,
+            "length": 9
+          }
+        },
+        {
+          "content": "Przykładowa",
+          "polygon": [
+            841,
+            917,
+            1082,
+            915,
+            1082,
+            957,
+            841,
+            956
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 257,
+            "length": 11
+          }
+        },
+        {
+          "content": "imię",
+          "polygon": [
+            881,
+            967,
+            949,
+            967,
+            949,
+            1005,
+            881,
+            1004
+          ],
+          "confidence": 0.989,
+          "span": {
+            "offset": 269,
+            "length": 4
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            959,
+            967,
+            965,
+            967,
+            965,
+            1005,
+            959,
+            1005
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 274,
+            "length": 1
+          }
+        },
+        {
+          "content": "nazwisko",
+          "polygon": [
+            973,
+            967,
+            1115,
+            967,
+            1115,
+            1007,
+            973,
+            1006
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 276,
+            "length": 8
+          }
+        },
+        {
+          "content": "wnioskodawcy",
+          "polygon": [
+            1126,
+            967,
+            1344,
+            967,
+            1344,
+            1008,
+            1126,
+            1007
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 285,
+            "length": 12
+          }
+        },
+        {
+          "content": "/osoby",
+          "polygon": [
+            1353,
+            967,
+            1452,
+            967,
+            1452,
+            1008,
+            1353,
+            1008
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 298,
+            "length": 6
+          }
+        },
+        {
+          "content": "reprezentującej",
+          "polygon": [
+            1462,
+            967,
+            1695,
+            966,
+            1695,
+            1007,
+            1462,
+            1008
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 305,
+            "length": 15
+          }
+        },
+        {
+          "content": "wnioskodawcy",
+          "polygon": [
+            1705,
+            966,
+            1922,
+            966,
+            1922,
+            1005,
+            1705,
+            1007
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 321,
+            "length": 12
+          }
+        },
+        {
+          "content": "1",
+          "polygon": [
+            1932,
+            966,
+            1946,
+            966,
+            1946,
+            1005,
+            1932,
+            1005
+          ],
+          "confidence": 0.942,
+          "span": {
+            "offset": 334,
+            "length": 1
+          }
+        },
+        {
+          "content": ",",
+          "polygon": [
+            2173,
+            941,
+            2186,
+            942,
+            2186,
+            961,
+            2172,
+            960
+          ],
+          "confidence": 0.717,
+          "span": {
+            "offset": 336,
+            "length": 1
+          }
+        },
+        {
+          "content": "legitymujący/a",
+          "polygon": [
+            289,
+            1095,
+            592,
+            1094,
+            592,
+            1149,
+            289,
+            1150
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 338,
+            "length": 14
+          }
+        },
+        {
+          "content": "się",
+          "polygon": [
+            605,
+            1094,
+            658,
+            1094,
+            658,
+            1149,
+            605,
+            1149
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 353,
+            "length": 3
+          }
+        },
+        {
+          "content": "dowodem",
+          "polygon": [
+            673,
+            1094,
+            869,
+            1094,
+            869,
+            1147,
+            673,
+            1148
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 357,
+            "length": 7
+          }
+        },
+        {
+          "content": "tożsamości",
+          "polygon": [
+            881,
+            1094,
+            1102,
+            1095,
+            1102,
+            1145,
+            881,
+            1147
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 365,
+            "length": 10
+          }
+        },
+        {
+          "content": "o",
+          "polygon": [
+            1116,
+            1095,
+            1139,
+            1095,
+            1139,
+            1144,
+            1116,
+            1145
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 376,
+            "length": 1
+          }
+        },
+        {
+          "content": "numerze",
+          "polygon": [
+            1152,
+            1095,
+            1322,
+            1096,
+            1322,
+            1142,
+            1152,
+            1144
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 378,
+            "length": 7
+          }
+        },
+        {
+          "content": "TST",
+          "polygon": [
+            1346,
+            1097,
+            1415,
+            1097,
+            1415,
+            1141,
+            1346,
+            1142
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 386,
+            "length": 3
+          }
+        },
+        {
+          "content": "000000",
+          "polygon": [
+            1426,
+            1097,
+            1568,
+            1098,
+            1568,
+            1139,
+            1426,
+            1141
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 390,
+            "length": 6
+          }
+        },
+        {
+          "content": "seria",
+          "polygon": [
+            1366,
+            1151,
+            1444,
+            1151,
+            1444,
+            1189,
+            1366,
+            1188
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 397,
+            "length": 5
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            1455,
+            1151,
+            1461,
+            1151,
+            1461,
+            1189,
+            1455,
+            1189
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 403,
+            "length": 1
+          }
+        },
+        {
+          "content": "numer",
+          "polygon": [
+            1468,
+            1151,
+            1571,
+            1152,
+            1571,
+            1190,
+            1468,
+            1189
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 405,
+            "length": 5
+          }
+        },
+        {
+          "content": "dowodu",
+          "polygon": [
+            1578,
+            1152,
+            1697,
+            1152,
+            1697,
+            1190,
+            1578,
+            1190
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 411,
+            "length": 6
+          }
+        },
+        {
+          "content": "osobistego",
+          "polygon": [
+            1707,
+            1152,
+            1871,
+            1152,
+            1871,
+            1190,
+            1707,
+            1190
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 418,
+            "length": 10
+          }
+        },
+        {
+          "content": "oraz",
+          "polygon": [
+            291,
+            1208,
+            381,
+            1208,
+            380,
+            1261,
+            289,
+            1263
+          ],
+          "confidence": 0.989,
+          "span": {
+            "offset": 429,
+            "length": 4
+          }
+        },
+        {
+          "content": "numerem",
+          "polygon": [
+            394,
+            1208,
+            583,
+            1207,
+            582,
+            1258,
+            393,
+            1260
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 434,
+            "length": 7
+          }
+        },
+        {
+          "content": "PESEL",
+          "polygon": [
+            595,
+            1207,
+            746,
+            1205,
+            746,
+            1258,
+            594,
+            1258
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 442,
+            "length": 5
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            758,
+            1205,
+            819,
+            1206,
+            818,
+            1222,
+            758,
+            1223
+          ],
+          "confidence": 0.837,
+          "span": {
+            "offset": 448,
+            "length": 11
+          }
+        },
+        {
+          "content": "PESEL]",
+          "polygon": [
+            822,
+            1206,
+            859,
+            1205,
+            858,
+            1222,
+            822,
+            1222
+          ],
+          "confidence": 0.977,
+          "span": {
+            "offset": 460,
+            "length": 6
+          }
+        },
+        {
+          "content": "[reprezentujący",
+          "polygon": [
+            295,
+            1312,
+            605,
+            1307,
+            605,
+            1362,
+            295,
+            1369
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 467,
+            "length": 15
+          }
+        },
+        {
+          "content": "nie",
+          "polygon": [
+            632,
+            1306,
+            685,
+            1306,
+            685,
+            1360,
+            631,
+            1362
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 483,
+            "length": 3
+          }
+        },
+        {
+          "content": "dotyczy",
+          "polygon": [
+            699,
+            1306,
+            842,
+            1305,
+            841,
+            1357,
+            698,
+            1360
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 487,
+            "length": 7
+          }
+        },
+        {
+          "content": "-",
+          "polygon": [
+            853,
+            1304,
+            865,
+            1304,
+            864,
+            1357,
+            852,
+            1357
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 495,
+            "length": 1
+          }
+        },
+        {
+          "content": "osoba",
+          "polygon": [
+            877,
+            1304,
+            987,
+            1304,
+            985,
+            1355,
+            876,
+            1357
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 497,
+            "length": 5
+          }
+        },
+        {
+          "content": "fizyczna",
+          "polygon": [
+            1001,
+            1304,
+            1155,
+            1304,
+            1155,
+            1352,
+            1000,
+            1355
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 503,
+            "length": 8
+          }
+        },
+        {
+          "content": "nazwa",
+          "polygon": [
+            582,
+            1389,
+            682,
+            1389,
+            682,
+            1428,
+            582,
+            1427
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 512,
+            "length": 5
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            694,
+            1389,
+            698,
+            1389,
+            698,
+            1428,
+            694,
+            1428
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 518,
+            "length": 1
+          }
+        },
+        {
+          "content": "NIP",
+          "polygon": [
+            707,
+            1389,
+            773,
+            1388,
+            773,
+            1429,
+            707,
+            1429
+          ],
+          "confidence": 0.985,
+          "span": {
+            "offset": 520,
+            "length": 3
+          }
+        },
+        {
+          "content": "osoby",
+          "polygon": [
+            783,
+            1388,
+            865,
+            1388,
+            865,
+            1430,
+            783,
+            1429
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 524,
+            "length": 5
+          }
+        },
+        {
+          "content": "prawnej/",
+          "polygon": [
+            874,
+            1388,
+            1007,
+            1388,
+            1007,
+            1431,
+            874,
+            1430
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 530,
+            "length": 8
+          }
+        },
+        {
+          "content": "jednostki",
+          "polygon": [
+            1016,
+            1388,
+            1156,
+            1388,
+            1156,
+            1431,
+            1016,
+            1431
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 539,
+            "length": 9
+          }
+        },
+        {
+          "content": "organizacyjnej",
+          "polygon": [
+            1167,
+            1388,
+            1389,
+            1388,
+            1389,
+            1432,
+            1167,
+            1431
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 549,
+            "length": 14
+          }
+        },
+        {
+          "content": "nieposiadającej",
+          "polygon": [
+            1398,
+            1388,
+            1635,
+            1388,
+            1635,
+            1432,
+            1398,
+            1432
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 564,
+            "length": 15
+          }
+        },
+        {
+          "content": "osobowości",
+          "polygon": [
+            1645,
+            1388,
+            1817,
+            1388,
+            1817,
+            1431,
+            1645,
+            1432
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 580,
+            "length": 10
+          }
+        },
+        {
+          "content": "prawnej",
+          "polygon": [
+            1826,
+            1388,
+            1956,
+            1388,
+            1956,
+            1430,
+            1826,
+            1431
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 591,
+            "length": 7
+          }
+        },
+        {
+          "content": "L",
+          "polygon": [
+            2117,
+            1363,
+            2118,
+            1348,
+            2135,
+            1348,
+            2134,
+            1363
+          ],
+          "confidence": 0.655,
+          "span": {
+            "offset": 599,
+            "length": 1
+          }
+        },
+        {
+          "content": "udzielam",
+          "polygon": [
+            291,
+            1519,
+            478,
+            1518,
+            478,
+            1569,
+            291,
+            1568
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 601,
+            "length": 8
+          }
+        },
+        {
+          "content": "pełnomocnictwa",
+          "polygon": [
+            491,
+            1518,
+            827,
+            1519,
+            827,
+            1566,
+            491,
+            1569
+          ],
+          "confidence": 0.991,
+          "span": {
+            "offset": 610,
+            "length": 14
+          }
+        },
+        {
+          "content": "Panu/i",
+          "polygon": [
+            292,
+            1656,
+            427,
+            1655,
+            427,
+            1701,
+            292,
+            1702
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 625,
+            "length": 6
+          }
+        },
+        {
+          "content": "imię",
+          "polygon": [
+            1027,
+            1712,
+            1097,
+            1713,
+            1096,
+            1752,
+            1026,
+            1753
+          ],
+          "confidence": 0.986,
+          "span": {
+            "offset": 632,
+            "length": 4
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            1108,
+            1713,
+            1117,
+            1713,
+            1116,
+            1752,
+            1107,
+            1752
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 637,
+            "length": 1
+          }
+        },
+        {
+          "content": "nazwisko",
+          "polygon": [
+            1127,
+            1713,
+            1263,
+            1714,
+            1262,
+            1751,
+            1126,
+            1752
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 639,
+            "length": 8
+          }
+        },
+        {
+          "content": "pełnomocnika",
+          "polygon": [
+            1272,
+            1714,
+            1487,
+            1711,
+            1487,
+            1749,
+            1271,
+            1751
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 648,
+            "length": 12
+          }
+        },
+        {
+          "content": "zamieszkałemu/ej",
+          "polygon": [
+            294,
+            1772,
+            650,
+            1770,
+            648,
+            1824,
+            294,
+            1817
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 661,
+            "length": 16
+          }
+        },
+        {
+          "content": "przy",
+          "polygon": [
+            694,
+            1771,
+            787,
+            1774,
+            787,
+            1825,
+            693,
+            1824
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 678,
+            "length": 4
+          }
+        },
+        {
+          "content": "adres",
+          "polygon": [
+            1177,
+            1825,
+            1263,
+            1825,
+            1263,
+            1865,
+            1177,
+            1864
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 683,
+            "length": 5
+          }
+        },
+        {
+          "content": "zamieszkania",
+          "polygon": [
+            1271,
+            1825,
+            1470,
+            1824,
+            1470,
+            1865,
+            1271,
+            1865
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 689,
+            "length": 12
+          }
+        },
+        {
+          "content": "pełnomocnika",
+          "polygon": [
+            1478,
+            1824,
+            1695,
+            1824,
+            1695,
+            1863,
+            1477,
+            1865
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 702,
+            "length": 12
+          }
+        },
+        {
+          "content": "legitymujący/a",
+          "polygon": [
+            290,
+            1882,
+            592,
+            1883,
+            592,
+            1936,
+            289,
+            1937
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 715,
+            "length": 14
+          }
+        },
+        {
+          "content": "się",
+          "polygon": [
+            606,
+            1883,
+            659,
+            1883,
+            658,
+            1936,
+            605,
+            1936
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 730,
+            "length": 3
+          }
+        },
+        {
+          "content": "dowodem",
+          "polygon": [
+            674,
+            1883,
+            870,
+            1883,
+            869,
+            1934,
+            673,
+            1936
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 734,
+            "length": 7
+          }
+        },
+        {
+          "content": "tożsamości",
+          "polygon": [
+            881,
+            1883,
+            1103,
+            1883,
+            1102,
+            1932,
+            881,
+            1934
+          ],
+          "confidence": 0.988,
+          "span": {
+            "offset": 742,
+            "length": 10
+          }
+        },
+        {
+          "content": "o",
+          "polygon": [
+            1116,
+            1883,
+            1139,
+            1883,
+            1138,
+            1931,
+            1116,
+            1931
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 753,
+            "length": 1
+          }
+        },
+        {
+          "content": "numerze",
+          "polygon": [
+            1152,
+            1883,
+            1327,
+            1883,
+            1327,
+            1929,
+            1152,
+            1931
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 755,
+            "length": 7
+          }
+        },
+        {
+          "content": "seria",
+          "polygon": [
+            1353,
+            1937,
+            1430,
+            1937,
+            1431,
+            1976,
+            1354,
+            1975
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 763,
+            "length": 5
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            1441,
+            1937,
+            1446,
+            1938,
+            1447,
+            1976,
+            1442,
+            1976
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 769,
+            "length": 1
+          }
+        },
+        {
+          "content": "numer",
+          "polygon": [
+            1454,
+            1938,
+            1557,
+            1938,
+            1558,
+            1977,
+            1454,
+            1976
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 771,
+            "length": 5
+          }
+        },
+        {
+          "content": "dowodu",
+          "polygon": [
+            1565,
+            1938,
+            1683,
+            1938,
+            1683,
+            1978,
+            1566,
+            1977
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 777,
+            "length": 6
+          }
+        },
+        {
+          "content": "osobistego",
+          "polygon": [
+            1693,
+            1938,
+            1852,
+            1938,
+            1852,
+            1980,
+            1693,
+            1979
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 784,
+            "length": 10
+          }
+        },
+        {
+          "content": "pełnomocnika",
+          "polygon": [
+            1860,
+            1938,
+            2079,
+            1937,
+            2079,
+            1980,
+            1860,
+            1980
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 795,
+            "length": 12
+          }
+        },
+        {
+          "content": "oraz",
+          "polygon": [
+            292,
+            1999,
+            377,
+            1998,
+            377,
+            2043,
+            292,
+            2044
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 808,
+            "length": 4
+          }
+        },
+        {
+          "content": "numerem",
+          "polygon": [
+            386,
+            1998,
+            582,
+            1996,
+            582,
+            2042,
+            386,
+            2043
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 813,
+            "length": 7
+          }
+        },
+        {
+          "content": "PESEL",
+          "polygon": [
+            595,
+            1995,
+            743,
+            1994,
+            742,
+            2043,
+            594,
+            2042
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 821,
+            "length": 5
+          }
+        },
+        {
+          "content": "do:",
+          "polygon": [
+            291,
+            2137,
+            359,
+            2137,
+            359,
+            2180,
+            291,
+            2179
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 827,
+            "length": 3
+          }
+        },
+        {
+          "content": "1.",
+          "polygon": [
+            295,
+            2204,
+            330,
+            2204,
+            330,
+            2252,
+            294,
+            2252
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 831,
+            "length": 2
+          }
+        },
+        {
+          "content": "Złożenia",
+          "polygon": [
+            370,
+            2204,
+            545,
+            2204,
+            545,
+            2255,
+            369,
+            2253
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 834,
+            "length": 8
+          }
+        },
+        {
+          "content": "wniosku",
+          "polygon": [
+            557,
+            2204,
+            727,
+            2203,
+            726,
+            2256,
+            556,
+            2255
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 843,
+            "length": 7
+          }
+        },
+        {
+          "content": "o",
+          "polygon": [
+            741,
+            2203,
+            764,
+            2203,
+            763,
+            2256,
+            740,
+            2256
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 851,
+            "length": 1
+          }
+        },
+        {
+          "content": "dofinansowanie",
+          "polygon": [
+            777,
+            2203,
+            1091,
+            2204,
+            1091,
+            2258,
+            776,
+            2256
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 853,
+            "length": 14
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            1105,
+            2204,
+            1141,
+            2204,
+            1141,
+            2258,
+            1104,
+            2258
+          ],
+          "confidence": 0.989,
+          "span": {
+            "offset": 868,
+            "length": 1
+          }
+        },
+        {
+          "content": "systemie",
+          "polygon": [
+            1156,
+            2204,
+            1327,
+            2204,
+            1327,
+            2258,
+            1155,
+            2258
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 870,
+            "length": 8
+          }
+        },
+        {
+          "content": "teleinformatycznym",
+          "polygon": [
+            1341,
+            2204,
+            1744,
+            2205,
+            1744,
+            2257,
+            1341,
+            2258
+          ],
+          "confidence": 0.989,
+          "span": {
+            "offset": 879,
+            "length": 18
+          }
+        },
+        {
+          "content": "CST2021.",
+          "polygon": [
+            1758,
+            2206,
+            1962,
+            2207,
+            1962,
+            2256,
+            1758,
+            2257
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 898,
+            "length": 8
+          }
+        },
+        {
+          "content": "2.",
+          "polygon": [
+            291,
+            2284,
+            330,
+            2284,
+            330,
+            2337,
+            291,
+            2337
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 907,
+            "length": 2
+          }
+        },
+        {
+          "content": "Podpisywania",
+          "polygon": [
+            370,
+            2284,
+            651,
+            2284,
+            651,
+            2336,
+            370,
+            2337
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 910,
+            "length": 12
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            672,
+            2284,
+            685,
+            2284,
+            685,
+            2336,
+            672,
+            2336
+          ],
+          "confidence": 0.986,
+          "span": {
+            "offset": 923,
+            "length": 1
+          }
+        },
+        {
+          "content": "składania",
+          "polygon": [
+            708,
+            2284,
+            895,
+            2283,
+            895,
+            2336,
+            708,
+            2336
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 925,
+            "length": 9
+          }
+        },
+        {
+          "content": "oświadczeń",
+          "polygon": [
+            916,
+            2283,
+            1148,
+            2283,
+            1148,
+            2335,
+            916,
+            2336
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 935,
+            "length": 10
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            1170,
+            2283,
+            1182,
+            2283,
+            1182,
+            2335,
+            1170,
+            2335
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 946,
+            "length": 1
+          }
+        },
+        {
+          "content": "dokumentów",
+          "polygon": [
+            1205,
+            2283,
+            1466,
+            2284,
+            1466,
+            2335,
+            1205,
+            2335
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 948,
+            "length": 10
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            1487,
+            2284,
+            1523,
+            2284,
+            1523,
+            2335,
+            1487,
+            2335
+          ],
+          "confidence": 0.99,
+          "span": {
+            "offset": 959,
+            "length": 1
+          }
+        },
+        {
+          "content": "imieniu",
+          "polygon": [
+            1545,
+            2284,
+            1697,
+            2284,
+            1697,
+            2335,
+            1545,
+            2335
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 961,
+            "length": 7
+          }
+        },
+        {
+          "content": "wnioskodawcy",
+          "polygon": [
+            1717,
+            2284,
+            2017,
+            2285,
+            2017,
+            2336,
+            1717,
+            2335
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 969,
+            "length": 12
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            2038,
+            2285,
+            2074,
+            2285,
+            2074,
+            2336,
+            2038,
+            2336
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 982,
+            "length": 1
+          }
+        },
+        {
+          "content": "toku",
+          "polygon": [
+            2095,
+            2286,
+            2189,
+            2286,
+            2189,
+            2336,
+            2095,
+            2336
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 984,
+            "length": 4
+          }
+        },
+        {
+          "content": "postępowania",
+          "polygon": [
+            364,
+            2353,
+            644,
+            2351,
+            644,
+            2405,
+            365,
+            2406
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 989,
+            "length": 12
+          }
+        },
+        {
+          "content": "o",
+          "polygon": [
+            657,
+            2351,
+            679,
+            2351,
+            680,
+            2405,
+            658,
+            2405
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1002,
+            "length": 1
+          }
+        },
+        {
+          "content": "przyznanie",
+          "polygon": [
+            692,
+            2351,
+            911,
+            2350,
+            912,
+            2404,
+            693,
+            2405
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1004,
+            "length": 10
+          }
+        },
+        {
+          "content": "pomocy",
+          "polygon": [
+            925,
+            2350,
+            1086,
+            2350,
+            1087,
+            2403,
+            926,
+            2404
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 1015,
+            "length": 6
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            1098,
+            2350,
+            1134,
+            2350,
+            1135,
+            2403,
+            1099,
+            2403
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1022,
+            "length": 1
+          }
+        },
+        {
+          "content": "ramach",
+          "polygon": [
+            1145,
+            2350,
+            1292,
+            2350,
+            1293,
+            2402,
+            1146,
+            2403
+          ],
+          "confidence": 0.999,
+          "span": {
+            "offset": 1024,
+            "length": 6
+          }
+        },
+        {
+          "content": "działania",
+          "polygon": [
+            1306,
+            2350,
+            1485,
+            2350,
+            1486,
+            2401,
+            1307,
+            2402
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1031,
+            "length": 9
+          }
+        },
+        {
+          "content": "rozwój",
+          "polygon": [
+            1510,
+            2350,
+            1615,
+            2351,
+            1616,
+            2400,
+            1511,
+            2401
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1041,
+            "length": 6
+          }
+        },
+        {
+          "content": "lokalnej",
+          "polygon": [
+            1625,
+            2351,
+            1758,
+            2351,
+            1759,
+            2399,
+            1626,
+            2400
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1048,
+            "length": 8
+          }
+        },
+        {
+          "content": "infrastruktury",
+          "polygon": [
+            1768,
+            2351,
+            2014,
+            2353,
+            2014,
+            2396,
+            1769,
+            2398
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1057,
+            "length": 14
+          }
+        },
+        {
+          "content": "3.",
+          "polygon": [
+            293,
+            2428,
+            330,
+            2428,
+            329,
+            2478,
+            292,
+            2477
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1072,
+            "length": 2
+          }
+        },
+        {
+          "content": "Odbioru",
+          "polygon": [
+            381,
+            2429,
+            518,
+            2430,
+            517,
+            2479,
+            380,
+            2478
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 1075,
+            "length": 7
+          }
+        },
+        {
+          "content": "korespondencji",
+          "polygon": [
+            532,
+            2430,
+            788,
+            2432,
+            787,
+            2479,
+            531,
+            2479
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1083,
+            "length": 14
+          }
+        },
+        {
+          "content": "dotyczącej",
+          "polygon": [
+            800,
+            2432,
+            977,
+            2433,
+            976,
+            2479,
+            799,
+            2479
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 1098,
+            "length": 10
+          }
+        },
+        {
+          "content": "złożonego",
+          "polygon": [
+            988,
+            2433,
+            1163,
+            2433,
+            1162,
+            2477,
+            987,
+            2479
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 1109,
+            "length": 9
+          }
+        },
+        {
+          "content": "wniosku.",
+          "polygon": [
+            1173,
+            2433,
+            1323,
+            2433,
+            1323,
+            2475,
+            1172,
+            2477
+          ],
+          "confidence": 0.999,
+          "span": {
+            "offset": 1119,
+            "length": 8
+          }
+        },
+        {
+          "content": "podpis",
+          "polygon": [
+            1615,
+            2719,
+            1722,
+            2718,
+            1722,
+            2758,
+            1616,
+            2760
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1128,
+            "length": 6
+          }
+        },
+        {
+          "content": "wnioskodawcy",
+          "polygon": [
+            1733,
+            2718,
+            1953,
+            2718,
+            1953,
+            2759,
+            1734,
+            2758
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1135,
+            "length": 12
+          }
+        },
+        {
+          "content": "Oświadczam,",
+          "polygon": [
+            290,
+            2773,
+            564,
+            2773,
+            563,
+            2827,
+            290,
+            2825
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 1148,
+            "length": 11
+          }
+        },
+        {
+          "content": "że",
+          "polygon": [
+            579,
+            2773,
+            621,
+            2773,
+            621,
+            2827,
+            579,
+            2827
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 1160,
+            "length": 2
+          }
+        },
+        {
+          "content": "pełnomocnictwo",
+          "polygon": [
+            635,
+            2773,
+            967,
+            2772,
+            966,
+            2828,
+            635,
+            2827
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 1163,
+            "length": 14
+          }
+        },
+        {
+          "content": "przyjąłem/ęłam:",
+          "polygon": [
+            981,
+            2772,
+            1312,
+            2771,
+            1312,
+            2828,
+            980,
+            2828
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 1178,
+            "length": 15
+          }
+        },
+        {
+          "content": "podpis",
+          "polygon": [
+            582,
+            2981,
+            685,
+            2981,
+            684,
+            3023,
+            581,
+            3026
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1194,
+            "length": 6
+          }
+        },
+        {
+          "content": "pełnomocnika",
+          "polygon": [
+            693,
+            2981,
+            916,
+            2980,
+            916,
+            3023,
+            692,
+            3023
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1201,
+            "length": 12
+          }
+        },
+        {
+          "content": "1Do",
+          "polygon": [
+            290,
+            3121,
+            358,
+            3121,
+            358,
+            3167,
+            290,
+            3167
+          ],
+          "confidence": 0.919,
+          "span": {
+            "offset": 1214,
+            "length": 3
+          }
+        },
+        {
+          "content": "usunięcia",
+          "polygon": [
+            381,
+            3121,
+            539,
+            3122,
+            539,
+            3167,
+            381,
+            3167
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 1218,
+            "length": 9
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            560,
+            3122,
+            591,
+            3122,
+            591,
+            3168,
+            560,
+            3167
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 1228,
+            "length": 1
+          }
+        },
+        {
+          "content": "przypadku",
+          "polygon": [
+            613,
+            3122,
+            789,
+            3122,
+            789,
+            3168,
+            613,
+            3168
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 1230,
+            "length": 9
+          }
+        },
+        {
+          "content": "wnioskodawcy",
+          "polygon": [
+            811,
+            3122,
+            1061,
+            3122,
+            1061,
+            3169,
+            810,
+            3168
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1240,
+            "length": 12
+          }
+        },
+        {
+          "content": "będącego",
+          "polygon": [
+            1083,
+            3122,
+            1240,
+            3122,
+            1239,
+            3169,
+            1083,
+            3169
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 1253,
+            "length": 8
+          }
+        },
+        {
+          "content": "osobą",
+          "polygon": [
+            1264,
+            3122,
+            1361,
+            3122,
+            1360,
+            3169,
+            1263,
+            3169
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 1262,
+            "length": 5
+          }
+        },
+        {
+          "content": "fizyczną;",
+          "polygon": [
+            1383,
+            3122,
+            1534,
+            3122,
+            1533,
+            3170,
+            1382,
+            3169
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1268,
+            "length": 9
+          }
+        },
+        {
+          "content": "należy",
+          "polygon": [
+            1557,
+            3122,
+            1666,
+            3122,
+            1666,
+            3170,
+            1556,
+            3170
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 1278,
+            "length": 6
+          }
+        },
+        {
+          "content": "wypełnić",
+          "polygon": [
+            1688,
+            3122,
+            1839,
+            3122,
+            1838,
+            3170,
+            1687,
+            3170
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1285,
+            "length": 8
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            1862,
+            3123,
+            1892,
+            3123,
+            1891,
+            3170,
+            1861,
+            3170
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 1294,
+            "length": 1
+          }
+        },
+        {
+          "content": "przypadku,",
+          "polygon": [
+            1914,
+            3123,
+            2099,
+            3123,
+            2098,
+            3171,
+            1913,
+            3170
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1296,
+            "length": 10
+          }
+        },
+        {
+          "content": "gdy",
+          "polygon": [
+            2124,
+            3123,
+            2188,
+            3123,
+            2188,
+            3171,
+            2123,
+            3171
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1307,
+            "length": 3
+          }
+        },
+        {
+          "content": "wnioskodawcą",
+          "polygon": [
+            294,
+            3171,
+            539,
+            3171,
+            539,
+            3216,
+            294,
+            3215
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1311,
+            "length": 12
+          }
+        },
+        {
+          "content": "jest",
+          "polygon": [
+            548,
+            3171,
+            611,
+            3171,
+            611,
+            3216,
+            548,
+            3216
+          ],
+          "confidence": 0.989,
+          "span": {
+            "offset": 1324,
+            "length": 4
+          }
+        },
+        {
+          "content": "osoba",
+          "polygon": [
+            623,
+            3171,
+            719,
+            3171,
+            719,
+            3216,
+            623,
+            3216
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 1329,
+            "length": 5
+          }
+        },
+        {
+          "content": "prawna",
+          "polygon": [
+            729,
+            3171,
+            852,
+            3171,
+            851,
+            3216,
+            729,
+            3216
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 1335,
+            "length": 6
+          }
+        },
+        {
+          "content": "albo",
+          "polygon": [
+            863,
+            3171,
+            930,
+            3170,
+            930,
+            3217,
+            863,
+            3216
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1342,
+            "length": 4
+          }
+        },
+        {
+          "content": "jednostka",
+          "polygon": [
+            939,
+            3170,
+            1104,
+            3170,
+            1103,
+            3217,
+            939,
+            3217
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 1347,
+            "length": 9
+          }
+        },
+        {
+          "content": "organizacyjna",
+          "polygon": [
+            1114,
+            3170,
+            1343,
+            3170,
+            1342,
+            3217,
+            1114,
+            3217
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1357,
+            "length": 13
+          }
+        },
+        {
+          "content": "nieposiadająca",
+          "polygon": [
+            1352,
+            3170,
+            1603,
+            3170,
+            1602,
+            3217,
+            1351,
+            3217
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1371,
+            "length": 14
+          }
+        },
+        {
+          "content": "osobności",
+          "polygon": [
+            1614,
+            3170,
+            1779,
+            3170,
+            1778,
+            3217,
+            1613,
+            3217
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1386,
+            "length": 9
+          }
+        },
+        {
+          "content": "prawnej",
+          "polygon": [
+            1790,
+            3170,
+            1929,
+            3170,
+            1929,
+            3217,
+            1789,
+            3217
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 1396,
+            "length": 7
+          }
+        },
+        {
+          "content": "DOKUMENT",
+          "polygon": [
+            288,
+            3402,
+            453,
+            3402,
+            452,
+            3436,
+            287,
+            3435
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 1404,
+            "length": 8
+          }
+        },
+        {
+          "content": "TESTOWY",
+          "polygon": [
+            460,
+            3402,
+            587,
+            3402,
+            586,
+            3438,
+            459,
+            3437
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 1413,
+            "length": 7
+          }
+        },
+        {
+          "content": "-",
+          "polygon": [
+            594,
+            3402,
+            603,
+            3402,
+            602,
+            3438,
+            593,
+            3438
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 1421,
+            "length": 1
+          }
+        },
+        {
+          "content": "wszystkie",
+          "polygon": [
+            610,
+            3402,
+            742,
+            3402,
+            741,
+            3438,
+            609,
+            3438
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1423,
+            "length": 9
+          }
+        },
+        {
+          "content": "wpisane",
+          "polygon": [
+            750,
+            3402,
+            857,
+            3402,
+            856,
+            3439,
+            749,
+            3438
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1433,
+            "length": 7
+          }
+        },
+        {
+          "content": "dane",
+          "polygon": [
+            865,
+            3402,
+            929,
+            3402,
+            928,
+            3439,
+            864,
+            3439
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 1441,
+            "length": 4
+          }
+        },
+        {
+          "content": "są",
+          "polygon": [
+            938,
+            3402,
+            964,
+            3402,
+            963,
+            3439,
+            937,
+            3439
+          ],
+          "confidence": 0.989,
+          "span": {
+            "offset": 1446,
+            "length": 2
+          }
+        },
+        {
+          "content": "fikcyjne",
+          "polygon": [
+            973,
+            3402,
+            1079,
+            3401,
+            1079,
+            3439,
+            972,
+            3439
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 1449,
+            "length": 8
+          }
+        },
+        {
+          "content": "1/1",
+          "polygon": [
+            2132,
+            3401,
+            2190,
+            3401,
+            2190,
+            3435,
+            2132,
+            3436
+          ],
+          "confidence": 0.882,
+          "span": {
+            "offset": 1458,
+            "length": 3
+          }
+        }
+      ],
+      "lines": [
+        {
+          "content": "Testowo,",
+          "polygon": [
+            1633,
+            180,
+            1810,
+            180,
+            1810,
+            233,
+            1633,
+            232
+          ],
+          "spans": [
+            {
+              "offset": 0,
+              "length": 8
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: DATA]",
+          "polygon": [
+            1814,
+            181,
+            1916,
+            180,
+            1916,
+            197,
+            1814,
+            198
+          ],
+          "spans": [
+            {
+              "offset": 9,
+              "length": 17
+            }
+          ]
+        },
+        {
+          "content": "miejscowość, data",
+          "polygon": [
+            1817,
+            242,
+            2098,
+            240,
+            2099,
+            277,
+            1817,
+            279
+          ],
+          "spans": [
+            {
+              "offset": 27,
+              "length": 17
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: IMIE/NAZ",
+          "polygon": [
+            297,
+            279,
+            407,
+            279,
+            407,
+            293,
+            297,
+            293
+          ],
+          "spans": [
+            {
+              "offset": 45,
+              "length": 20
+            }
+          ]
+        },
+        {
+          "content": "Przykładowa",
+          "polygon": [
+            417,
+            287,
+            656,
+            286,
+            656,
+            330,
+            417,
+            331
+          ],
+          "spans": [
+            {
+              "offset": 66,
+              "length": 11
+            }
+          ]
+        },
+        {
+          "content": "imię i nazwisko/nazwa wnioskodawcy",
+          "polygon": [
+            291,
+            341,
+            862,
+            343,
+            862,
+            382,
+            291,
+            379
+          ],
+          "spans": [
+            {
+              "offset": 78,
+              "length": 34
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNION [UTAJNIONO: ADRES]",
+          "polygon": [
+            300,
+            435,
+            455,
+            435,
+            455,
+            451,
+            300,
+            451
+          ],
+          "spans": [
+            {
+              "offset": 113,
+              "length": 28
+            }
+          ]
+        },
+        {
+          "content": "15 /3",
+          "polygon": [
+            569,
+            440,
+            676,
+            441,
+            675,
+            490,
+            567,
+            490
+          ],
+          "spans": [
+            {
+              "offset": 142,
+              "length": 5
+            }
+          ]
+        },
+        {
+          "content": "00-000 Testowo",
+          "polygon": [
+            302,
+            504,
+            607,
+            504,
+            607,
+            541,
+            302,
+            541
+          ],
+          "spans": [
+            {
+              "offset": 148,
+              "length": 14
+            }
+          ]
+        },
+        {
+          "content": "adres",
+          "polygon": [
+            292,
+            560,
+            379,
+            559,
+            378,
+            589,
+            292,
+            590
+          ],
+          "spans": [
+            {
+              "offset": 163,
+              "length": 5
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: PESEL]",
+          "polygon": [
+            298,
+            622,
+            398,
+            623,
+            398,
+            638,
+            298,
+            637
+          ],
+          "spans": [
+            {
+              "offset": 169,
+              "length": 18
+            }
+          ]
+        },
+        {
+          "content": "PESEL/NIP",
+          "polygon": [
+            291,
+            681,
+            474,
+            681,
+            473,
+            715,
+            291,
+            715
+          ],
+          "spans": [
+            {
+              "offset": 188,
+              "length": 9
+            }
+          ]
+        },
+        {
+          "content": "PEŁNOMOCNICTWO",
+          "polygon": [
+            984,
+            782,
+            1496,
+            782,
+            1496,
+            832,
+            984,
+            832
+          ],
+          "spans": [
+            {
+              "offset": 198,
+              "length": 14
+            }
+          ]
+        },
+        {
+          "content": "Ja, niżej podpisany/a",
+          "polygon": [
+            290,
+            909,
+            714,
+            909,
+            714,
+            965,
+            290,
+            965
+          ],
+          "spans": [
+            {
+              "offset": 213,
+              "length": 21
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: IMIE/NAZY",
+          "polygon": [
+            718,
+            904,
+            836,
+            904,
+            836,
+            926,
+            718,
+            926
+          ],
+          "spans": [
+            {
+              "offset": 235,
+              "length": 21
+            }
+          ]
+        },
+        {
+          "content": "Przykładowa",
+          "polygon": [
+            841,
+            915,
+            1081,
+            914,
+            1081,
+            957,
+            841,
+            958
+          ],
+          "spans": [
+            {
+              "offset": 257,
+              "length": 11
+            }
+          ]
+        },
+        {
+          "content": "imię i nazwisko wnioskodawcy /osoby reprezentującej wnioskodawcy 1",
+          "polygon": [
+            881,
+            966,
+            1945,
+            965,
+            1945,
+            1007,
+            881,
+            1007
+          ],
+          "spans": [
+            {
+              "offset": 269,
+              "length": 66
+            }
+          ]
+        },
+        {
+          "content": ",",
+          "polygon": [
+            2175,
+            941,
+            2185,
+            943,
+            2185,
+            960,
+            2172,
+            960
+          ],
+          "spans": [
+            {
+              "offset": 336,
+              "length": 1
+            }
+          ]
+        },
+        {
+          "content": "legitymujący/a się dowodem tożsamości o numerze TST 000000",
+          "polygon": [
+            289,
+            1094,
+            1567,
+            1094,
+            1568,
+            1145,
+            289,
+            1149
+          ],
+          "spans": [
+            {
+              "offset": 338,
+              "length": 58
+            }
+          ]
+        },
+        {
+          "content": "seria i numer dowodu osobistego",
+          "polygon": [
+            1366,
+            1150,
+            1870,
+            1152,
+            1870,
+            1190,
+            1366,
+            1188
+          ],
+          "spans": [
+            {
+              "offset": 397,
+              "length": 31
+            }
+          ]
+        },
+        {
+          "content": "oraz numerem PESEL",
+          "polygon": [
+            289,
+            1207,
+            745,
+            1204,
+            745,
+            1257,
+            289,
+            1262
+          ],
+          "spans": [
+            {
+              "offset": 429,
+              "length": 18
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: PESEL]",
+          "polygon": [
+            757,
+            1204,
+            858,
+            1204,
+            858,
+            1221,
+            757,
+            1222
+          ],
+          "spans": [
+            {
+              "offset": 448,
+              "length": 18
+            }
+          ]
+        },
+        {
+          "content": "[reprezentujący nie dotyczy - osoba fizyczna",
+          "polygon": [
+            294,
+            1311,
+            1154,
+            1303,
+            1155,
+            1355,
+            294,
+            1368
+          ],
+          "spans": [
+            {
+              "offset": 467,
+              "length": 44
+            }
+          ]
+        },
+        {
+          "content": "nazwa i NIP osoby prawnej/ jednostki organizacyjnej nieposiadającej osobowości prawnej",
+          "polygon": [
+            581,
+            1387,
+            1955,
+            1387,
+            1955,
+            1431,
+            581,
+            1430
+          ],
+          "spans": [
+            {
+              "offset": 512,
+              "length": 86
+            }
+          ]
+        },
+        {
+          "content": "L",
+          "polygon": [
+            2117,
+            1365,
+            2117,
+            1348,
+            2134,
+            1349,
+            2133,
+            1366
+          ],
+          "spans": [
+            {
+              "offset": 599,
+              "length": 1
+            }
+          ]
+        },
+        {
+          "content": "udzielam pełnomocnictwa",
+          "polygon": [
+            290,
+            1518,
+            826,
+            1517,
+            826,
+            1567,
+            290,
+            1568
+          ],
+          "spans": [
+            {
+              "offset": 601,
+              "length": 23
+            }
+          ]
+        },
+        {
+          "content": "Panu/i",
+          "polygon": [
+            292,
+            1657,
+            426,
+            1655,
+            424,
+            1702,
+            292,
+            1702
+          ],
+          "spans": [
+            {
+              "offset": 625,
+              "length": 6
+            }
+          ]
+        },
+        {
+          "content": "imię i nazwisko pełnomocnika",
+          "polygon": [
+            1026,
+            1711,
+            1486,
+            1711,
+            1487,
+            1749,
+            1026,
+            1752
+          ],
+          "spans": [
+            {
+              "offset": 632,
+              "length": 28
+            }
+          ]
+        },
+        {
+          "content": "zamieszkałemu/ej przy",
+          "polygon": [
+            294,
+            1768,
+            786,
+            1771,
+            785,
+            1824,
+            294,
+            1819
+          ],
+          "spans": [
+            {
+              "offset": 661,
+              "length": 21
+            }
+          ]
+        },
+        {
+          "content": "adres zamieszkania pełnomocnika",
+          "polygon": [
+            1176,
+            1824,
+            1694,
+            1824,
+            1694,
+            1864,
+            1176,
+            1865
+          ],
+          "spans": [
+            {
+              "offset": 683,
+              "length": 31
+            }
+          ]
+        },
+        {
+          "content": "legitymujący/a się dowodem tożsamości o numerze",
+          "polygon": [
+            289,
+            1882,
+            1326,
+            1882,
+            1326,
+            1932,
+            289,
+            1936
+          ],
+          "spans": [
+            {
+              "offset": 715,
+              "length": 47
+            }
+          ]
+        },
+        {
+          "content": "seria i numer dowodu osobistego pełnomocnika",
+          "polygon": [
+            1352,
+            1937,
+            2078,
+            1937,
+            2078,
+            1979,
+            1352,
+            1976
+          ],
+          "spans": [
+            {
+              "offset": 763,
+              "length": 44
+            }
+          ]
+        },
+        {
+          "content": "oraz numerem PESEL",
+          "polygon": [
+            291,
+            1997,
+            742,
+            1994,
+            742,
+            2042,
+            291,
+            2044
+          ],
+          "spans": [
+            {
+              "offset": 808,
+              "length": 18
+            }
+          ]
+        },
+        {
+          "content": "do:",
+          "polygon": [
+            291,
+            2137,
+            358,
+            2137,
+            357,
+            2180,
+            291,
+            2179
+          ],
+          "spans": [
+            {
+              "offset": 827,
+              "length": 3
+            }
+          ]
+        },
+        {
+          "content": "1. Złożenia wniosku o dofinansowanie w systemie teleinformatycznym CST2021.",
+          "polygon": [
+            293,
+            2203,
+            1961,
+            2205,
+            1961,
+            2258,
+            293,
+            2255
+          ],
+          "spans": [
+            {
+              "offset": 831,
+              "length": 75
+            }
+          ]
+        },
+        {
+          "content": "2. Podpisywania i składania oświadczeń i dokumentów w imieniu wnioskodawcy w toku",
+          "polygon": [
+            290,
+            2283,
+            2188,
+            2283,
+            2188,
+            2336,
+            290,
+            2336
+          ],
+          "spans": [
+            {
+              "offset": 907,
+              "length": 81
+            }
+          ]
+        },
+        {
+          "content": "postępowania o przyznanie pomocy w ramach działania rozwój lokalnej infrastruktury",
+          "polygon": [
+            363,
+            2351,
+            2013,
+            2349,
+            2013,
+            2400,
+            364,
+            2405
+          ],
+          "spans": [
+            {
+              "offset": 989,
+              "length": 82
+            }
+          ]
+        },
+        {
+          "content": "3. Odbioru korespondencji dotyczącej złożonego wniosku.",
+          "polygon": [
+            292,
+            2428,
+            1322,
+            2429,
+            1322,
+            2479,
+            292,
+            2478
+          ],
+          "spans": [
+            {
+              "offset": 1072,
+              "length": 55
+            }
+          ]
+        },
+        {
+          "content": "podpis wnioskodawcy",
+          "polygon": [
+            1615,
+            2717,
+            1952,
+            2717,
+            1953,
+            2757,
+            1615,
+            2759
+          ],
+          "spans": [
+            {
+              "offset": 1128,
+              "length": 19
+            }
+          ]
+        },
+        {
+          "content": "Oświadczam, że pełnomocnictwo przyjąłem/ęłam:",
+          "polygon": [
+            290,
+            2771,
+            1311,
+            2771,
+            1311,
+            2827,
+            290,
+            2827
+          ],
+          "spans": [
+            {
+              "offset": 1148,
+              "length": 45
+            }
+          ]
+        },
+        {
+          "content": "podpis pełnomocnika",
+          "polygon": [
+            580,
+            2980,
+            915,
+            2979,
+            915,
+            3022,
+            580,
+            3025
+          ],
+          "spans": [
+            {
+              "offset": 1194,
+              "length": 19
+            }
+          ]
+        },
+        {
+          "content": "1Do usunięcia w przypadku wnioskodawcy będącego osobą fizyczną; należy wypełnić w przypadku, gdy",
+          "polygon": [
+            290,
+            3121,
+            2187,
+            3122,
+            2187,
+            3170,
+            290,
+            3167
+          ],
+          "spans": [
+            {
+              "offset": 1214,
+              "length": 96
+            }
+          ]
+        },
+        {
+          "content": "wnioskodawcą jest osoba prawna albo jednostka organizacyjna nieposiadająca osobności prawnej",
+          "polygon": [
+            293,
+            3169,
+            1928,
+            3169,
+            1928,
+            3216,
+            293,
+            3216
+          ],
+          "spans": [
+            {
+              "offset": 1311,
+              "length": 92
+            }
+          ]
+        },
+        {
+          "content": "DOKUMENT TESTOWY - wszystkie wpisane dane są fikcyjne",
+          "polygon": [
+            286,
+            3401,
+            1078,
+            3401,
+            1078,
+            3438,
+            286,
+            3436
+          ],
+          "spans": [
+            {
+              "offset": 1404,
+              "length": 53
+            }
+          ]
+        },
+        {
+          "content": "1/1",
+          "polygon": [
+            2132,
+            3402,
+            2189,
+            3401,
+            2188,
+            3436,
+            2132,
+            3436
+          ],
+          "spans": [
+            {
+              "offset": 1458,
+              "length": 3
+            }
+          ]
+        }
+      ],
+      "spans": [
+        {
+          "offset": 0,
+          "length": 1461
+        }
+      ]
+    }
+  ],
+  "stringIndexType": "unicodeCodePoint"
+}
