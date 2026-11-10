@@ -9,6 +9,7 @@ from typing import Any
 from app.enums.document import DocumentType
 from app.services.formal_catalog import EXTENDED_DOCUMENT_SPECS, FieldSpec
 from app.services.formal_context import MIN_WORD_CONFIDENCE, DocumentContext, OCRLine, reading_lines
+from app.services.formal_empty_fields import find_possible_empty_fields
 from app.services.formal_language import explicit_absence, has_affirmative_action
 
 _PL_TRANSLATION = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
@@ -184,7 +185,7 @@ def _keyword_pattern(keyword: str) -> re.Pattern[str]:
     return re.compile(rf"\b{pattern}\b")
 
 
-EXTRACTOR_VERSION = "azure-formal-3.1"
+EXTRACTOR_VERSION = "azure-formal-3.3"
 _YEAR_DIGITS = 4
 _HEADER_LAST_LINE = 5
 _MIN_CLASSIFICATION_CUES = 2
@@ -192,7 +193,8 @@ _MIN_CLASSIFICATION_CUES = 2
 # Patterns identify fields/roles at the start of a line, not mentions in body text.
 _FIELD_LABELS = {
     "has_principal_section": (
-        r"(?:(?:dane\s+)?(?:mocodawc[ay]|udzielajacy pelnomocnictwa)"
+        r"(?:dane\s+mocodawc[ay]|mocodawca"
+        r"|mocodawcy(?=\s*(?:[:.\u2026_\[\-]|$))|(?:dane\s+)?udzielajacy pelnomocnictwa"
         r"|ja(?:,\s*nizej podpisan[ay](?:/a)?)?)"
     ),
     "has_attorney_section": (
@@ -222,6 +224,10 @@ _ROLE_LABELS = {
     "defendant": r"(?:strona pozwana|pozwany|pozwana)(?=\s*:|\s*$)",
     "client": r"(?:zamawiajacy|zleceniodawca|kupujacy|nabywca)(?=\s*:|\s*$)",
     "provider": r"(?:wykonawca|zleceniobiorca|sprzedajacy|sprzedawca)(?=\s*:|\s*$)",
+}
+_IDENTITY_CAPTIONS = {
+    _FIELD_LABELS["has_principal_section"]: "imie i nazwisko mocodawcy",
+    _FIELD_LABELS["has_attorney_section"]: "imie i nazwisko pelnomocnika",
 }
 _DATE_LABEL = (
     r"(?:data(?: (?:sporzadzenia|zawarcia|udzielenia|dokumentu))?(?=\s*:|\s*$|\s+\d|\s*\[)"
@@ -383,7 +389,12 @@ def _block(context: DocumentContext, index: int, start: int) -> tuple[str, list[
 def _field(
     context: DocumentContext, pattern: str, min_words: int = 2, allow_redacted_context: bool = False
 ) -> dict[str, Any]:
-    candidates = []
+    caption = _IDENTITY_CAPTIONS.get(pattern)
+    candidates = [
+        _identity_caption(context, index, pattern)
+        for index, line in enumerate(context.lines)
+        if caption and normalize_search_text(line.text) == caption
+    ]
     scope_field = pattern == _FIELD_LABELS["has_authorization_scope_section"]
     scope_heading = r"zakres (?:pelnomocnictwa|umocowania)"
     explicit_scope = scope_field and any(
@@ -520,6 +531,34 @@ def _caption_value(context: DocumentContext, index: int) -> tuple[str, list[OCRL
         return "", [caption]
     closest = max(candidates, key=lambda line: max(line.polygon[1::2]))
     return closest.text, [caption, closest]
+
+
+def _identity_caption(context: DocumentContext, index: int, pattern: str) -> dict[str, Any]:
+    """Role-specific captions identify the box above, never surrounding prose."""
+    if not context.lines[index].polygon:
+        return _observation("unknown", "LAYOUT_UNAVAILABLE", [context.lines[index]])
+    value, evidence = _caption_value(context, index)
+    caption = context.lines[index]
+    height = max(caption.polygon[1::2]) - min(caption.polygon[1::2])
+    # A centered caption can sit below a short, left-aligned "Ja, <name>" row.
+    role_rows = [
+        line
+        for line in context.lines[:index]
+        if line.page == caption.page
+        and line.polygon
+        and _label_match(pattern, line.text)
+        and 0 <= min(caption.polygon[1::2]) - max(line.polygon[1::2]) <= 2 * height
+    ]
+    if role_rows:
+        closest = max(role_rows, key=lambda line: max(line.polygon[1::2]))
+        value, evidence = closest.text, [caption, closest]
+    label = _label_match(pattern, value)
+    if label:
+        value = value[label.end() :].strip()
+    elif _is_label(value):
+        return _observation("unknown", "INSUFFICIENT_VALUE", evidence)
+    state, reason = _value_state(value, identity=True, min_words=2, allow_redacted_context=False)
+    return _observation(state, reason, evidence, value or None)
 
 
 def _parse_date(value: str) -> date | None:
@@ -938,6 +977,7 @@ class FormalDocumentExtractor:
         fields: dict[str, Any] = {
             "document_text": context.text,
             "observations": observations,
+            "possible_empty_fields": find_possible_empty_fields(catalog_context),
             "extraction_version": EXTRACTOR_VERSION,
             "input_fingerprint": context.fingerprint,
             "ocr_limitations": context.limitations,

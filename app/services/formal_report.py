@@ -11,6 +11,7 @@ from app.enums.analysis import ValidationSeverity
 from app.enums.document import DocumentType
 from app.models.validation_rule import ValidationRule
 from app.schemas.analysis_report import ValidationIssue
+from app.services.formal_context import normalize
 from app.services.validation import (
     ENGINE_VERSION,
     RuleEngineService,
@@ -87,6 +88,8 @@ class FormalValidationService:
             )
         summary = aggregate_results(results, available)
         issues = [issue for result in results if (issue := result.to_issue()) is not None]
+        additional = _empty_field_issues(fields, results)
+        issues.extend(additional)
         if not available:
             issues.append(
                 ValidationIssue(
@@ -121,6 +124,7 @@ class FormalValidationService:
                 "validation_profile_available": available,
                 "effective_document_type": document_type.value,
                 "issues": len(issues),
+                "additional_review_count": len(additional),
                 "ocr_limitations": fields.get("ocr_limitations", []),
                 "checked_fields": {
                     key: value for key, value in fields.items() if key.startswith("has_")
@@ -129,3 +133,43 @@ class FormalValidationService:
             }
         )
         return issues, summary
+
+
+def _empty_field_issues(fields: dict[str, Any], results: list[RuleResult]) -> list[ValidationIssue]:
+    """Advisory findings do not change required checks, scores or coverage."""
+    issues = []
+    for finding in fields.get("possible_empty_fields", []):
+        evidence = finding["evidence"]
+        checked_evidence = {
+            (entry.get("page"), entry.get("text"), tuple(entry.get("polygon") or []))
+            for result in results
+            if not finding.get("recognized_label")
+            or normalize(result.rule_name) == normalize(finding["label"])
+            for entry in result.evidence
+        }
+        # A field already handled by a profile gets one result, not a second warning.
+        if evidence and all(
+            (entry.get("page"), entry.get("text"), tuple(entry.get("polygon") or []))
+            in checked_evidence
+            for entry in evidence
+        ):
+            continue
+        page = finding.get("page")
+        where = f" (strona {page})" if page else ""
+        issues.append(
+            ValidationIssue(
+                rule_name=finding["label"],
+                field_name="possible_empty_field",
+                severity=ValidationSeverity.WARNING,
+                message=f"Możliwe niewypełnione pole „{finding['label']}”{where}. "
+                "Sprawdź, czy dotyczy tego dokumentu i wymaga uzupełnienia.",
+                details={
+                    "rule_id": "blank." + finding["id"],
+                    "outcome": "unknown",
+                    "reason_code": "POSSIBLE_EMPTY_FIELD",
+                    "advisory": True,
+                    "evidence": evidence,
+                },
+            )
+        )
+    return issues

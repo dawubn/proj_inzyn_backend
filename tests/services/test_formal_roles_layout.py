@@ -3,7 +3,69 @@
 import pytest
 
 from app.services.formal_validation import FormalDocumentExtractor
-from tests.services.test_formal_validation_v2 import FULL, observations
+from tests.services.test_formal_validation_v2 import FULL, azure, observations, poa_report
+
+
+def test_privacy_clause_does_not_supply_principal_identity():
+    text = FULL.replace("Mocodawca: Jan Kowalski\n", "")
+    text += "\nmocodawcy w związku z realizacją przedsięwzięcia w ramach Programu"
+    assert observations(text)["has_principal_section"]["state"] == "missing"
+
+
+@pytest.mark.parametrize(
+    "value,state,outcome",
+    [
+        ("", "empty", "fail"),
+        ("Ja, ........", "empty", "fail"),
+        ("Jan Kowalski", "present", "pass"),
+        ("Ja, Jan Kowalski", "present", "pass"),
+        ("[UTAJNIONO: IMIE/NAZWISKO]", "masked", "pass"),
+    ],
+)
+def test_principal_caption_uses_value_above_and_ignores_privacy_clause(value, state, outcome):
+    text = FULL.replace(
+        "Mocodawca: Jan Kowalski",
+        f"\n{value}\nimię i nazwisko mocodawcy\nzamieszkały/zamieszkała* w ........",
+    )
+    text += "\nmocodawcy w związku z realizacją przedsięwzięcia w ramach Programu"
+    result = observations(text)["has_principal_section"]
+    assert result["state"] == state, result
+    _, summary = poa_report(text)
+    principal = next(
+        item for item in summary["rule_results"] if item["field_name"] == "has_principal_section"
+    )
+    assert principal["outcome"] == outcome
+
+
+def test_identity_caption_without_layout_requires_review():
+    raw = {"content": "PEŁNOMOCNICTWO\nJan Kowalski\nimię i nazwisko mocodawcy"}
+    result = FormalDocumentExtractor().extract(raw).fields["observations"]
+    assert result["has_principal_section"]["state"] == "unknown"
+
+
+def test_principal_caption_does_not_borrow_another_roles_name():
+    text = FULL.replace(
+        "Mocodawca: Jan Kowalski", "Świadek: Jan Kowalski\nimię i nazwisko mocodawcy"
+    )
+    assert observations(text)["has_principal_section"]["state"] == "unknown"
+
+
+def test_real_blank_form_layout_with_omitted_dotted_line():
+    # Relevant lines from the Azure response; the empty "Ja, ..." row was omitted.
+    raw = azure(
+        "PEŁNOMOCNICTWO\nimię i nazwisko mocodawcy\n"
+        "mocodawcy w związku z realizacją przedsięwzięcia w ramach Programu"
+    )
+    page = raw["pages"][0]
+    title, caption, clause = page["lines"]
+    title["polygon"] = [1046, 445, 1432, 443, 1432, 490, 1046, 491]
+    caption["polygon"] = [1047, 759, 1430, 761, 1430, 798, 1047, 796]
+    clause["polygon"] = [540, 1185, 2026, 1185, 2026, 1236, 540, 1236]
+    page["lines"] = [title, caption]
+    raw["pages"].append({**page, "pageNumber": 2, "lines": [clause]})
+    result = FormalDocumentExtractor().extract(raw).fields["observations"]
+    assert result["has_principal_section"]["state"] == "empty"
+    assert result["has_principal_section"]["evidence"][0]["page"] == 1
 
 
 @pytest.mark.parametrize(
