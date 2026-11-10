@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums.analysis import AnalysisStatus
+from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 
 
@@ -29,8 +30,11 @@ async def _create_analysis(
         files={"file": ("umowa najmu.pdf", b"%PDF-1.4 test", "application/pdf")},
     )
     assert upload.status_code == 201
+    document = await db_session.get(Document, uuid.UUID(upload.json()["id"]))
+    assert document is not None
     analysis = DocumentAnalysis(
-        document_id=uuid.UUID(upload.json()["id"]),
+        document_id=document.id,
+        owner_id=document.owner_id,
         status=status,
         legal_analysis_result={
             "summary": "Umowa najmu lokalu mieszkalnego.",
