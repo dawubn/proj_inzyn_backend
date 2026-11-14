@@ -370,7 +370,7 @@ def open_chart(path: Path) -> None:
     if path.suffix.lower() != ".png":
         raise ValueError(f"Chart preview requires a PNG file: {path}")
 
-    if os.name == "nt":
+    if sys.platform == "win32":
         # Open the validated local PNG through its registered Windows viewer.
         os.startfile(str(path))  # noqa: S606
         return
