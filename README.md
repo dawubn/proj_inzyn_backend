@@ -146,7 +146,23 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/auth/register` | Register a new user |
 | POST | `/api/v1/auth/login` | Login, get JWT tokens |
 | POST | `/api/v1/auth/refresh` | Refresh access token |
+| POST | `/api/v1/auth/forgot-password` | Send a password reset link by email |
+| POST | `/api/v1/auth/reset-password` | Set a new password with the token from the link |
 | GET | `/api/v1/users/me` | Get current user profile |
+| PATCH | `/api/v1/users/me` | Update own name, surname and company |
+| POST | `/api/v1/users/me/password` | Change own password (requires the current one) |
+
+#### Password reset
+
+`forgot-password` always answers `202` with the same message, whether or not the email is
+registered. When it is, the user gets a link to `FRONTEND_URL/reset-password?token=...`.
+The link is valid for `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (30 by default), works once,
+and a newer link replaces the older one. Setting a new password ends all existing sessions
+of the user.
+
+Emails are sent over SMTP (`SMTP_*` variables in `.env`). Without `SMTP_HOST` nothing is
+sent; in development the message with the link is written to the API log, so the flow can
+be tested without a mail server.
 
 ### Documents
 | Method | Path | Description | Access |

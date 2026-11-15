@@ -35,6 +35,22 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Password reset
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    # Minimum time between two reset emails for the same account
+    PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS: int = 60
+    # Address of the frontend, used to build the link sent in the reset email
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # Email (SMTP). Without SMTP_HOST no email is sent; outside production the message
+    # is written to the log instead
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_USE_TLS: bool = True
+    SMTP_FROM: str = "CerberDoc <no-reply@cerberdoc.com>"
+
     # Azure AI Document Intelligence
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: str
     AZURE_DOCUMENT_INTELLIGENCE_KEY: str

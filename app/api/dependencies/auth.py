@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ForbiddenError, UnauthorizedError
-from app.core.security import decode_token
+from app.core.security import decode_token, is_token_for_current_password
 from app.db.session import get_db
 from app.enums.analysis import UserRole
 from app.models.user import User
@@ -42,6 +42,9 @@ async def get_current_user(
     user = await user_repo.get_by_id(payload["sub"])
     if not user or not user.is_active:
         raise UnauthorizedError("User not found or deactivated")
+
+    if not is_token_for_current_password(payload, user.password_changed_at):
+        raise UnauthorizedError("Session expired")
 
     return user
 
