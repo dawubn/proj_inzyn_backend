@@ -15,7 +15,8 @@ async def _login(client: AsyncClient, email: str) -> None:
         json={
             "email": email,
             "password": "Str0ngPass!",
-            "full_name": "Report User",
+            "name": "Report",
+            "surname": "User",
             "role": "business_user",
         },
     )

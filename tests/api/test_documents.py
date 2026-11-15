@@ -10,7 +10,8 @@ async def _get_auth_headers(
         json={
             "email": email,
             "password": "Str0ngPass!",
-            "full_name": "Doc User",
+            "name": "Doc",
+            "surname": "User",
             "role": "business_user",
         },
     )

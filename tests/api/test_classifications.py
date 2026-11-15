@@ -21,7 +21,8 @@ async def _get_auth_headers(
         json={
             "email": email,
             "password": "Str0ngPass!",
-            "full_name": "Classification User",
+            "name": "Classification",
+            "surname": "User",
             "role": "business_user",
         },
     )

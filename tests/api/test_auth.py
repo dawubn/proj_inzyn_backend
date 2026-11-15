@@ -7,15 +7,44 @@ async def test_register_user(client: AsyncClient) -> None:
     payload = {
         "email": "test@example.com",
         "password": "Str0ngPass!",
-        "full_name": "Test User",
+        "name": "Test",
+        "surname": "User",
         "role": "business_user",
     }
     response = await client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 201
     data = response.json()
     assert data["email"] == payload["email"]
+    assert data["name"] == "Test"
+    assert data["surname"] == "User"
+    assert data["company"] is None
     assert "id" in data
     assert "hashed_password" not in data
+
+
+@pytest.mark.asyncio
+async def test_register_user_with_company(client: AsyncClient) -> None:
+    payload = {
+        "email": "company@example.com",
+        "password": "Str0ngPass!",
+        "name": "Company",
+        "surname": "User",
+        "company": "Acme",
+    }
+    response = await client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 201
+    assert response.json()["company"] == "Acme"
+
+
+@pytest.mark.asyncio
+async def test_register_requires_surname(client: AsyncClient) -> None:
+    payload = {
+        "email": "nosurname@example.com",
+        "password": "Str0ngPass!",
+        "name": "Solo",
+    }
+    response = await client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -23,7 +52,8 @@ async def test_register_duplicate_email(client: AsyncClient) -> None:
     payload = {
         "email": "duplicate@example.com",
         "password": "Str0ngPass!",
-        "full_name": "User One",
+        "name": "User",
+        "surname": "One",
         "role": "business_user",
     }
     await client.post("/api/v1/auth/register", json=payload)
@@ -36,7 +66,8 @@ async def test_login_success(client: AsyncClient) -> None:
     reg_payload = {
         "email": "login_test@example.com",
         "password": "Str0ngPass!",
-        "full_name": "Login User",
+        "name": "Login",
+        "surname": "User",
         "role": "business_user",
     }
     await client.post("/api/v1/auth/register", json=reg_payload)
