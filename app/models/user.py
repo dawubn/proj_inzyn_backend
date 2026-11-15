@@ -20,9 +20,7 @@ class User(BaseModel):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     surname: Mapped[str | None] = mapped_column(String(255), nullable=True)
     company: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    role: Mapped[UserRole] = mapped_column(
-        String(50), nullable=False, default=UserRole.BUSINESS_USER
-    )
+    role: Mapped[UserRole] = mapped_column(String(50), nullable=False, default=UserRole.USER)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 

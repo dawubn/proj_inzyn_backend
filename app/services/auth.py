@@ -8,6 +8,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.enums.analysis import UserRole
 from app.models.user import User
 from app.repositories.user import UserRepository
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -30,7 +31,7 @@ class AuthService:
             name=data.name,
             surname=data.surname,
             company=data.company,
-            role=data.role,
+            role=UserRole.USER,
         )
         return await self._users.create(user)
 

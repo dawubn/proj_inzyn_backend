@@ -99,7 +99,7 @@ async def test_update_me_rejects_fields_outside_profile(
     assert response.status_code == 422
     me = await client.get("/api/v1/users/me")
     assert me.json()["email"] == "profile_forbidden@example.com"
-    assert me.json()["role"] == "business_user"
+    assert me.json()["role"] == "user"
 
 
 @pytest.mark.asyncio

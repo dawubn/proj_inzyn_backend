@@ -264,6 +264,14 @@ curl -X GET http://localhost:8000/api/v1/redactions/$ANALYSIS_ID \
 - **Non-admin users**: Can only access their own documents and analyses
 - **Admin users**: Full access to all documents and analyses across all users
 - **Attempting unauthorized access**: Returns 404 NotFound (not 403 for security)
+
+Every account is created with the `user` role; the role cannot be chosen at registration.
+To make an existing account an admin:
+
+```bash
+docker compose exec api python scripts/set_user_role.py user@example.com admin
+```
+
 Docker handles all OCR dependencies automatically during `docker compose up --build`.
 
 ## Document Classification

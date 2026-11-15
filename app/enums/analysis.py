@@ -78,4 +78,4 @@ class ReportStatus(StrEnum):
 
 class UserRole(StrEnum):
     ADMIN = "admin"
-    BUSINESS_USER = "business_user"
+    USER = "user"
