@@ -8,7 +8,7 @@ from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import HttpResponseError, ServiceRequestError
-from PIL import Image, ImageSequence
+from PIL import Image
 
 from app.core.config import settings
 from app.core.exceptions import OCRServiceError
@@ -58,23 +58,29 @@ def _split_pdf(file_bytes: bytes, pages_per_chunk: int) -> tuple[list[bytes], in
 
 def _split_tiff(file_bytes: bytes, pages_per_chunk: int) -> tuple[list[bytes], int]:
     with Image.open(io.BytesIO(file_bytes)) as tiff:
-        frames = [frame.copy() for frame in ImageSequence.Iterator(tiff)]
-    if len(frames) <= pages_per_chunk:
-        return [file_bytes], len(frames)
-
-    chunks: list[bytes] = []
-    for start in range(0, len(frames), pages_per_chunk):
-        chunk_frames = frames[start : start + pages_per_chunk]
-        buf = io.BytesIO()
-        chunk_frames[0].save(
-            buf,
-            format="TIFF",
-            save_all=True,
-            append_images=chunk_frames[1:],
-            compression="tiff_adobe_deflate",
-        )
-        chunks.append(buf.getvalue())
-    return chunks, len(frames)
+        page_count = tiff.n_frames
+        if page_count <= pages_per_chunk:
+            return [file_bytes], page_count
+        chunks: list[bytes] = []
+        for start in range(0, page_count, pages_per_chunk):
+            frames = []
+            try:
+                for index in range(start, min(start + pages_per_chunk, page_count)):
+                    tiff.seek(index)
+                    frames.append(tiff.copy())
+                buf = io.BytesIO()
+                frames[0].save(
+                    buf,
+                    format="TIFF",
+                    save_all=True,
+                    append_images=frames[1:],
+                    compression="tiff_adobe_deflate",
+                )
+                chunks.append(buf.getvalue())
+            finally:
+                for frame in frames:
+                    frame.close()
+    return chunks, page_count
 
 
 def split_into_page_chunks(

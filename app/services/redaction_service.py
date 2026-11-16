@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import io
 import tempfile
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 import fitz  # PyMuPDF
 import structlog
 from PIL import Image, ImageDraw, ImageFont
+from PIL.TiffImagePlugin import AppendingTiffWriter
 
 from app.adapters.local_ocr import LocalOCRAdapter, WordDict
 from app.core.config import settings
@@ -40,26 +42,36 @@ class RedactionService:
         is_pdf = content_type == _PDF_CONTENT_TYPE
 
         if is_pdf:
-            all_words, all_images = self._ocr.ocr_pdf(input_path)
+            pages = self._ocr.iter_pdf_pages(input_path)
         else:
             all_words, all_images = self._ocr.ocr_image(input_path)
-
-        masked: list[Image.Image] = []
-        total = 0
-        for page_words, img in zip(all_words, all_images, strict=False):
-            items = find_personal_data(page_words)
-            total += len(items)
-            masked.append(self._apply_masks(img, items))
-
-        logger.info("Entities detected", total=total, file=original_filename)
+            pages = iter(zip(all_words, all_images, strict=True))
 
         stem = Path(original_filename).stem
         # Save all pages as multi-page TIFF
         return RedactionResult(
-            output_path=self._save_as_multipage_tiff(masked),
+            output_path=self._save_as_multipage_tiff(self._masked_pages(pages)),
             media_type="image/tiff",
             filename=f"anonymized_{stem}.tiff",
         )
+
+    def _masked_pages(
+        self, pages: Iterator[tuple[list[WordDict], Image.Image]]
+    ) -> Iterator[Image.Image]:
+        try:
+            for page_words, img in pages:
+                try:
+                    masked = self._apply_masks(img, find_personal_data(page_words))
+                    try:
+                        yield masked
+                    finally:
+                        masked.close()
+                finally:
+                    img.close()
+        finally:
+            close = getattr(pages, "close", None)
+            if close:
+                close()
 
     def _apply_masks(self, image: Image.Image, items: list[WordDict]) -> Image.Image:
         img = image.copy()
@@ -105,17 +117,24 @@ class RedactionService:
         image.convert("RGB").save(str(path), format="PNG")
         return path
 
-    def _save_as_multipage_tiff(self, images: list[Image.Image]) -> Path:
+    def _save_as_multipage_tiff(self, images: Iterable[Image.Image]) -> Path:
         with tempfile.NamedTemporaryFile(suffix=".tiff", delete=False) as f:
             path = Path(f.name)
 
-        rgb_images = [img.convert("RGB") for img in images]
-        if rgb_images:
-            rgb_images[0].save(
-                str(path),
-                format="TIFF",
-                save_all=True,
-                append_images=rgb_images[1:] if len(rgb_images) > 1 else [],
-                compression="tiff_adobe_deflate",
-            )
+        try:
+            with AppendingTiffWriter(str(path), new=True) as writer:
+                count = 0
+                for img in images:
+                    img.save(writer, format="TIFF", compression="tiff_adobe_deflate")
+                    writer.newFrame()
+                    count += 1
+                if not count:
+                    raise ValueError("Document contains no pages")
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
+        finally:
+            close = getattr(images, "close", None)
+            if close:
+                close()
         return path

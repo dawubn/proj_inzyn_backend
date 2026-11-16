@@ -114,7 +114,8 @@ def _reserve_next(
     """Reserve an owner's slot and persist the initial task before publication."""
     _lock_owner(session, owner_id)
 
-    if _get_active(session, owner_id) is not None:
+    active = _get_active(session, owner_id)
+    if active is not None and not _recover_failed_task(session, active):
         session.commit()
         return False
 
@@ -188,6 +189,34 @@ def _reserve_next(
         task_name=task_name,
     )
 
+    return True
+
+
+def _recover_failed_task(session: Session, analysis: DocumentAnalysis) -> bool:
+    """Release a slot only when Celery confirms that its current task has ended."""
+    from app.tasks.local_ocr import _update_document_status
+
+    if not analysis.task_id:
+        return False
+    result = celery_app.AsyncResult(analysis.task_id)
+    if result.state not in {"FAILURE", "REVOKED"}:
+        return False
+    if analysis.cancel_requested_at is not None or analysis.status == AnalysisStatus.CANCELLING:
+        now = datetime.now(UTC)
+        analysis.status = AnalysisStatus.CANCELLED
+        analysis.cancel_requested_at = analysis.cancel_requested_at or now
+        analysis.cancelled_at = now
+        analysis.finished_at = now
+        _update_document_status(session, analysis, DocumentStatus.UPLOADED)
+    else:
+        analysis.status = AnalysisStatus.FAILED
+        analysis.finished_at = datetime.now(UTC)
+        analysis.error_message = (
+            "Proces analizy został przerwany. Spróbuj ponownie uruchomić analizę dokumentu."
+        )
+        _update_document_status(session, analysis, DocumentStatus.FAILED)
+    session.flush()
+    logger.warning("Recovered failed processing task", analysis_id=str(analysis.id))
     return True
 
 
