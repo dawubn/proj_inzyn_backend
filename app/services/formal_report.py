@@ -6,12 +6,12 @@ import hashlib
 import json
 from typing import Any
 
-from app.core.config import settings
 from app.enums.analysis import ValidationSeverity
 from app.enums.document import DocumentType
 from app.models.validation_rule import ValidationRule
 from app.schemas.analysis_report import ValidationIssue
 from app.services.formal_context import normalize
+from app.services.formal_relations import relation_rules
 from app.services.validation import (
     ENGINE_VERSION,
     RuleEngineService,
@@ -21,12 +21,11 @@ from app.services.validation import (
 )
 
 
-def effective_document_type(
-    requested: DocumentType, detected: DocumentType, confidence: float
-) -> DocumentType:
+def effective_document_type(requested: DocumentType, detected: DocumentType) -> DocumentType:
     if requested != DocumentType.UNKNOWN:
         return requested
-    return detected if confidence >= settings.CLASSIFIER_MIN_CONFIDENCE else DocumentType.UNKNOWN
+    # Classification owns confidence thresholds; completeness consumes its result.
+    return detected
 
 
 def coerce_document_type(value: object) -> DocumentType:
@@ -41,7 +40,7 @@ def resolve_document_type(
 ) -> tuple[DocumentType, dict[str, Any]]:
     requested = coerce_document_type(requested_value)
     detected = coerce_document_type(detected_value)
-    return effective_document_type(requested, detected, confidence), {
+    return effective_document_type(requested, detected), {
         "requested_document_type": requested.value,
         "detected_document_type": detected.value,
         "classification_confidence": confidence,
@@ -57,6 +56,8 @@ class FormalValidationService:
         profile_name: str | None,
         document_type: DocumentType,
     ) -> tuple[list[ValidationIssue], dict[str, Any]]:
+        if profile_name and any(rule.is_active for rule in rules):
+            rules = [*rules, *relation_rules(document_type, fields)]
         results = RuleEngineService().evaluate(rules, fields)
         available = bool(profile_name and any(rule.is_active for rule in rules))
         if not fields.get("has_text"):
@@ -91,17 +92,25 @@ class FormalValidationService:
         additional = _empty_field_issues(fields, results)
         issues.extend(additional)
         if not available:
+            unknown_type = document_type == DocumentType.UNKNOWN
+            if unknown_type:
+                summary["validation_status"] = "type_required"
             issues.append(
                 ValidationIssue(
                     rule_name="Formal validation profile",
                     field_name="document_type",
                     severity=ValidationSeverity.WARNING,
                     message=(
-                        "Brak aktywnego profilu walidacji dla tego typu dokumentu. "
+                        "Nie udało się pewnie ustalić rodzaju dokumentu. "
+                        "Wybierz jego typ i uruchom analizę ponownie."
+                        if unknown_type
+                        else "Brak aktywnego profilu walidacji dla tego typu dokumentu. "
                         "Kompletność nie została oceniona."
                     ),
                     details={
-                        "reason_code": "UNSUPPORTED_PROFILE",
+                        "reason_code": (
+                            "DOCUMENT_TYPE_UNCERTAIN" if unknown_type else "UNSUPPORTED_PROFILE"
+                        ),
                         "outcome": "unknown",
                         "document_type": document_type.value,
                     },

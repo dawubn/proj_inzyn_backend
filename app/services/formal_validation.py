@@ -11,6 +11,7 @@ from app.services.formal_catalog import EXTENDED_DOCUMENT_SPECS, FieldSpec
 from app.services.formal_context import MIN_WORD_CONFIDENCE, DocumentContext, OCRLine, reading_lines
 from app.services.formal_empty_fields import find_possible_empty_fields
 from app.services.formal_language import explicit_absence, has_affirmative_action
+from app.services.formal_relations import extract_relation_dates
 
 _PL_TRANSLATION = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
 
@@ -185,7 +186,7 @@ def _keyword_pattern(keyword: str) -> re.Pattern[str]:
     return re.compile(rf"\b{pattern}\b")
 
 
-EXTRACTOR_VERSION = "azure-formal-3.3"
+EXTRACTOR_VERSION = "azure-formal-3.4"
 _YEAR_DIGITS = 4
 _HEADER_LAST_LINE = 5
 _MIN_CLASSIFICATION_CUES = 2
@@ -992,6 +993,9 @@ class FormalDocumentExtractor:
         fields.update(
             {key: item["state"] in {"present", "masked"} for key, item in observations.items()}
         )
+        relation_dates = extract_relation_dates(catalog_context, effective_type)
+        observations.update(relation_dates)
+        fields.update({key: item["value"] for key, item in relation_dates.items()})
         return FormalExtractionResult(detected_type, confidence, fields, effective_type)
 
     def _classify(

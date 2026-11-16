@@ -336,14 +336,14 @@ def test_legacy_flags_cannot_silently_pass_new_validation():
     assert result.reason_code == "LEGACY_EXTRACTION"
 
 
-def test_user_type_takes_precedence_and_low_confidence_auto_is_unknown():
+def test_user_type_takes_precedence_and_completeness_uses_returned_type():
     assert (
-        effective_document_type(DocumentType.POWER_OF_ATTORNEY, DocumentType.INVOICE, 0.99)
+        effective_document_type(DocumentType.POWER_OF_ATTORNEY, DocumentType.INVOICE)
         == DocumentType.POWER_OF_ATTORNEY
     )
     assert (
-        effective_document_type(DocumentType.UNKNOWN, DocumentType.CONTRACT, 0.14)
-        == DocumentType.UNKNOWN
+        effective_document_type(DocumentType.UNKNOWN, DocumentType.CONTRACT)
+        == DocumentType.CONTRACT
     )
 
 

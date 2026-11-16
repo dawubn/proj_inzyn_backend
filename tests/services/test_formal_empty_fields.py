@@ -28,6 +28,11 @@ def suggestions(text: str) -> list[dict[str, Any]]:
         ("Sygnatura sprawy: ______", "Sygnatura sprawy"),
         ("Nr działki:\n................", "Nr działki"),
         ("Oddział: …", "Oddział"),
+        ("zamieszkałemu/ej przy", "Adres zamieszkania"),
+        ("zamieszkałemu/ej przy ........", "Adres zamieszkania"),
+        ("zamieszkała przy ulicy ........", "Adres zamieszkania"),
+        ("legitymujący/a się dowodem tożsamości o numerze", "Numer dokumentu tożsamości"),
+        ("oraz numerem PESEL", "PESEL"),
     ],
 )
 def test_blank_slots_and_omitted_dots(text, label):
@@ -54,6 +59,13 @@ def test_blank_slots_and_omitted_dots(text, label):
         "W tej sprawie ... nie podjęto decyzji.",
         "Ulica jest częścią adresu.",
         "nazwa miejscowości oraz kod pocztowy",
+        "zamieszkałemu/ej przy Kwiatowej 12",
+        "zamieszkałemu/ej przy [UTAJNIONO: ADRES]",
+        "zamieszkałemu/ej przy\n[UTAJNIONO: ADRES]",
+        "zamieszkałemu/ej przy nie dotyczy",
+        "legitymujący/a się dowodem tożsamości o numerze TST 000000",
+        "legitymujący/a się dowodem tożsamości o numerze [UTAJNIONO: NUMER DOKUMENTU]",
+        "oraz numerem PESEL [UTAJNIONO: PESEL]",
     ],
 )
 def test_filled_values_masks_and_prose_do_not_trigger(text):
@@ -128,7 +140,7 @@ def test_profile_check_is_not_duplicated_by_generic_warning():
 def test_suggestions_also_work_without_a_document_profile():
     fields = FormalDocumentExtractor().extract(azure("Ulica: .....")).fields
     issues, summary = FormalValidationService().build_report([], fields, None, DocumentType.UNKNOWN)
-    assert summary["validation_status"] == "unsupported"
+    assert summary["validation_status"] == "type_required"
     assert summary["additional_review_count"] == 1
     assert any(issue.details.get("advisory") for issue in issues)
 
@@ -167,4 +179,33 @@ def test_identifier_caption_in_real_redacted_form_is_not_flagged():
         Path(__file__).parents[1] / "fixtures/formal_complex/02_pelnomocnictwo_formularz.ocr.json"
     )
     fields = FormalDocumentExtractor().extract(json.loads(path.read_text())).fields
-    assert not any("PESEL" in item["label"] for item in fields["possible_empty_fields"])
+    findings = fields["possible_empty_fields"]
+    assert [item["label"] for item in findings] == [
+        "Adres zamieszkania",
+        "Numer dokumentu tożsamości",
+        "PESEL",
+    ]
+    assert all(item["evidence"][0]["polygon"][1] > 1700 for item in findings)
+
+
+@pytest.mark.parametrize("masked", [False, True])
+def test_filled_attorney_fields_in_real_form_are_not_reported(masked):
+    import json
+    from pathlib import Path
+
+    path = (
+        Path(__file__).parents[1] / "fixtures/formal_complex/02_pelnomocnictwo_formularz.ocr.json"
+    )
+    raw = json.loads(path.read_text())
+    values = {
+        "zamieszkałemu/ej przy": "[UTAJNIONO: ADRES]" if masked else "Kwiatowej 12",
+        "legitymujący/a się dowodem tożsamości o numerze": (
+            "[UTAJNIONO: NUMER DOKUMENTU]" if masked else "TST 000000"
+        ),
+        "oraz numerem PESEL": "[UTAJNIONO: PESEL]" if masked else "00000000000",
+    }
+    for line in raw["pages"][0]["lines"]:
+        text = line["content"]
+        if text in values and line["polygon"][1] > 1700:
+            line["content"] += " " + values[text]
+    assert find_possible_empty_fields(DocumentContext.from_azure(raw)) == []

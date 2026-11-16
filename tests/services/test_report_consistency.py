@@ -21,7 +21,7 @@ from tests.services.test_formal_validation_v2 import FULL, azure
     [
         ("power_of_attorney", "invoice", 0.99, DocumentType.POWER_OF_ATTORNEY),
         ("unknown", "invoice", 0.99, DocumentType.INVOICE),
-        ("unknown", "invoice", 0.01, DocumentType.UNKNOWN),
+        ("unknown", "invoice", 0.01, DocumentType.INVOICE),
         ("unknown", "obsolete_type", 0.99, DocumentType.UNKNOWN),
     ],
 )
