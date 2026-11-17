@@ -170,6 +170,20 @@ def test_signature_always_requires_visual_verification(caption):
     assert result["reason_code"] == "SIGNATURE_REQUIRES_VISUAL_REVIEW"
 
 
+@pytest.mark.parametrize(
+    "caption",
+    [
+        "Podpis mocodawcy: [UTAJNIONO: PODPIS]",
+        "[UTAJNIONO: PODPIS]\n(czytelny podpis)",
+        "Podpis: UTAJNIONO:\nPODPIS]",
+    ],
+)
+def test_signature_masked_by_redaction_confirms_presence(caption):
+    result = observations(FULL + "\n" + caption)["has_signature"]
+    assert result["state"] == "masked"
+    assert result["reason_code"] == "REDACTED_PRESENCE_CONFIRMED"
+
+
 def test_page_counter_is_not_party_identification():
     fields = (
         FormalDocumentExtractor()
