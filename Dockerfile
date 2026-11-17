@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-pol \
     tesseract-ocr-eng \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
@@ -20,6 +21,8 @@ COPY pyproject.toml .
 RUN pip install --upgrade pip && pip install -e ".[dev]" && \
     python -m spacy download pl_core_news_lg && \
     python -m spacy download en_core_web_lg
+COPY scripts/download_redaction_models.py scripts/
+RUN python scripts/download_redaction_models.py && chmod -R a+rX /opt/cerberdoc
 
 FROM deps AS final
 COPY . .

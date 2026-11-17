@@ -30,7 +30,8 @@ _DATE_RE = re.compile(
 _REDACTION_LABEL_RE = re.compile(
     r"\[?\s*(?:utajni\w*|tajniono|ajniono)\s*[:.]?\s*"
     r"(?P<label>data|adres|imi[eę](?:\s*/\s*naz\w*)?|im|"
-    r"pesel|email|telefon|nip|numer dokumentu|numer rachunku)\s*\]?",
+    r"pesel|email|telefon|nip|regon|krs|numer dokumentu|numer rachunku|numer karty|numer kw|"
+    r"numer rejestracyjny|numer identyfikacyjny|podpis|zdj[eę]cie|kod|dane medyczne)\s*\]?",
     re.IGNORECASE,
 )
 
@@ -649,7 +650,18 @@ def _signature(context: DocumentContext) -> dict[str, Any]:
         for line in context.lines
         if _label_match(r"\(?(?:czytelny |wlasnoreczny )?podpis(?:y|u|em)?", line.text)
     ]
-    # Read OCR is not a signature detector. Blank text can have an adjacent graphical mark.
+    # Read OCR is not a signature detector. Blank text can have an adjacent graphical mark,
+    # unless redaction found handwriting there and marked it as a signature.
+    for line in lines:
+        index = context.lines.index(line)
+        nearby = [
+            other
+            for other in context.lines[max(0, index - 2) : index + 3]
+            if other.page == line.page
+        ]
+        # Narrow masks split the label over two lines.
+        if "podpis" in _find_redaction_labels("\n".join(other.text for other in nearby)):
+            return _observation("masked", "REDACTED_PRESENCE_CONFIRMED", nearby)
     return _observation("unknown", "SIGNATURE_REQUIRES_VISUAL_REVIEW", lines)
 
 
