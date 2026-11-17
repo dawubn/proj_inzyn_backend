@@ -366,10 +366,7 @@ def _unread_fields(
         if label is None:
             continue
         _, y0, x1, y1 = _box(word)
-        right = min(
-            _same_line_end(word, words, width, h),
-            _next_printed(word, printed, width, h),
-        )
+        right = min(_same_line_end(word, words, width, h), _next_printed(word, printed, width, h))
         zone = _clip((x1, int(y0 - 0.6 * h), right, int(y1 + 0.6 * h)), width, height)
         strokes = [
             ink.box(i)

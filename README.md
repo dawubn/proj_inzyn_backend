@@ -272,7 +272,7 @@ Docker handles all OCR dependencies automatically during `docker compose up --bu
 ## Anonymisation
 
 Pages are masked locally before anything is sent to Azure. Detection lives in
-`app/services/redaction_*.py`, `scripts/evaluate_redaction.py` measures coverage on synthetic documents.
+`app/services/redaction_*.py`.
 
 Polish NER uses [lexedit/herbert-polish-legal-ner-ocr](https://huggingface.co/lexedit/herbert-polish-legal-ner-ocr)
 (CC BY 4.0), face detection uses YuNet from the OpenCV Zoo (MIT).

@@ -40,10 +40,7 @@ _HERBERT_LABELS = {
     "DIAGNOSIS": HEALTH,
 }
 # DATE entities are not mapped: dates stay visible for the analysis.
-_SPACY_LABELS = {
-    "persName": PERSON,
-    "PERSON": PERSON,
-}
+_SPACY_LABELS = {"persName": PERSON, "PERSON": PERSON}
 
 
 class _Herbert:

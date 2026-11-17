@@ -124,10 +124,7 @@ _EN_STREET = (
 
 # Longest digit patterns first, so a PESEL never claims part of an account number.
 PATTERN_RULES: tuple[PatternRule, ...] = (
-    PatternRule(
-        DOCUMENT_NUMBER,
-        re.compile(r"[A-Z0-9<]{5,}<<[A-Z0-9<]{10,}"),
-    ),
+    PatternRule(DOCUMENT_NUMBER, re.compile(r"[A-Z0-9<]{5,}<<[A-Z0-9<]{10,}")),
     PatternRule(
         EMAIL,
         re.compile(
@@ -135,14 +132,9 @@ PATTERN_RULES: tuple[PatternRule, ...] = (
             r"\s?[\w\-]{1,40}(?:\s?\.\s?[\w\-]{1,40}){0,4}\s?\.\s?[A-Za-z]{2,}\b"
         ),
     ),
+    PatternRule(ACCOUNT, re.compile(r"(?<![\w])(?:[A-Z]{2}\s?)?\d{2}(?:\s?\d){24}(?!\d)")),
     PatternRule(
-        ACCOUNT,
-        re.compile(r"(?<![\w])(?:[A-Z]{2}\s?)?\d{2}(?:\s?\d){24}(?!\d)"),
-    ),
-    PatternRule(
-        ACCOUNT,
-        re.compile(r"(?<![\w])[A-Z]{2}\d{2}(?:\s?[A-Z0-9]){11,30}(?![A-Z0-9])"),
-        _iban,
+        ACCOUNT, re.compile(r"(?<![\w])[A-Z]{2}\d{2}(?:\s?[A-Z0-9]){11,30}(?![A-Z0-9])"), _iban
     ),
     PatternRule(CARD, re.compile(r"(?<!\d)\d(?:[ \-]?\d){12,18}(?!\d)"), _luhn),
     PatternRule(
@@ -151,23 +143,15 @@ PATTERN_RULES: tuple[PatternRule, ...] = (
         not_after=_REFERENCE,
     ),
     PatternRule(
-        NIP,
-        re.compile(r"(?<![\d\-])(?:PL\s?)?\d{3}-\d{3}-\d{2}-\d{2}(?![\d\-])"),
-        nip_valid,
+        NIP, re.compile(r"(?<![\d\-])(?:PL\s?)?\d{3}-\d{3}-\d{2}-\d{2}(?![\d\-])"), nip_valid
     ),
     PatternRule(
-        NIP,
-        re.compile(r"(?<![\d\-])(?:PL\s?)?\d{3}-\d{2}-\d{2}-\d{3}(?![\d\-])"),
-        nip_valid,
+        NIP, re.compile(r"(?<![\d\-])(?:PL\s?)?\d{3}-\d{2}-\d{2}-\d{3}(?![\d\-])"), nip_valid
     ),
-    PatternRule(
-        LAND_REGISTER,
-        re.compile(r"\b[A-Z]{2}[0-9][A-Z0-9]\s?/\s?\d{8}\s?/\s?\d\b"),
-    ),
+    PatternRule(LAND_REGISTER, re.compile(r"\b[A-Z]{2}[0-9][A-Z0-9]\s?/\s?\d{8}\s?/\s?\d\b")),
     PatternRule(IDENTIFIER, re.compile(r"(?<![\d\-])\d{3}-\d{2}-\d{4}(?![\d\-])")),
     PatternRule(
-        IDENTIFIER,
-        re.compile(r"\b[A-CEGHJ-PR-TW-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b"),
+        IDENTIFIER, re.compile(r"\b[A-CEGHJ-PR-TW-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b")
     ),
     PatternRule(DOCUMENT_NUMBER, re.compile(r"\b[A-Z]{3}\s?(?:nr\.?\s)?\d{6}\b")),
     PatternRule(
@@ -268,12 +252,10 @@ PATTERN_RULES: tuple[PatternRule, ...] = (
         ),
     ),
     PatternRule(
-        DATE,
-        re.compile(rf"(?i)\b\d{{1,2}}(?:-?go)?\.?\s(?:{_PL_MONTHS})\s\d{{2,4}}(?:\s?r\.?)?"),
+        DATE, re.compile(rf"(?i)\b\d{{1,2}}(?:-?go)?\.?\s(?:{_PL_MONTHS})\s\d{{2,4}}(?:\s?r\.?)?")
     ),
     PatternRule(
-        DATE,
-        re.compile(rf"(?i)\b(?:{_PL_MONTHS}|{_EN_MONTHS_FULL})\s\d{{4}}(?:\s?r\.?)?"),
+        DATE, re.compile(rf"(?i)\b(?:{_PL_MONTHS}|{_EN_MONTHS_FULL})\s\d{{4}}(?:\s?r\.?)?")
     ),
     PatternRule(
         DATE,
@@ -290,7 +272,7 @@ _MONEY_AFTER = re.compile(
 # Numbers that follow these words are amounts or references, not phone numbers.
 _NOT_PHONE_CONTEXT = re.compile(
     r"(?:kwot\w*|wartos\w*|sum\w*|spraw\w*|faktur\w*|zamowieni\w*|umow\w*|regon|krs|nip"
-    r"|polis\w*|klienta|amount|total|invoice|order|case|claim|policy)\W*(?:nr|no|numer|number)?\.?\W*$",
+    r"|polis\w*|klienta|amount|total|invoice|order|case|claim|policy)\W*(?:nr|no|numer|number)?\.?\W*$"
 )
 _MONEY_BEFORE = re.compile(r"(?:pln|eur|usd|gbp|€|\$|£)\s?$", re.IGNORECASE)
 
@@ -457,7 +439,7 @@ _COMPANY = re.compile(
     r"|stowarzyszeni[ae]|ltd|plc|inc|llc|gmbh|corp|company|limited|urzad|urzedu|sad|sadu"
     r"|bank|banku|gmina|gminy|starostwo|ministerstwo|fundusz|funduszu|uczelnia|szkola|szkoly"
     r"|skarb panstwa|przedsiebiorstw\w*|grupa|spoldzielni\w*|wspolnot\w*|prezydent\w*"
-    r"|zaklad\w*|agencj\w*|instytut\w*|kancelari\w*|towarzystw\w*|izba|izby)\b",
+    r"|zaklad\w*|agencj\w*|instytut\w*|kancelari\w*|towarzystw\w*|izba|izby)\b"
 )
 # Job titles written with capitals, e.g. "Inspektor Ochrony Danych", are not names.
 _OFFICE = re.compile(
@@ -476,22 +458,7 @@ _STOP_AFTER_VALUE = re.compile(
     r"phone|email|passport|date of birth|ssn|national insurance))"
     r"|\s+(?=(?:zwan[yaye]|zam\.|pesel\b|nip\b|legitymuj|prowadzac|dzialajac|reprezentowan))"
 )
-_LABEL_WORDS = {
-    "pesel",
-    "nip",
-    "regon",
-    "krs",
-    "tel",
-    "tel.",
-    "telefon",
-    "e-mail",
-    "email",
-    "zam.",
-    "nr",
-    "nr.",
-    "iban",
-    "ssn",
-}
+_LABEL_WORDS = re.compile(r"pesel|nip|regon|krs|tel|telefon|e-?mail|zam|nr|iban|ssn")
 
 
 def is_label_word(text: str) -> bool:
@@ -499,7 +466,7 @@ def is_label_word(text: str) -> bool:
     clean = fold(text).strip(" .,:;()[]")
     if not clean:
         return False
-    if clean in {w.strip(".") for w in _LABEL_WORDS}:
+    if _LABEL_WORDS.fullmatch(clean):
         return True
     return bool(
         re.fullmatch(
@@ -708,130 +675,24 @@ def _caption_value(line: str, start: int, label: str, caption: str = "") -> tupl
     return _number_value(line, start)
 
 
-# Polish inflection endings stripped when comparing name forms, longest first.
-_NAME_ENDINGS = (
-    "iego",
-    "iemu",
-    "owie",
-    "iem",
-    "ego",
-    "emu",
-    "owi",
-    "ami",
-    "ach",
-    "iej",
-    "ej",
-    "im",
-    "ym",
-    "em",
-    "om",
-    "ie",
-    "a",
-    "y",
-    "i",
-    "u",
-    "e",
-    "o",
+# Polish inflection endings stripped when comparing name forms; a stem keeps at least 3 letters.
+_NAME_ENDING = re.compile(
+    r"(?<=[a-z]{3})(?:iego|iemu|owie|iem|ego|emu|owi|ami|ach|iej|ej|im|ym|em|om|ie|a|y|i|u|e|o)$"
 )
-_NOT_NAMES = {
-    "pan",
-    "pani",
-    "panu",
-    "pania",
-    "panem",
-    "mr",
-    "mrs",
-    "ms",
-    "miss",
-    "dr",
-    "adw",
-    "mec",
-    "prof",
-    "sad",
-    "powod",
-    "pozwan",
-    "najemc",
-    "wynajmujac",
-    "mocodawc",
-    "pelnomocnik",
-    "pelnomocnictw",
-    "umow",
-    "dokument",
-    "testow",
-    "zleceniodawc",
-    "zleceniobiorc",
-    "wnioskodawc",
-    "tenant",
-    "landlord",
-    "claimant",
-    "defendant",
-    "plaintiff",
-    "court",
-    "signed",
-    "signature",
-    "podpis",
-    "utajnion",
-    "starost",
-    "wojewod",
-    "burmistrz",
-    "prezydent",
-    "marszalk",
-    "sedzi",
-    "sedzia",
-    "prokurator",
-    "komornik",
-    "notariusz",
-    "witness",
-    "client",
-    "employee",
-    "adwokat",
-    "adwokac",
-    "radc",
-    "mecenas",
-    "szanown",
-    "kancelari",
-    "solicitor",
-    "barrister",
-    "attorney",
-    "ssr",
-    "sso",
-    "ssa",
-    "sekr",
-    "st",
-}
-
-
 # Forms of address and professional titles written before a name. Words that are also
 # surnames, such as Starosta, Wojewoda or Sąd, are left out on purpose.
-_TITLE_WORDS = {
-    "pan",
-    "pani",
-    "panu",
-    "pania",
-    "panem",
-    "panstw",
-    "mr",
-    "mrs",
-    "ms",
-    "miss",
-    "dr",
-    "adw",
-    "mec",
-    "prof",
-    "adwokat",
-    "adwokac",
-    "radc",
-    "mecenas",
-    "szanown",
-    "solicitor",
-    "barrister",
-    "attorney",
-    "ssr",
-    "sso",
-    "ssa",
-    "sekr",
-    "st",
-}
+_TITLES = (
+    r"pan|pani|panu|pania|panem|panstw|mr|mrs|ms|miss|dr|prof|adw|mec|adwokat|adwokac|radc"
+    r"|mecenas|szanown|solicitor|barrister|attorney|ssr|sso|ssa|sekr|st"
+)
+_TITLE_WORD = re.compile(_TITLES)
+# Stems of roles, offices and other capitalised words that are never a surname.
+_NOT_NAME = re.compile(
+    rf"{_TITLES}|sad|powod|pozwan|najemc|wynajmujac|mocodawc|pelnomocnik|pelnomocnictw|umow"
+    r"|dokument|kancelari|zleceniodawc|zleceniobiorc|wnioskodawc|starost|wojewod|burmistrz"
+    r"|prezydent|marszalk|sedzi|sedzia|prokurator|komornik|notariusz|podpis|utajnion|tenant"
+    r"|landlord|claimant|defendant|plaintiff|court|witness|client|employee|signed|signature"
+)
 
 
 def is_title_word(token: str) -> bool:
@@ -839,7 +700,9 @@ def is_title_word(token: str) -> bool:
     clean = re.sub(r"[^a-z]", "", fold(token))
     if clean == "sad" and token.rstrip().endswith("."):
         return True  # "st. sekr. sąd." before a court clerk's name
-    return len(clean) >= 2 and (clean in _TITLE_WORDS or _raw_stem(clean) in _TITLE_WORDS)
+    return len(clean) >= 2 and bool(
+        _TITLE_WORD.fullmatch(clean) or _TITLE_WORD.fullmatch(_raw_stem(clean))
+    )
 
 
 def name_stem(token: str) -> str | None:
@@ -848,16 +711,15 @@ def name_stem(token: str) -> str | None:
     if len(clean) < 3:
         return None
     clean = _raw_stem(clean)
-    if clean in _NOT_NAMES:
+    if _NOT_NAME.fullmatch(clean):
         return None
     return clean
 
 
 def _raw_stem(clean: str) -> str:
-    for ending in _NAME_ENDINGS:
-        if clean.endswith(ending) and len(clean) - len(ending) >= 3:
-            clean = clean[: -len(ending)]
-            break
+    ending = _NAME_ENDING.search(clean)
+    if ending:
+        clean = clean[: ending.start()]
     # Lewandowscy and Lewandowski, Marek and Marka, Paweł and Pawła share a stem.
     if clean.endswith(("sc", "dz")) and len(clean) > 4:
         clean = clean[:-1] + ("k" if clean.endswith("c") else "g")
