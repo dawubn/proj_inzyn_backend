@@ -71,7 +71,7 @@ def locate_formal_issues(
             issue.model_copy(update={"details": {**issue.details, "location": location}})
             if (
                 location := _evidence_location(issue)
-                or (_locate(issue.field_name, pages, missing) if pages.has_text else None)
+                or (_locate(issue, pages, missing) if pages.has_text else None)
             )
             is not None
             else issue
@@ -165,8 +165,12 @@ _LOCATORS: dict[str, Callable[[_Pages, set[str | None]], dict[str, Any]]] = {
 
 
 def _locate(
-    field_name: str | None, pages: _Pages, missing: set[str | None]
+    issue: ValidationIssue, pages: _Pages, missing: set[str | None]
 ) -> dict[str, Any] | None:
+    field_name = issue.field_name
+    if field_name == "has_attachments_section" and issue.details.get("outcome") == "unknown":
+        page, _ = pages.end_of_text()
+        return _location("page", page, [])
     if field_name in _FIRST_PAGE_FIELDS:
         return _location("page", 1, [])
     locator = _LOCATORS.get(field_name or "")
