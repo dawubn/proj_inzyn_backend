@@ -128,8 +128,6 @@ def test_conditional_requirement(flag, expected):
     "kind,start_label,end_label",
     [
         (DocumentType.CONTRACT, "Data rozpoczęcia umowy", "Data zakończenia umowy"),
-        (DocumentType.PASSPORT, "Data wydania", "Data ważności"),
-        (DocumentType.ID_CARD, "Data wydania", "Data ważności"),
     ],
 )
 def test_conflict_survives_extraction_and_reporting(kind, start_label, end_label):

@@ -1,7 +1,7 @@
 """Limit document types to the categories the analysis supports
 
 Revision ID: doc_types_002
-Revises: queue_001
+Revises: scrum162_password_reset
 Create Date: 2026-11-17 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "doc_types_002"
-down_revision: str | None = "queue_001"
+down_revision: str | None = "scrum162_password_reset"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
