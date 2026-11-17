@@ -74,8 +74,11 @@ def _post_processing(words: list[WordDict]) -> list[WordDict]:
     return result
 
 
-def _ocr_page(image_bytes: bytes) -> tuple[list[WordDict], Image.Image]:
+def _ocr_page(image_bytes: bytes, recognize: bool = True) -> tuple[list[WordDict], Image.Image]:
     orig = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    if not recognize:
+        return [], orig
+
     bordered = ImageOps.expand(orig, border=_BORDER_PX, fill="white")
 
     data: dict[str, Any] = pytesseract.image_to_data(
@@ -120,7 +123,10 @@ def page_render_zoom(page: fitz.Page, zoom: float) -> float:
 class LocalOCRAdapter:
     """Renders PDF/image to PIL Images and extracts per-word bounding boxes via Tesseract."""
 
-    def ocr_pdf(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
+    def ocr_pdf(
+        self, path: Path, recognize: bool = True
+    ) -> tuple[list[list[WordDict]], list[Image.Image]]:
+        """Render the pages and read their words; without `recognize` only render them."""
         logger.info("Rendering PDF for OCR", path=str(path), dpi=settings.LOCAL_OCR_DPI)
         doc = fitz.open(str(path))
         initial_zoom = settings.LOCAL_OCR_DPI / 72
@@ -137,7 +143,7 @@ class LocalOCRAdapter:
                 try:
                     matrix = fitz.Matrix(zoom, zoom)
                     png: bytes = doc.load_page(page_id).get_pixmap(matrix=matrix).tobytes("png")
-                    words, img = _ocr_page(png)
+                    words, img = _ocr_page(png, recognize)
                     all_words.append(words)
                     all_images.append(img)
                     logger.debug("OCR page done", page=page_id + 1, words=len(words), zoom=zoom)
@@ -161,8 +167,10 @@ class LocalOCRAdapter:
         doc.close()
         return all_words, all_images
 
-    def ocr_image(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
+    def ocr_image(
+        self, path: Path, recognize: bool = True
+    ) -> tuple[list[list[WordDict]], list[Image.Image]]:
         logger.info("Running OCR on image", path=str(path))
         with path.open("rb") as f:
-            words, img = _ocr_page(f.read())
+            words, img = _ocr_page(f.read(), recognize)
         return [words], [img]
