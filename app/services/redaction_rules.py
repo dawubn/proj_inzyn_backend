@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 
 import phonenumbers
+
+from app.enums.analysis import RedactionCategory
 
 Span = tuple[int, int, str]
 
@@ -734,13 +736,47 @@ def name_parts(text: str) -> list[str]:
     return [p for p in parts if len(re.sub(r"\W", "", p)) >= 3]
 
 
+# Kind of data that a user can leave out of anonymization, per label
+_CATEGORY_OF_LABEL: dict[str, RedactionCategory] = {
+    PERSON: RedactionCategory.PERSON,
+    ADDRESS: RedactionCategory.ADDRESS,
+    DATE: RedactionCategory.DATE,
+    PESEL: RedactionCategory.PESEL,
+    EMAIL: RedactionCategory.EMAIL,
+    PHONE: RedactionCategory.PHONE,
+}
+
+
+def label_selected(label: str, categories: Collection[RedactionCategory] | None) -> bool:
+    """Whether data with this label is anonymized for the chosen kinds of data.
+
+    None means all kinds. Labels without a choosable kind (e.g. NIP, account numbers,
+    signatures) are always anonymized.
+    """
+    if categories is None:
+        return True
+    category = _CATEGORY_OF_LABEL.get(label)
+    return category is None or category in categories
+
+
 _SCRUB_LABELS = (EMAIL, ACCOUNT, CARD, PESEL, NIP, DOCUMENT_NUMBER, IDENTIFIER, PHONE)
 
 
-def scrub_text(text: str, name_stems: set[str] | None = None) -> tuple[str, int]:
-    """Replace identifiers and known names that reached the cloud OCR text."""
-    spans = [s for s in find_pattern_spans(text) if s[2] in _SCRUB_LABELS]
-    if name_stems:
+def scrub_text(
+    text: str,
+    name_stems: set[str] | None = None,
+    categories: Collection[RedactionCategory] | None = None,
+) -> tuple[str, int]:
+    """Replace identifiers and known names that reached the cloud OCR text.
+
+    With `categories` only data of the chosen kinds is replaced, see label_selected.
+    """
+    spans = [
+        s
+        for s in find_pattern_spans(text)
+        if s[2] in _SCRUB_LABELS and label_selected(s[2], categories)
+    ]
+    if name_stems and label_selected(PERSON, categories):
         for match in re.finditer(rf"[{_UPPER}][{_UPPER}{_LOWER}'\u2019]+", text):
             stem = name_stem(match.group(0))
             if stem and stem in name_stems and not _overlaps(match.span(), spans):

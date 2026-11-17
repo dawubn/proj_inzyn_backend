@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import re
 import tempfile
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -20,8 +21,9 @@ from app.adapters.local_ocr import (
     tagged_words,
 )
 from app.core.config import settings
+from app.enums.analysis import RedactionCategory
 from app.services import redaction_ner
-from app.services.redaction_detectors import detect_document
+from app.services.redaction_detectors import detect_document, select_categories
 from app.services.redaction_visual import find_visual_regions, ink_regions
 
 logger = structlog.get_logger(__name__)
@@ -303,7 +305,25 @@ class RedactionService:
         input_path: Path,
         original_filename: str,
         content_type: str,
+        categories: Collection[RedactionCategory] | None = None,
     ) -> RedactionResult:
+        """Mask personal data and save the pages as a multi-page TIFF.
+
+        `categories` limits masking to these kinds of data (None means all kinds).
+        An empty collection turns masking off: the pages are only converted,
+        without running the local OCR.
+        """
+        stem = Path(original_filename).stem
+        if categories is not None and not categories:
+            return RedactionResult(
+                output_path=self._save_as_multipage_tiff(
+                    self._render_only(input_path, content_type)
+                ),
+                media_type="image/tiff",
+                filename=f"anonymized_{stem}.tiff",
+                regions=[[]],
+            )
+
         self._check_models()
         if content_type == _PDF_CONTENT_TYPE:
             pages = self._ocr.read_pdf(input_path)
@@ -311,11 +331,12 @@ class RedactionService:
             pages = self._ocr.read_image_file(input_path)
 
         detected, name_stems = detect_document([page.words for page in pages])
+        detected = [select_categories(items, categories) for items in detected]
 
         masked: list[Image.Image] = []
         regions: list[list[WordDict]] = []
         for number, (page, items) in enumerate(zip(pages, detected, strict=True), start=1):
-            page_image, page_masks = self._mask_page(page, items, name_stems)
+            page_image, page_masks = self._mask_page(page, items, name_stems, categories)
             masked.append(page.restore_image(page_image))
             regions.append(page.restore_boxes([mask.as_region() for mask in page_masks]))
             area = sum((m.x1 - m.x0) * m.height for m in page_masks)
@@ -327,15 +348,24 @@ class RedactionService:
                 rotation=page.rotation,
             )
 
-        stem = Path(original_filename).stem
         # Save all pages as multi-page TIFF
         return RedactionResult(
             output_path=self._save_as_multipage_tiff(masked),
             media_type="image/tiff",
             filename=f"anonymized_{stem}.tiff",
             regions=regions,
-            name_stems=name_stems,
+            # Names left visible on purpose must not be removed from the text later
+            name_stems=(
+                name_stems
+                if categories is None or RedactionCategory.PERSON in categories
+                else set()
+            ),
         )
+
+    def _render_only(self, input_path: Path, content_type: str) -> list[Image.Image]:
+        if content_type == _PDF_CONTENT_TYPE:
+            return self._ocr.ocr_pdf(input_path, recognize=False)[1]
+        return self._ocr.ocr_image(input_path, recognize=False)[1]
 
     def _check_models(self) -> None:
         missing = [
@@ -353,7 +383,11 @@ class RedactionService:
         logger.warning("Redaction runs without some models", missing=missing)
 
     def _mask_page(
-        self, page: PageRead, items: list[WordDict], name_stems: set[str]
+        self,
+        page: PageRead,
+        items: list[WordDict],
+        name_stems: set[str],
+        categories: Collection[RedactionCategory] | None = None,
     ) -> tuple[Image.Image, list[_Mask]]:
         width, height = page.image.size
         visual = find_visual_regions(page.image, page.words)
@@ -379,7 +413,7 @@ class RedactionService:
 
         # Read the masked page again; whatever is still recognisable gets masked too.
         words = _blank_masked(tagged_words(rapidocr_words(image), "verify"), masks)
-        missed = detect_document([words], name_stems)[0][0]
+        missed = select_categories(detect_document([words], name_stems)[0][0], categories)
         if missed:
             logger.warning(
                 "Verification added masks",

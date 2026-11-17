@@ -30,6 +30,16 @@ class ConflictError(AppError):
     detail = "Resource already exists"
 
 
+class InvalidResetTokenError(AppError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Password reset link is invalid or has expired"
+
+
+class InvalidPasswordError(AppError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Current password is incorrect"
+
+
 class ValidationError(AppError):
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Validation failed"

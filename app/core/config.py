@@ -35,6 +35,22 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Password reset
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    # Minimum time between two reset emails for the same account
+    PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS: int = 60
+    # Address of the frontend, used to build the link sent in the reset email
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # Email (SMTP). Without SMTP_HOST no email is sent; outside production the message
+    # is written to the log instead
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_USE_TLS: bool = True
+    SMTP_FROM: str = "CerberDoc <no-reply@cerberdoc.com>"
+
     # Azure AI Document Intelligence
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: str
     AZURE_DOCUMENT_INTELLIGENCE_KEY: str
@@ -45,6 +61,10 @@ class Settings(BaseSettings):
     # Azure OpenAI (for legal analysis)
     AZURE_OPENAI_ENDPOINT: str | None = None
     AZURE_OPENAI_KEY: str | None = None
+    # Azure OpenAI deployments a user can pick for the legal analysis. The names have to
+    # match deployments that exist in the Azure OpenAI resource.
+    AZURE_OPENAI_MODELS: list[str] = ["gpt-4.1"]
+    AZURE_OPENAI_DEFAULT_MODEL: str = "gpt-4.1"
 
     # File storage
     STORAGE_PATH: str = "/app/storage"
@@ -78,6 +98,15 @@ class Settings(BaseSettings):
         if not v.startswith("postgresql"):
             raise ValueError("Only PostgreSQL is supported")
         return v
+
+    @property
+    def ai_analysis_available(self) -> bool:
+        return bool(self.AZURE_OPENAI_ENDPOINT and self.AZURE_OPENAI_KEY)
+
+    @property
+    def ai_models(self) -> list[str]:
+        """Selectable models, always including the default one, without duplicates."""
+        return list(dict.fromkeys([self.AZURE_OPENAI_DEFAULT_MODEL, *self.AZURE_OPENAI_MODELS]))
 
     @property
     def max_upload_size_bytes(self) -> int:

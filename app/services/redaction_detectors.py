@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Collection
 from statistics import median
 from typing import Any
 
@@ -9,6 +10,7 @@ import structlog
 from langdetect import DetectorFactory, detect
 from langdetect.lang_detect_exception import LangDetectException
 
+from app.enums.analysis import RedactionCategory
 from app.services import redaction_ner
 from app.services.redaction_rules import (
     ACCOUNT,
@@ -19,6 +21,7 @@ from app.services.redaction_rules import (
     find_pattern_spans,
     fold,
     is_label_word,
+    label_selected,
     name_parts,
     name_stem,
 )
@@ -226,6 +229,35 @@ def _propagates(text: str, stems: set[str]) -> bool:
     return any(name_stem(part) in stems for part in re.split(r"[\-/]", text) if part)
 
 
-def find_personal_data(words: list[WordDict]) -> list[WordDict]:
-    """Return copies of word dicts that contain sensitive data, extended with 'rodzaj_danych'."""
-    return find_personal_data_pages([words])[0]
+def select_categories(
+    items: list[WordDict], categories: Collection[RedactionCategory] | None
+) -> list[WordDict]:
+    """Detected items of the chosen kinds of data; None keeps all of them.
+
+    Data without a choosable kind (e.g. account or document numbers) is always kept.
+    """
+    if categories is None:
+        return items
+    return [
+        item
+        for item in items
+        if label_selected(_kind(str(item.get("rodzaj_danych", ""))), categories)
+    ]
+
+
+def _kind(label: str) -> str:
+    """The kind of data in a mask label, e.g. IMIE/NAZWISKO in [UTAJNIONO: IMIE/NAZWISKO]."""
+    prefix = "[UTAJNIONO: "
+    return label[len(prefix) : -1] if label.startswith(prefix) and label.endswith("]") else label
+
+
+def find_personal_data(
+    words: list[WordDict], categories: Collection[RedactionCategory] | None = None
+) -> list[WordDict]:
+    """Return copies of word dicts that contain sensitive data, extended with 'rodzaj_danych'.
+
+    With `categories` only data of these kinds is returned; None means all kinds.
+    """
+    if categories is not None and not categories:
+        return []
+    return select_categories(find_personal_data_pages([words])[0], categories)
