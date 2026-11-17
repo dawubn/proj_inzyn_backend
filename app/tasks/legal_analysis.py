@@ -27,6 +27,7 @@ from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 from app.services.formal_report import coerce_document_type
 from app.services.formal_validation import FormalDocumentExtractor
+from app.services.redaction_rules import scrub_text
 from app.tasks.analysis import _validate_and_save_report
 from app.tasks.celery_app import celery_app
 from app.tasks.local_ocr import (
@@ -153,6 +154,21 @@ def _build_paged_text(ocr_result: OCRResult) -> str:
     return "\n\n".join(
         f"[Strona {page.page_number}]\n" + "\n".join(page.lines) for page in ocr_result.pages
     )
+
+
+def _unmasked_handwriting(raw: dict[str, Any]) -> int:
+    """Handwritten spans reported by Azure that do not carry a redaction label."""
+    content = str(raw.get("content") or "")
+    count = 0
+    for style in raw.get("styles") or []:
+        if not style.get("isHandwritten", style.get("is_handwritten")):
+            continue
+        for span in style.get("spans") or []:
+            start = int(span.get("offset", 0))
+            text = content[start : start + int(span.get("length", 0))]
+            if text.strip() and "UTAJN" not in text.upper():
+                count += 1
+    return count
 
 
 def _normalize_tokens(text: str) -> list[str]:
@@ -590,7 +606,12 @@ def run_legal_analysis_task(
         analysis.processing_step = 4
         session.commit()
 
-        ocr_text = _build_paged_text(ocr_result)
+        ocr_text, leaks = scrub_text(_build_paged_text(ocr_result), redaction_result.name_stems)
+        log.info(
+            "Cloud OCR text checked before LLM",
+            redaction_leak_count=leaks,
+            unmasked_handwriting=_unmasked_handwriting(ocr_result.raw),
+        )
         prompt = _build_legal_analysis_prompt(
             ocr_text,
             original_filename,
