@@ -111,8 +111,13 @@ def _run_task_with_patches(  # noqa: PLR0913 - pipeline dependencies and scenari
     *,
     cancel_during_llm: bool = False,
     expected_profile: DocumentType | None = None,
+    mocks: dict[str, MagicMock] | None = None,
 ) -> dict[str, Any]:
-    """Apply all required patches and call run_legal_analysis_task.run()."""
+    """Apply all required patches and call run_legal_analysis_task.run().
+
+    When `mocks` is given, the redaction service and LLM mocks are stored in it
+    under "redaction" and "llm", so a test can check how they were called.
+    """
     mock_redaction_result = MagicMock()
     mock_redaction_result.output_path = Path(tempfile.gettempdir()) / "redacted_test.pdf"
     mock_redaction_result.filename = "redacted_test.pdf"
@@ -138,15 +143,17 @@ def _run_task_with_patches(  # noqa: PLR0913 - pipeline dependencies and scenari
             fake_analysis.status = AnalysisStatus.CANCELLING
         return {"summary": "", "errors": [], "applicable_laws": []}
 
+    llm_mock = MagicMock(side_effect=legal_result)
+    if mocks is not None:
+        mocks["redaction"] = mock_redaction_svc
+        mocks["llm"] = llm_mock
+
     patch_map = [
         ("app.tasks.legal_analysis._get_db_session", MagicMock(return_value=session)),
         (_target(("_lock_analysis", "lock_analysis")), MagicMock(return_value=fake_analysis)),
         (_target(("_update_document_status", "update_document_status")), MagicMock()),
         ("app.tasks.legal_analysis._extract_azure_words", MagicMock(return_value=[])),
-        (
-            "app.tasks.legal_analysis._perform_legal_analysis",
-            MagicMock(side_effect=legal_result),
-        ),
+        ("app.tasks.legal_analysis._perform_legal_analysis", llm_mock),
         ("app.tasks.legal_analysis._warm_page_previews", MagicMock()),
         (
             _target(("RedactionService",), "app.services.redaction_service"),

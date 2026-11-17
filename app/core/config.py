@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # Azure OpenAI (for legal analysis)
     AZURE_OPENAI_ENDPOINT: str | None = None
     AZURE_OPENAI_KEY: str | None = None
+    # Azure OpenAI deployments a user can pick for the legal analysis. The names have to
+    # match deployments that exist in the Azure OpenAI resource.
+    AZURE_OPENAI_MODELS: list[str] = ["gpt-4.1"]
+    AZURE_OPENAI_DEFAULT_MODEL: str = "gpt-4.1"
 
     # File storage
     STORAGE_PATH: str = "/app/storage"
@@ -88,6 +92,15 @@ class Settings(BaseSettings):
         if not v.startswith("postgresql"):
             raise ValueError("Only PostgreSQL is supported")
         return v
+
+    @property
+    def ai_analysis_available(self) -> bool:
+        return bool(self.AZURE_OPENAI_ENDPOINT and self.AZURE_OPENAI_KEY)
+
+    @property
+    def ai_models(self) -> list[str]:
+        """Selectable models, always including the default one, without duplicates."""
+        return list(dict.fromkeys([self.AZURE_OPENAI_DEFAULT_MODEL, *self.AZURE_OPENAI_MODELS]))
 
     @property
     def max_upload_size_bytes(self) -> int:
