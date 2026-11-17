@@ -4,16 +4,27 @@ import pytest
 from PIL import Image
 from pydantic import ValidationError
 
+from app.adapters.local_ocr import PageRead
+from app.core.config import settings
 from app.enums.analysis import RedactionCategory
 from app.schemas.analysis_options import AnalysisOptions
 from app.services import redaction_service
-from app.services.redaction_detectors import find_personal_data
+from app.services.redaction_detectors import find_personal_data, select_categories
+from app.services.redaction_rules import scrub_text
 from app.services.redaction_service import RedactionService
 
 
 def _words(*texts: str) -> list[dict[str, Any]]:
+    """Words in pairs of caption and value, each pair on its own line."""
     return [
-        {"tekst": t, "x": i * 120, "y": 0, "szerokosc": 100, "wysokosc": 20}
+        {
+            "tekst": t,
+            "x": (i % 2) * 120,
+            "y": (i // 2) * 40,
+            "szerokosc": 100,
+            "wysokosc": 20,
+            "linia": i // 2,
+        }
         for i, t in enumerate(texts)
     ]
 
@@ -95,14 +106,32 @@ def test_only_selected_categories_are_detected() -> None:
     assert _labels(items) == {"[UTAJNIONO: EMAIL]"}
 
 
-def test_date_category_can_be_left_out() -> None:
-    words = _words("data:", "27.01.1975", "pesel:", "44051401458")
+def test_kinds_left_out_are_not_masked_and_others_always_are() -> None:
+    items = [
+        {"tekst": "Kowalski", "rodzaj_danych": "[UTAJNIONO: IMIE/NAZWISKO]"},
+        {"tekst": "27.01.1975", "rodzaj_danych": "[UTAJNIONO: DATA]"},
+        {"tekst": "PL61109010140000071219812874", "rodzaj_danych": "[UTAJNIONO: NUMER RACHUNKU]"},
+        {"tekst": "", "rodzaj_danych": "[UTAJNIONO: PODPIS]"},
+    ]
 
-    with_dates = find_personal_data(words, [RedactionCategory.DATE, RedactionCategory.PESEL])
-    without_dates = find_personal_data(words, [RedactionCategory.PESEL])
+    kept = select_categories(items, [RedactionCategory.PERSON])
 
-    assert "[UTAJNIONO: DATA]" in _labels(with_dates)
-    assert _labels(without_dates) == {"[UTAJNIONO: PESEL]"}
+    assert _labels(kept) == {
+        "[UTAJNIONO: IMIE/NAZWISKO]",
+        "[UTAJNIONO: NUMER RACHUNKU]",
+        "[UTAJNIONO: PODPIS]",
+    }
+    assert select_categories(items, None) == items
+
+
+def test_text_for_the_analysis_keeps_kinds_left_out() -> None:
+    text = "PESEL 44051401458, e-mail jan@firma.pl, Jan Kowalski"
+
+    scrubbed, _ = scrub_text(text, {"kowalsk"}, [RedactionCategory.EMAIL])
+
+    assert "44051401458" in scrubbed
+    assert "Kowalski" in scrubbed
+    assert "jan@firma.pl" not in scrubbed
 
 
 def test_no_categories_detect_nothing() -> None:
@@ -113,12 +142,15 @@ class _FakeOCR:
     def __init__(self) -> None:
         self.recognize: bool | None = None
 
+    def read_image_file(self, _path: Any) -> list[PageRead]:
+        self.recognize = True
+        return [PageRead(Image.new("RGB", (800, 120), "white"), _words(*SAMPLE))]
+
     def ocr_image(
         self, _path: Any, recognize: bool = True
     ) -> tuple[list[list[dict[str, Any]]], list[Image.Image]]:
         self.recognize = recognize
-        words = _words(*SAMPLE) if recognize else []
-        return [words], [Image.new("RGB", (800, 40), "white")]
+        return [[]], [Image.new("RGB", (800, 120), "white")]
 
 
 def _anonymize(
@@ -126,6 +158,8 @@ def _anonymize(
 ) -> tuple[_FakeOCR, Image.Image]:
     ocr = _FakeOCR()
     monkeypatch.setattr(redaction_service, "LocalOCRAdapter", lambda: ocr)
+    # The second reading of the masked page needs an OCR engine
+    monkeypatch.setattr(settings, "REDACTION_VERIFY_ENABLED", False)
     result = RedactionService().anonymize_file(
         input_path=None,  # type: ignore[arg-type]
         original_filename="scan.png",
@@ -158,5 +192,5 @@ def test_anonymization_turned_off_keeps_the_page_and_skips_local_ocr(
     ocr, image = _anonymize(monkeypatch, [])
 
     assert ocr.recognize is False
-    assert image.size == (800, 40)
+    assert image.size == (800, 120)
     assert not _has_masks(image)

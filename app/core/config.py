@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     LOCAL_OCR_MIN_CONFIDENCE: float = 30.0
     REDACTION_BOX_PADDING_PX: int = 8
     REDACTION_TIMEOUT_SECONDS: int = 120
+    REDACTION_MODELS_DIR: str = "/opt/cerberdoc/models"
+    REDACTION_NER_THREADS: int = 2
+    REDACTION_SECOND_OCR_ENABLED: bool = True
+    REDACTION_VERIFY_ENABLED: bool = True
+    # Production must not fall back to regex only when a model is missing.
+    REDACTION_REQUIRE_MODELS: bool = False
 
     @field_validator("DATABASE_URL")
     @classmethod

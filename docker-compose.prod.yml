@@ -30,6 +30,7 @@ x-app-env: &app-env
   CLASSIFIER_MODEL_PATH: storage/classifier_model.joblib
   CLASSIFIER_MIN_CONFIDENCE: "0.45"
   LOG_LEVEL: INFO
+  REDACTION_REQUIRE_MODELS: "true"
 
 services:
   migrate:

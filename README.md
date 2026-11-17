@@ -8,7 +8,7 @@ REST API backend for document completeness analysis and local anonymisation.
 - **SQLAlchemy 2.0** + **Alembic** — ORM & migrations (PostgreSQL)
 - **Celery** + **Redis** — async task queue
 - **Azure AI Document Intelligence** — cloud OCR provider
-- **Tesseract OCR** + **spaCy** + **PyMuPDF** — local OCR and anonymisation
+- **Tesseract OCR** + **RapidOCR** + **spaCy** + **HerBERT NER** + **PyMuPDF** — local OCR and anonymisation
 - **JWT** — authentication
 - **Docker Compose** — local development
 
@@ -106,6 +106,9 @@ pip install -e ".[dev]"
 python -m spacy download pl_core_news_lg
 python -m spacy download en_core_web_lg
 
+# Download anonymisation models
+REDACTION_MODELS_DIR=./models python scripts/download_redaction_models.py
+
 # Start DB + Redis separately (e.g. via Docker)
 docker compose up db redis -d
 
@@ -189,11 +192,11 @@ be tested without a mail server.
 ### Synchronous Redaction (`POST /api/v1/redactions`)
 
 Accepts `multipart/form-data` with field `file` (PDF, PNG, JPG/JPEG).
-Runs OCR locally via Tesseract, detects sensitive data with regex + spaCy NER, and returns the
-file with all detected fields masked by black rectangles. **Nothing is stored in database.**
+Runs OCR locally via Tesseract and RapidOCR, detects sensitive data with rules, NER and image checks,
+and returns the file with all detected fields masked by black rectangles. **Nothing is stored in database.**
 
-Detected types: PESEL (11-digit), e-mail, phone (Polish mobile), numeric dates,
-Polish descriptive dates (`27 stycznia 1975`), person names, places, English-style addresses.
+Detected types: PESEL, NIP, REGON, KRS, ID and passport numbers, bank accounts, cards, phones,
+e-mails, person names, addresses, signatures, faces and QR or bar codes. Dates stay visible.
 
 ```bash
 # PDF — returns anonymized PDF
@@ -312,6 +315,14 @@ docker compose exec api python scripts/set_user_role.py user@example.com admin
 ```
 
 Docker handles all OCR dependencies automatically during `docker compose up --build`.
+
+## Anonymisation
+
+Pages are masked locally before anything is sent to Azure. Detection lives in
+`app/services/redaction_*.py`.
+
+Polish NER uses [lexedit/herbert-polish-legal-ner-ocr](https://huggingface.co/lexedit/herbert-polish-legal-ner-ocr)
+(CC BY 4.0), face detection uses YuNet from the OpenCV Zoo (MIT).
 
 ## Document Classification
 
@@ -466,6 +477,8 @@ Key variables:
 - `AZURE_DOCUMENT_INTELLIGENCE_KEY` — Azure Document Intelligence API key
 - `AZURE_OPENAI_ENDPOINT` — Azure OpenAI endpoint (for legal analysis)
 - `AZURE_OPENAI_KEY` — Azure OpenAI API key (for legal analysis)
+- `REDACTION_MODELS_DIR` — local anonymisation models (default `/opt/cerberdoc/models`)
+- `REDACTION_SECOND_OCR_ENABLED`, `REDACTION_VERIFY_ENABLED` — second OCR engine and re-check of masked pages
 
 ### Azure Configuration
 
