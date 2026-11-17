@@ -9,6 +9,7 @@ from app.enums.document import DocumentStatus
 from app.models.document_analysis import DocumentAnalysis
 from app.repositories.document import DocumentRepository
 from app.repositories.document_analysis import DocumentAnalysisRepository
+from app.schemas.analysis_options import OPTIONS_PARAM, AnalysisOptions
 
 logger = structlog.get_logger(__name__)
 
@@ -36,6 +37,7 @@ class DocumentAnalysisService:
         document_id: uuid.UUID,
         owner_id: uuid.UUID,
         pipeline: str,
+        options: AnalysisOptions | None = None,
     ) -> DocumentAnalysis:
         """Persist a waiting processing request without publishing a Celery task."""
         if pipeline not in SUPPORTED_PIPELINES:
@@ -52,7 +54,7 @@ class DocumentAnalysisService:
             owner_id=owner_id,
             status=AnalysisStatus.QUEUED,
             pipeline=pipeline,
-            pipeline_params={},
+            pipeline_params=({OPTIONS_PARAM: options.model_dump(mode="json")} if options else {}),
             queued_at=datetime.now(UTC),
         )
         analysis = await self._analyses.create(analysis)
@@ -99,8 +101,9 @@ class DocumentAnalysisService:
         self,
         document_id: uuid.UUID,
         owner_id: uuid.UUID,
+        options: AnalysisOptions | None = None,
     ) -> DocumentAnalysis:
-        return await self.enqueue(document_id, owner_id, "legal_analysis")
+        return await self.enqueue(document_id, owner_id, "legal_analysis", options)
 
     async def get_or_raise(
         self,
