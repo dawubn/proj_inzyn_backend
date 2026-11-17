@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from statistics import median
 from typing import Any
 
@@ -8,6 +9,8 @@ import spacy
 import structlog
 from langdetect import DetectorFactory, detect
 from langdetect.lang_detect_exception import LangDetectException
+
+from app.enums.analysis import RedactionCategory
 
 DetectorFactory.seed = 0
 
@@ -101,8 +104,31 @@ def _already_added(word: WordDict, items: list[WordDict]) -> bool:
     return any(e["x"] == word["x"] and e["y"] == word["y"] for e in items)
 
 
-def find_personal_data(words: list[WordDict]) -> list[WordDict]:
-    """Return copies of word dicts that contain sensitive data, extended with 'rodzaj_danych'."""
+# Which category each mask label belongs to
+_LABEL_CATEGORIES: dict[str, RedactionCategory] = {
+    "[UTAJNIONO: IMIE/NAZWISKO]": RedactionCategory.PERSON,
+    "[UTAJNIONO: ADRES]": RedactionCategory.ADDRESS,
+    "[UTAJNIONO: DATA]": RedactionCategory.DATE,
+    "[UTAJNIONO: PESEL]": RedactionCategory.PESEL,
+    "[UTAJNIONO: EMAIL]": RedactionCategory.EMAIL,
+    "[UTAJNIONO: TELEFON]": RedactionCategory.PHONE,
+}
+
+
+def find_personal_data(
+    words: list[WordDict], categories: Collection[RedactionCategory] | None = None
+) -> list[WordDict]:
+    """Return copies of word dicts that contain sensitive data, extended with 'rodzaj_danych'.
+
+    With `categories` only data of these kinds is returned; None means all kinds.
+    """
+    if categories is not None and not categories:
+        return []
+
+    def wanted(label: str) -> bool:
+        category = _LABEL_CATEGORIES.get(label)
+        return categories is None or category is None or category in categories
+
     full_text = " ".join(s["tekst"] for s in words)
     found: list[WordDict] = []
     heights = [word["wysokosc"] for word in words if any(c.isalnum() for c in word["tekst"])]
@@ -114,6 +140,8 @@ def find_personal_data(words: list[WordDict]) -> list[WordDict]:
         offset += len(word["tekst"]) + 1
 
     def add_span(start: int, end: int, label: str) -> None:
+        if not wanted(label):
+            return
         # Match the occurrence, not every identical token on the page. NLP can
         # include dotted form fillers in a person's span; these are not data.
         for left, right, word in offsets:
@@ -138,15 +166,15 @@ def find_personal_data(words: list[WordDict]) -> list[WordDict]:
         item = word.copy()
         if _PESEL_RE.match(text):
             item["rodzaj_danych"] = "[UTAJNIONO: PESEL]"
-            found.append(item)
         elif _ADDRESS_EN_RE.match(text):
             item["rodzaj_danych"] = "[UTAJNIONO: ADRES]"
-            found.append(item)
         elif _EMAIL_RE.match(text):
             item["rodzaj_danych"] = "[UTAJNIONO: EMAIL]"
-            found.append(item)
         elif _PHONE_RE.match(text):
             item["rodzaj_danych"] = "[UTAJNIONO: TELEFON]"
+        else:
+            continue
+        if wanted(item["rodzaj_danych"]):
             found.append(item)
 
     for pattern in [_DATE_RE, _DATE_PL_RE]:

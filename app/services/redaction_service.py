@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import tempfile
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.adapters.local_ocr import LocalOCRAdapter, WordDict
 from app.core.config import settings
+from app.enums.analysis import RedactionCategory
 from app.services.redaction_detectors import find_personal_data
 
 logger = structlog.get_logger(__name__)
@@ -36,18 +38,26 @@ class RedactionService:
         input_path: Path,
         original_filename: str,
         content_type: str,
+        categories: Collection[RedactionCategory] | None = None,
     ) -> RedactionResult:
+        """Mask personal data and save the pages as a multi-page TIFF.
+
+        `categories` limits masking to these kinds of data (None means all kinds).
+        An empty collection turns masking off: the pages are only converted,
+        without running the local OCR.
+        """
         is_pdf = content_type == _PDF_CONTENT_TYPE
+        masking = categories is None or bool(categories)
 
         if is_pdf:
-            all_words, all_images = self._ocr.ocr_pdf(input_path)
+            all_words, all_images = self._ocr.ocr_pdf(input_path, recognize=masking)
         else:
-            all_words, all_images = self._ocr.ocr_image(input_path)
+            all_words, all_images = self._ocr.ocr_image(input_path, recognize=masking)
 
         masked: list[Image.Image] = []
         total = 0
         for page_words, img in zip(all_words, all_images, strict=False):
-            items = find_personal_data(page_words)
+            items = find_personal_data(page_words, categories)
             total += len(items)
             masked.append(self._apply_masks(img, items))
 

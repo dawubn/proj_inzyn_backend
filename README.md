@@ -180,6 +180,7 @@ be tested without a mail server.
 | POST | `/api/v1/redactions/full-ocr` | Async full OCR pipeline: local → redaction → Azure | Analysis ID (HTTP 202) | Owner |
 | POST | `/api/v1/redactions/azure-ocr` | Async Azure OCR only | Analysis ID (HTTP 202) | Owner |
 | POST | `/api/v1/redactions/legal-analysis` | Async full pipeline + legal analysis (LLM) | Analysis ID (HTTP 202) | Owner |
+| GET | `/api/v1/redactions/options` | What can be configured when an analysis is started | Categories and AI models | Any user |
 | GET | `/api/v1/redactions` | List user's analyses | Analyses list | Owner |
 | GET | `/api/v1/redactions/{analysis_id}` | Get analysis status & results | Analysis details | Owner, Admin |
 | DELETE | `/api/v1/redactions/{analysis_id}` | Delete analysis | HTTP 204 | Owner |
@@ -222,6 +223,28 @@ All return `202 Accepted` with analysis ID and task ID:
 ```
 
 Use `GET /api/v1/redactions/{analysis_id}` to poll analysis status.
+
+#### Analysis options
+
+`POST /api/v1/redactions/legal-analysis` accepts optional query parameters that change
+how a single analysis runs. Without them the full pipeline runs.
+
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `anonymize` | `true` | `false` sends the document on without masking personal data |
+| `redaction_categories` | all | Kinds of data to mask (repeatable): `person`, `address`, `date`, `pesel`, `email`, `phone` |
+| `ai_analysis` | `true` | `false` skips the legal analysis by the AI model |
+| `ai_model` | `AZURE_OPENAI_DEFAULT_MODEL` | One of `AZURE_OPENAI_MODELS` |
+
+`AZURE_OPENAI_MODELS` lists the Azure OpenAI deployments a user can choose from; the names
+have to match deployments that exist in the Azure OpenAI resource. The options used are
+returned with the analysis in the `options` field.
+
+`GET /api/v1/redactions/options` describes each model with its relative cost, speed and
+quality and with the result of a comparison on a test document. These profiles live in
+`app/core/ai_models.py`; a deployment without a profile is offered without a description.
+Reasoning models (`gpt-6*`) accept only the default temperature, so the call leaves it out
+for them, and retries without it when another deployment rejects it.
 
 #### Legal Analysis (`POST /api/v1/redactions/legal-analysis`)
 
