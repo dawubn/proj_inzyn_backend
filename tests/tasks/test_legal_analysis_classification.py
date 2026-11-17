@@ -18,11 +18,22 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import app.tasks.legal_analysis as task_module
+from app.core.config import settings
 from app.enums.document import DocumentType
 
 ANALYSIS_UUID = "00000000-0000-0000-0000-000000000001"
 DOCUMENT_UUID = "00000000-0000-0000-0000-000000000002"
+
+
+@pytest.fixture(autouse=True)
+def _azure_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The legal analysis step runs only when Azure OpenAI is configured; CI has no .env."""
+    monkeypatch.setattr(settings, "AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_KEY", "key")
+    monkeypatch.setattr(settings, "AZURE_OPENAI_DEFAULT_MODEL", "gpt-4.1")
 
 
 # ---------------------------------------------------------------------------
