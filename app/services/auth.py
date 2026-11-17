@@ -2,12 +2,16 @@ import structlog
 
 from app.core.exceptions import ConflictError, UnauthorizedError
 from app.core.security import (
+    PASSWORD_VERSION_CLAIM,
     create_access_token,
     create_refresh_token,
     decode_token,
     hash_password,
+    is_token_for_current_password,
+    password_version,
     verify_password,
 )
+from app.enums.analysis import UserRole
 from app.models.user import User
 from app.repositories.user import UserRepository
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -30,7 +34,7 @@ class AuthService:
             name=data.name,
             surname=data.surname,
             company=data.company,
-            role=data.role,
+            role=UserRole.USER,
         )
         return await self._users.create(user)
 
@@ -43,11 +47,7 @@ class AuthService:
             raise UnauthorizedError("Account is deactivated")
 
         logger.info("User logged in", user_id=str(user.id))
-        tokens = TokenResponse(
-            access_token=create_access_token(str(user.id), {"role": user.role}),
-            refresh_token=create_refresh_token(str(user.id)),
-        )
-        return user, tokens
+        return user, self.issue_tokens(user)
 
     async def refresh(self, refresh_token: str) -> tuple[User, TokenResponse]:
         try:
@@ -62,8 +62,15 @@ class AuthService:
         if not user or not user.is_active:
             raise UnauthorizedError("User not found or deactivated")
 
-        tokens = TokenResponse(
-            access_token=create_access_token(str(user.id), {"role": user.role}),
-            refresh_token=create_refresh_token(str(user.id)),
+        if not is_token_for_current_password(payload, user.password_changed_at):
+            raise UnauthorizedError("Session expired")
+
+        return user, self.issue_tokens(user)
+
+    @staticmethod
+    def issue_tokens(user: User) -> TokenResponse:
+        version = {PASSWORD_VERSION_CLAIM: password_version(user.password_changed_at)}
+        return TokenResponse(
+            access_token=create_access_token(str(user.id), {"role": user.role, **version}),
+            refresh_token=create_refresh_token(str(user.id), version),
         )
-        return user, tokens

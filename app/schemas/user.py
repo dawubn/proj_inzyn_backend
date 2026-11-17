@@ -5,12 +5,13 @@ from app.schemas.common import OrmBase, TimestampSchema, UUIDSchema
 
 
 class UserCreate(OrmBase):
+    """Registration data. The role is not part of it: new accounts are always regular users."""
+
     email: EmailStr
     password: str = Field(min_length=8)
     name: str = Field(min_length=1, max_length=255)
     surname: str = Field(min_length=1, max_length=255)
     company: str | None = Field(default=None, min_length=1, max_length=255)
-    role: UserRole = UserRole.BUSINESS_USER
 
 
 class UserUpdate(OrmBase):

@@ -146,7 +146,23 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/auth/register` | Register a new user |
 | POST | `/api/v1/auth/login` | Login, get JWT tokens |
 | POST | `/api/v1/auth/refresh` | Refresh access token |
+| POST | `/api/v1/auth/forgot-password` | Send a password reset link by email |
+| POST | `/api/v1/auth/reset-password` | Set a new password with the token from the link |
 | GET | `/api/v1/users/me` | Get current user profile |
+| PATCH | `/api/v1/users/me` | Update own name, surname and company |
+| POST | `/api/v1/users/me/password` | Change own password (requires the current one) |
+
+#### Password reset
+
+`forgot-password` always answers `202` with the same message, whether or not the email is
+registered. When it is, the user gets a link to `FRONTEND_URL/reset-password?token=...`.
+The link is valid for `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (30 by default), works once,
+and a newer link replaces the older one. Setting a new password ends all existing sessions
+of the user.
+
+Emails are sent over SMTP (`SMTP_*` variables in `.env`). Without `SMTP_HOST` nothing is
+sent; in development the message with the link is written to the API log, so the flow can
+be tested without a mail server.
 
 ### Documents
 | Method | Path | Description | Access |
@@ -164,6 +180,7 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/redactions/full-ocr` | Async full OCR pipeline: local → redaction → Azure | Analysis ID (HTTP 202) | Owner |
 | POST | `/api/v1/redactions/azure-ocr` | Async Azure OCR only | Analysis ID (HTTP 202) | Owner |
 | POST | `/api/v1/redactions/legal-analysis` | Async full pipeline + legal analysis (LLM) | Analysis ID (HTTP 202) | Owner |
+| GET | `/api/v1/redactions/options` | What can be configured when an analysis is started | Categories and AI models | Any user |
 | GET | `/api/v1/redactions` | List user's analyses | Analyses list | Owner |
 | GET | `/api/v1/redactions/{analysis_id}` | Get analysis status & results | Analysis details | Owner, Admin |
 | DELETE | `/api/v1/redactions/{analysis_id}` | Delete analysis | HTTP 204 | Owner |
@@ -206,6 +223,28 @@ All return `202 Accepted` with analysis ID and task ID:
 ```
 
 Use `GET /api/v1/redactions/{analysis_id}` to poll analysis status.
+
+#### Analysis options
+
+`POST /api/v1/redactions/legal-analysis` accepts optional query parameters that change
+how a single analysis runs. Without them the full pipeline runs.
+
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `anonymize` | `true` | `false` sends the document on without masking personal data |
+| `redaction_categories` | all | Kinds of data to mask (repeatable): `person`, `address`, `date`, `pesel`, `email`, `phone` |
+| `ai_analysis` | `true` | `false` skips the legal analysis by the AI model |
+| `ai_model` | `AZURE_OPENAI_DEFAULT_MODEL` | One of `AZURE_OPENAI_MODELS` |
+
+`AZURE_OPENAI_MODELS` lists the Azure OpenAI deployments a user can choose from; the names
+have to match deployments that exist in the Azure OpenAI resource. The options used are
+returned with the analysis in the `options` field.
+
+`GET /api/v1/redactions/options` describes each model with its relative cost, speed and
+quality and with the result of a comparison on a test document. These profiles live in
+`app/core/ai_models.py`; a deployment without a profile is offered without a description.
+Reasoning models (`gpt-6*`) accept only the default temperature, so the call leaves it out
+for them, and retries without it when another deployment rejects it.
 
 #### Legal Analysis (`POST /api/v1/redactions/legal-analysis`)
 
@@ -264,6 +303,14 @@ curl -X GET http://localhost:8000/api/v1/redactions/$ANALYSIS_ID \
 - **Non-admin users**: Can only access their own documents and analyses
 - **Admin users**: Full access to all documents and analyses across all users
 - **Attempting unauthorized access**: Returns 404 NotFound (not 403 for security)
+
+Every account is created with the `user` role; the role cannot be chosen at registration.
+To make an existing account an admin:
+
+```bash
+docker compose exec api python scripts/set_user_role.py user@example.com admin
+```
+
 Docker handles all OCR dependencies automatically during `docker compose up --build`.
 
 ## Document Classification

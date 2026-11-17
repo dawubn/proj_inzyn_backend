@@ -12,7 +12,6 @@ async def _get_auth_headers(
             "password": "Str0ngPass!",
             "name": "Doc",
             "surname": "User",
-            "role": "business_user",
         },
     )
     await client.post(
