@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -77,18 +76,14 @@ def _post_processing(words: list[WordDict]) -> list[WordDict]:
 
 def _ocr_page(image_bytes: bytes) -> tuple[list[WordDict], Image.Image]:
     orig = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    try:
-        with ImageOps.expand(orig, border=_BORDER_PX, fill="white") as bordered:
-            data: dict[str, Any] = pytesseract.image_to_data(
-                bordered,
-                lang=settings.LOCAL_OCR_LANG,
-                config=_TESSERACT_CONFIG,
-                output_type=pytesseract.Output.DICT,
-                timeout=settings.REDACTION_TIMEOUT_SECONDS,
-            )
-    except BaseException:
-        orig.close()
-        raise
+    bordered = ImageOps.expand(orig, border=_BORDER_PX, fill="white")
+
+    data: dict[str, Any] = pytesseract.image_to_data(
+        bordered,
+        lang=settings.LOCAL_OCR_LANG,
+        config=_TESSERACT_CONFIG,
+        output_type=pytesseract.Output.DICT,
+    )
 
     words: list[WordDict] = []
     for i in range(len(data["text"])):
@@ -126,17 +121,11 @@ class LocalOCRAdapter:
     """Renders PDF/image to PIL Images and extracts per-word bounding boxes via Tesseract."""
 
     def ocr_pdf(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
-        pages = list(self.iter_pdf_pages(path))
-        return [words for words, _ in pages], [image for _, image in pages]
-
-    def iter_pdf_pages(self, path: Path) -> Iterator[tuple[list[WordDict], Image.Image]]:
-        """Yield pages individually so redaction can release each raster before the next."""
         logger.info("Rendering PDF for OCR", path=str(path), dpi=settings.LOCAL_OCR_DPI)
-        with fitz.open(str(path)) as doc:
-            yield from self._ocr_pdf_pages(doc)
-
-    def _ocr_pdf_pages(self, doc: fitz.Document) -> Iterator[tuple[list[WordDict], Image.Image]]:
+        doc = fitz.open(str(path))
         initial_zoom = settings.LOCAL_OCR_DPI / 72
+        all_words: list[list[WordDict]] = []
+        all_images: list[Image.Image] = []
 
         for page_id in range(len(doc)):
             zoom = page_render_zoom(doc.load_page(page_id), initial_zoom)
@@ -149,8 +138,9 @@ class LocalOCRAdapter:
                     matrix = fitz.Matrix(zoom, zoom)
                     png: bytes = doc.load_page(page_id).get_pixmap(matrix=matrix).tobytes("png")
                     words, img = _ocr_page(png)
+                    all_words.append(words)
+                    all_images.append(img)
                     logger.debug("OCR page done", page=page_id + 1, words=len(words), zoom=zoom)
-                    yield words, img
                     break
                 except Image.DecompressionBombError:
                     if zoom <= min_zoom or attempt >= max_retries - 1:
@@ -167,6 +157,9 @@ class LocalOCRAdapter:
                         old_zoom=round(zoom * zoom_reduction_factor, 3),
                         new_zoom=round(zoom, 3),
                     )
+
+        doc.close()
+        return all_words, all_images
 
     def ocr_image(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
         logger.info("Running OCR on image", path=str(path))
