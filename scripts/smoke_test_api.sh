@@ -10,7 +10,7 @@ curl -s -o /dev/null -w "Docs HTTP %{http_code}\n" "$BASE/docs"
 echo ""
 echo "=== Login ==="
 curl -s -X POST "$BASE/api/v1/auth/register" -H "Content-Type: application/json" \
-  -d '{"email":"smoke@test.com","password":"Str0ngPass!","full_name":"Smoke","role":"business_user"}' \
+  -d '{"email":"smoke@test.com","password":"Str0ngPass!","name":"Smoke","surname":"Test"}' \
   > /dev/null || true
 TOKEN=$(curl -s -X POST "$BASE/api/v1/auth/login" -H "Content-Type: application/json" \
   -d '{"email":"smoke@test.com","password":"Str0ngPass!"}' \

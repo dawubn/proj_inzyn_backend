@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import Field, computed_field
 
 from app.enums.analysis import AnalysisStatus, ProcessingStage
+from app.schemas.analysis_options import AnalysisOptions
 from app.schemas.common import OrmBase, TimestampSchema, UUIDSchema
 
 
@@ -32,6 +33,13 @@ class DocumentAnalysisListResponse(UUIDSchema, TimestampSchema):
 
     tesseract_words: list[dict[str, Any]] | None
     legal_analysis_result: dict[str, Any] | None = None
+
+    # Internal queue data; only the analysis options from it are returned
+    pipeline_params: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+    @computed_field
+    def options(self) -> AnalysisOptions:
+        return AnalysisOptions.from_pipeline_params(self.pipeline_params)
 
     @property
     def progress_percent(self) -> int:

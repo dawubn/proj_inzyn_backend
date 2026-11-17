@@ -398,25 +398,35 @@ def _render_page(doc: fitz.Document, page_id: int) -> tuple[Image.Image, float]:
 class LocalOCRAdapter:
     """Renders PDF/image to PIL Images and extracts per-word bounding boxes."""
 
-    def ocr_pdf(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
+    def ocr_pdf(
+        self, path: Path, recognize: bool = True
+    ) -> tuple[list[list[WordDict]], list[Image.Image]]:
+        """Render the pages and read their words; without `recognize` only render them."""
         logger.info("Rendering PDF for OCR", path=str(path), dpi=settings.LOCAL_OCR_DPI)
         all_words: list[list[WordDict]] = []
         all_images: list[Image.Image] = []
         with fitz.open(str(path)) as doc:
             for page_id in range(len(doc)):
                 image, zoom = _render_page(doc, page_id)
-                buf = io.BytesIO()
-                image.save(buf, format="PNG")
-                words, _ = _ocr_page(buf.getvalue())
+                words: list[WordDict] = []
+                if recognize:
+                    buf = io.BytesIO()
+                    image.save(buf, format="PNG")
+                    words, _ = _ocr_page(buf.getvalue())
                 all_words.append(words)
                 all_images.append(image)
                 logger.debug("OCR page done", page=page_id + 1, words=len(words), zoom=zoom)
         return all_words, all_images
 
-    def ocr_image(self, path: Path) -> tuple[list[list[WordDict]], list[Image.Image]]:
+    def ocr_image(
+        self, path: Path, recognize: bool = True
+    ) -> tuple[list[list[WordDict]], list[Image.Image]]:
         logger.info("Running OCR on image", path=str(path))
         with path.open("rb") as f:
-            words, img = _ocr_page(f.read())
+            data = f.read()
+        if not recognize:
+            return [[]], [Image.open(io.BytesIO(data)).convert("RGB")]
+        words, img = _ocr_page(data)
         return [words], [img]
 
     def read_pdf(self, path: Path) -> list[PageRead]:

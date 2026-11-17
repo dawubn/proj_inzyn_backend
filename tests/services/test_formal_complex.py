@@ -66,6 +66,43 @@ def test_party_obligations_do_not_supply_identity():
     assert not fields["has_parties_section"]
 
 
+@pytest.mark.parametrize(
+    "kind,left,right",
+    [
+        (DocumentType.LAWSUIT, "Powód", "Pozwana"),
+        (DocumentType.LAWSUIT, "Powódka", "Pozwany"),
+        (DocumentType.LAWSUIT, "Strona powodowa", "Strona pozwana"),
+        (DocumentType.CONTRACT, "Zamawiający", "Wykonawca"),
+        (DocumentType.CONTRACT, "Zleceniodawca", "Zleceniobiorca"),
+        (DocumentType.CONTRACT, "Kupujący", "Sprzedający"),
+        (DocumentType.CONTRACT, "Nabywca", "Sprzedawca"),
+    ],
+)
+@pytest.mark.parametrize("separator", [":", ";"])
+def test_person_masks_identify_parties_when_ocr_loses_the_colon(kind, left, right, separator):
+    mask = f"[UTAJNIONO{separator} IMIE/NAZWISKO]"
+    raw = azure(f"Dokument zawiera dane obu stron.\n{left} {mask}\n{right}: {mask}")
+    fields = FormalDocumentExtractor().extract(raw, kind).fields
+    assert fields["observations"]["has_parties_section"]["state"] == "masked"
+
+
+@pytest.mark.parametrize(
+    "claimant",
+    [
+        "Powód wnosi o zapłatę należności.",
+        "Powód działając przez [UTAJNIONO: IMIE/NAZWISKO] wnosi o zapłatę.",
+        "Powód [UTAJNIONO: ADRES]",
+        "Powód [UTAJNIONO: EMAIL]",
+        "Powód ........",
+        "Powództwo [UTAJNIONO: IMIE/NAZWISKO]",
+    ],
+)
+def test_missing_colon_does_not_turn_prose_or_other_masks_into_a_person(claimant):
+    raw = azure(f"POZEW O ZAPŁATĘ\n{claimant}\nPozwana: [UTAJNIONO: IMIE/NAZWISKO]")
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.LAWSUIT).fields
+    assert not fields["has_parties_section"]
+
+
 def test_small_mask_on_same_row_joins_role_even_if_azure_emits_it_last():
     raw = azure("Mocodawca:\nPełnomocnik: Anna Nowak\n[UTAJNIONO: IMIE/NAZWISKO]")
     raw["pages"][0]["lines"][0]["polygon"] = [10, 20, 150, 20, 150, 35, 10, 35]
@@ -92,6 +129,89 @@ def test_signature_boxes_do_not_conflict_with_party_identities():
     )
     fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
     assert fields["has_parties_section"]
+
+
+@pytest.mark.parametrize("end,expected", [("01.01.2026", "fail"), ("31.12.2026", "pass")])
+def test_real_masked_contract_compares_readable_dates_and_confirms_parties(end, expected):
+    recording = (
+        Path(__file__).parents[1] / "fixtures/formal_complex/masked_contract_dates.ocr.json"
+    ).read_text()
+    raw = json.loads(recording.replace("01.01.2026", end))
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert fields["ocr_limitations"] == ["LOW_OCR_CONFIDENCE"]
+    assert fields["observations"]["period_start"]["state"] == "present"
+    assert fields["observations"]["period_end"]["state"] == "present"
+    assert fields["observations"]["has_parties_section"]["state"] == "masked"
+    profile = get_mvp_profile_definition(DocumentType.CONTRACT)
+    assert profile is not None
+    _, summary = FormalValidationService().build_report(
+        build_rule_models(profile), fields, profile.name, DocumentType.CONTRACT
+    )
+    results = {r["field_name"]: r for r in summary["rule_results"]}
+    assert results["period_end"]["outcome"] == expected
+    assert results["has_parties_section"]["outcome"] == "pass"
+    assert results["has_parties_section"]["reason_code"] == "REDACTED_PRESENCE_CONFIRMED"
+    assert results["has_attachments_section"]["outcome"] == "not_applicable"
+    assert results["has_attachments_section"]["reason_code"] == "NO_ATTACHMENT_REQUIREMENT"
+
+
+def test_uncertain_document_text_keeps_attachment_review():
+    raw = json.loads(
+        (
+            Path(__file__).parents[1] / "fixtures/formal_complex/masked_contract_dates.ocr.json"
+        ).read_text()
+    )
+    word = next(w for w in raw["pages"][0]["words"] if w["content"] == "Dokument")
+    word["confidence"] = 0.4
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert fields["observations"]["has_attachments_section"]["state"] == "unknown"
+
+
+def test_unreadable_page_keeps_attachment_review_despite_readable_masks():
+    raw = json.loads(
+        (
+            Path(__file__).parents[1] / "fixtures/formal_complex/masked_contract_dates.ocr.json"
+        ).read_text()
+    )
+    raw["pages"].append({"pageNumber": 2, "lines": [], "words": []})
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert fields["observations"]["has_attachments_section"]["state"] == "unknown"
+
+
+@pytest.mark.parametrize("heading", ["5. Podpisy stron", "Podpisy stron:", "Podpisy"])
+@pytest.mark.parametrize("party", ["Jan Kowalski", "[UTAJNIONO: IMIE/NAZWISKO]"])
+def test_party_labels_in_signature_section_do_not_override_identity(heading, party):
+    raw = azure(
+        f"UMOWA\nZamawiający: {party}\nWykonawca: {party}\n"
+        f"{heading}\nZamawiający: ........\nWykonawca: ........"
+    )
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert fields["observations"]["has_parties_section"]["state"] in {"present", "masked"}
+
+
+def test_signature_names_alone_do_not_supply_party_identities():
+    raw = azure("UMOWA\n5. Podpisy stron\nZamawiający: Jan Kowalski\nWykonawca: Anna Nowak")
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert not fields["has_parties_section"]
+
+
+def test_new_section_after_signatures_checks_identity_fields_again():
+    raw = azure(
+        "UMOWA\nZamawiający: Jan Kowalski\nWykonawca: Anna Nowak\n"
+        "5. Podpisy stron\nZamawiający: ........\nWykonawca: ........\n"
+        "6. Dane stron do aneksu\nWykonawca: ........"
+    )
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert fields["observations"]["has_parties_section"]["state"] == "unknown"
+
+
+def test_empty_identity_outside_signature_section_remains_a_conflict():
+    raw = azure(
+        "UMOWA\nZamawiający: [UTAJNIONO: IMIE/NAZWISKO]\n"
+        "Wykonawca: [UTAJNIONO: IMIE/NAZWISKO]\nWykonawca: ........"
+    )
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert fields["observations"]["has_parties_section"]["state"] == "unknown"
 
 
 def test_low_confidence_real_value_still_needs_review():

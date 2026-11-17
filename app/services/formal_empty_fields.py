@@ -14,12 +14,20 @@ _LABELS = (
     (r"(?:z\s+)?siedzib[aą]\s+w|siedziba(?: firmy|instytucji)?(?=\s*:|\s*$)", "Siedziba"),
     (r"przy ulicy|ulica|ul\.", "Ulica"),
     (
+        r"zamieszk\w*(?:/(?:zamieszk\w*|ej|a|y))?\*?\s+" r"(?:przy(?:\s+ulicy)?|pod adresem)",
+        "Adres zamieszkania",
+    ),
+    (
+        r"legitymuj\w*(?:/[ay])?\s+sie\s+(?:dowodem|dokumentem)\s+" r"tozsamosci\s+o numerze",
+        "Numer dokumentu tożsamości",
+    ),
+    (
         r"\(?nr domu\s*/\s*nr lokalu\)?|(?:nr|numer) (?:domu|lokalu|mieszkania)",
         "Numer domu / lokalu",
     ),
     (r"zamieszk\w*(?:/zamieszk\w*)?\*?\s+w", "Miejscowość zamieszkania"),
     (r"kod pocztowy", "Kod pocztowy"),
-    (r"PESEL(?:\s*/\s*NIP)?(?:\)\d)?|NIP|REGON", "Identyfikator"),
+    (r"(?:oraz\s+numerem\s+)?PESEL(?:\s*/\s*NIP)?(?:\)\d)?|NIP|REGON", "Identyfikator"),
     (r"\(?adres e[- ]mail\)?|e[- ]mail|telefon|tel\.", "Dane kontaktowe"),
     (r"wpisan[ay] do|nazwa rejestru", "Nazwa rejestru"),
     (r"pod numerem", "Numer w rejestrze"),
@@ -35,7 +43,8 @@ _EMPTY = re.compile(r"^[\s.,_\u2026:;()/*\-\u2013\u2014]*$")
 _MASK = re.compile(r"utajn|tajniono|ajniono", re.IGNORECASE)
 _GENERIC = re.compile(r"^\s*(?P<label>[^:]{2,65}):\s*(?P<value>.*)$")
 _CAPTION = re.compile(
-    r"^(?:nazwa miejscowosci|imie i nazwisko|miejscowosc.*data|podpis|czytelny podpis)"
+    r"^(?:nazwa miejscowosci|imie i nazwisko|miejscowosc.*data|podpis|czytelny podpis|"
+    r"adres zamieszkania|seria i numer dowodu osobistego)"
 )
 _MAX_LABEL_WORDS = 8
 
@@ -184,6 +193,7 @@ def _known_fields(
             continue
         if label in {"Identyfikator", "Dane kontaktowe"}:
             label = row.text[match.start() : match.end()].strip(" ()")
+            label = re.sub(r"^oraz\s+numerem\s+", "", label, flags=re.IGNORECASE)
             label = re.sub(r"\)\d$", "", label)
         segment = _segment(row, match.start(), end)
         findings.append(_finding(label, [segment, following] if following else [segment], explicit))

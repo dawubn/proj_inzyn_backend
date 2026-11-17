@@ -10,14 +10,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_user
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.ai_models import AI_MODEL_PROFILES, TEST_DOCUMENT, TEST_ISSUES_TOTAL
+from app.core.config import settings
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.db.session import get_db
-from app.enums.analysis import TERMINAL_STATUSES, UserRole
+from app.enums.analysis import TERMINAL_STATUSES, RedactionCategory, UserRole
 from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.repositories.document_analysis import DocumentAnalysisRepository
+from app.schemas.analysis_options import (
+    ALL_REDACTION_CATEGORIES,
+    AiModelOption,
+    AiModelTestResult,
+    AnalysisOptions,
+    AnalysisOptionsResponse,
+)
 from app.schemas.document import DocumentCreate
 from app.schemas.document_analysis import (
     DocumentAnalysisListResponse,
@@ -104,6 +113,59 @@ async def _trigger_response(
         queued_at=analysis.queued_at,
         message="Waiting for analysis",
     )
+
+
+def _ai_model_option(name: str) -> AiModelOption:
+    profile = AI_MODEL_PROFILES.get(name)
+    if profile is None:
+        return AiModelOption(name=name)
+    return AiModelOption(
+        name=name,
+        recommended=profile.recommended,
+        description=profile.description,
+        cost=profile.cost,
+        speed=profile.speed,
+        quality=profile.quality,
+        test_result=AiModelTestResult(
+            document=TEST_DOCUMENT,
+            issues_found=profile.test_issues_found,
+            issues_total=TEST_ISSUES_TOTAL,
+            cost_usd=profile.test_cost_usd,
+            seconds=profile.test_seconds,
+        ),
+    )
+
+
+def _analysis_options(
+    anonymize: bool = Query(True, description="Mask personal data before the document is sent on"),
+    redaction_categories: list[RedactionCategory] | None = Query(
+        None, description="Kinds of personal data to mask; all kinds when omitted"
+    ),
+    ai_analysis: bool = Query(True, description="Run the legal analysis with the AI model"),
+    ai_model: str | None = Query(
+        None, description="AI model for the legal analysis; the default one when omitted"
+    ),
+) -> AnalysisOptions:
+    """Build the options of a new analysis from the request, rejecting unknown models."""
+    if ai_analysis and ai_model is not None and ai_model not in settings.ai_models:
+        raise ValidationError(f"AI model '{ai_model}' is not available")
+
+    try:
+        return AnalysisOptions(
+            anonymization_enabled=anonymize,
+            redaction_categories=(
+                list(ALL_REDACTION_CATEGORIES)
+                if redaction_categories is None
+                else redaction_categories
+            ),
+            ai_analysis_enabled=ai_analysis,
+            # Stored resolved, so the analysis keeps its model when the default changes
+            ai_model=ai_model or settings.AZURE_OPENAI_DEFAULT_MODEL,
+        )
+    except ValueError as exc:
+        raise ValidationError(
+            "Select at least one data category or turn anonymization off"
+        ) from exc
 
 
 async def _detail_response(
@@ -221,22 +283,44 @@ async def trigger_azure_ocr(
     status_code=status.HTTP_202_ACCEPTED,
     responses={401: COMMON_RESPONSES[401], 404: COMMON_RESPONSES[404]},
 )
-async def trigger_legal_analysis(
+async def trigger_legal_analysis(  # noqa: PLR0913 - FastAPI dependencies
     document_id: uuid.UUID | None = Query(None),
     file: UploadFile | None = File(None),
+    options: AnalysisOptions = Depends(_analysis_options),
     current_user: User = Depends(get_current_user),
     doc_svc: DocumentService = Depends(_document_service),
     analysis_svc: DocumentAnalysisService = Depends(_analysis_service),
 ) -> TriggerAnalysisResponse:
-    """Queue local OCR, redaction, Azure OCR and legal processing."""
+    """Queue local OCR, redaction, Azure OCR and legal processing.
+
+    Without the option parameters the full pipeline runs: all kinds of personal data
+    are masked and the legal analysis uses the default AI model.
+    """
     doc_id = await _get_or_upload_document(
         document_id,
         file,
         current_user,
         doc_svc,
     )
-    analysis = await analysis_svc.trigger_legal_analysis(doc_id, current_user.id)
+    analysis = await analysis_svc.trigger_legal_analysis(doc_id, current_user.id, options)
     return await _trigger_response(analysis, analysis_svc)
+
+
+@router.get(
+    "/options",
+    response_model=AnalysisOptionsResponse,
+    responses={401: COMMON_RESPONSES[401]},
+)  # type: ignore[misc]
+async def get_analysis_options(
+    _current_user: User = Depends(get_current_user),
+) -> AnalysisOptionsResponse:
+    """Describe what can be configured when an analysis is started."""
+    return AnalysisOptionsResponse(
+        redaction_categories=list(ALL_REDACTION_CATEGORIES),
+        ai_analysis_available=settings.ai_analysis_available,
+        ai_models=[_ai_model_option(name) for name in settings.ai_models],
+        default_ai_model=settings.AZURE_OPENAI_DEFAULT_MODEL,
+    )
 
 
 @router.get(

@@ -64,6 +64,16 @@ class ProcessingStage(StrEnum):
     COMPLETED = "completed"
 
 
+class RedactionCategory(StrEnum):
+    # Kinds of personal data that anonymization can cover.
+    PERSON = "person"
+    ADDRESS = "address"
+    DATE = "date"
+    PESEL = "pesel"
+    EMAIL = "email"
+    PHONE = "phone"
+
+
 class ValidationSeverity(StrEnum):
     ERROR = "error"
     WARNING = "warning"
@@ -78,4 +88,4 @@ class ReportStatus(StrEnum):
 
 class UserRole(StrEnum):
     ADMIN = "admin"
-    BUSINESS_USER = "business_user"
+    USER = "user"

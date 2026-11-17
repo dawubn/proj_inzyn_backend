@@ -21,8 +21,8 @@ async def _get_auth_headers(
         json={
             "email": email,
             "password": "Str0ngPass!",
-            "full_name": "Classification User",
-            "role": "business_user",
+            "name": "Classification",
+            "surname": "User",
         },
     )
     await client.post(

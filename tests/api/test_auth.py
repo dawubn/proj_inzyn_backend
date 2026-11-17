@@ -7,15 +7,65 @@ async def test_register_user(client: AsyncClient) -> None:
     payload = {
         "email": "test@example.com",
         "password": "Str0ngPass!",
-        "full_name": "Test User",
-        "role": "business_user",
+        "name": "Test",
+        "surname": "User",
     }
     response = await client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 201
     data = response.json()
     assert data["email"] == payload["email"]
+    assert data["name"] == "Test"
+    assert data["surname"] == "User"
+    assert data["company"] is None
+    assert data["role"] == "user"
     assert "id" in data
     assert "hashed_password" not in data
+
+
+@pytest.mark.asyncio
+async def test_register_user_with_company(client: AsyncClient) -> None:
+    payload = {
+        "email": "company@example.com",
+        "password": "Str0ngPass!",
+        "name": "Company",
+        "surname": "User",
+        "company": "Acme",
+    }
+    response = await client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 201
+    assert response.json()["company"] == "Acme"
+
+
+@pytest.mark.asyncio
+async def test_register_requires_surname(client: AsyncClient) -> None:
+    payload = {
+        "email": "nosurname@example.com",
+        "password": "Str0ngPass!",
+        "name": "Solo",
+    }
+    response = await client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", ["admin", "user", "business_user"])
+async def test_register_ignores_requested_role(client: AsyncClient, role: str) -> None:
+    payload = {
+        "email": f"role_{role}@example.com",
+        "password": "Str0ngPass!",
+        "name": "Role",
+        "surname": "User",
+        "role": role,
+    }
+    response = await client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 201
+    assert response.json()["role"] == "user"
+
+    await client.post(
+        "/api/v1/auth/login", json={"email": payload["email"], "password": payload["password"]}
+    )
+    admin_only = await client.get("/api/v1/documents/admin/all")
+    assert admin_only.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -23,8 +73,8 @@ async def test_register_duplicate_email(client: AsyncClient) -> None:
     payload = {
         "email": "duplicate@example.com",
         "password": "Str0ngPass!",
-        "full_name": "User One",
-        "role": "business_user",
+        "name": "User",
+        "surname": "One",
     }
     await client.post("/api/v1/auth/register", json=payload)
     response = await client.post("/api/v1/auth/register", json=payload)
@@ -36,8 +86,8 @@ async def test_login_success(client: AsyncClient) -> None:
     reg_payload = {
         "email": "login_test@example.com",
         "password": "Str0ngPass!",
-        "full_name": "Login User",
-        "role": "business_user",
+        "name": "Login",
+        "surname": "User",
     }
     await client.post("/api/v1/auth/register", json=reg_payload)
 

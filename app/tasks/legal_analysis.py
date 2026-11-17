@@ -25,6 +25,7 @@ from app.enums.analysis import TERMINAL_STATUSES, AnalysisStatus, ProcessingStag
 from app.enums.document import DocumentStatus, DocumentType
 from app.models.document import Document
 from app.models.document_analysis import DocumentAnalysis
+from app.schemas.analysis_options import AnalysisOptions
 from app.services.formal_report import coerce_document_type
 from app.services.formal_validation import FormalDocumentExtractor
 from app.services.redaction_rules import scrub_text
@@ -38,6 +39,7 @@ from app.tasks.local_ocr import (
 )
 
 if TYPE_CHECKING:
+    from openai import AzureOpenAI
     from structlog.stdlib import BoundLogger
 
     from app.adapters.azure_ocr import OCRResult
@@ -475,6 +477,32 @@ def _get_document_or_raise(
     return document
 
 
+def _ai_model_used(options: AnalysisOptions) -> str | None:
+    """The deployment the legal analysis runs on, None when it does not run."""
+    from app.core.config import settings
+
+    if not options.ai_analysis_enabled or not settings.ai_analysis_available:
+        return None
+    return options.ai_model or settings.AZURE_OPENAI_DEFAULT_MODEL
+
+
+def _run_ai_analysis(
+    options: AnalysisOptions,
+    ocr_text: str,
+    page_count: int,
+    original_filename: str,
+    log: BoundLogger,
+) -> tuple[str, dict[str, Any]]:
+    """Return the prompt and the result of the legal analysis, or empty ones when it is off."""
+    model = _ai_model_used(options)
+    if model is None:
+        log.info("AI analysis turned off or not configured, skipping")
+        return "", {"summary": "", "errors": [], "applicable_laws": []}
+
+    prompt = _build_legal_analysis_prompt(ocr_text, original_filename, page_count)
+    return prompt, _perform_legal_analysis(prompt, log, model)
+
+
 @celery_app.task(  # type: ignore[misc]
     bind=True,
     name="app.tasks.legal_analysis.run_legal_analysis_task",
@@ -530,6 +558,7 @@ def run_legal_analysis_task(
         document.status = DocumentStatus.PROCESSING
 
         params = dict(analysis.pipeline_params or {})
+        options = AnalysisOptions.from_pipeline_params(params)
         pending_task = params.get("pending_task")
         if isinstance(pending_task, dict) and pending_task.get("task_id") == task_id:
             params.pop("pending_task", None)
@@ -537,11 +566,21 @@ def run_legal_analysis_task(
 
         session.commit()
 
+        log.info(
+            "Analysis options",
+            anonymization=options.anonymization_enabled,
+            redaction_categories=[category.value for category in options.redaction_categories],
+            ai_analysis=options.ai_analysis_enabled,
+            ai_model=options.ai_model,
+        )
+
         # Local OCR and redaction run without holding the owner lock.
+        # With anonymization off the pages are only converted to the same format.
         redaction_result = RedactionService().anonymize_file(
             input_path=file_path,
             original_filename=original_filename,
             content_type=content_type,
+            categories=options.redaction_categories,
         )
         temporary_output = Path(redaction_result.output_path)
 
@@ -602,22 +641,25 @@ def run_legal_analysis_task(
 
         analysis = _checkpoint(session, analysis_uuid, task_id)
         analysis.status = AnalysisStatus.IN_PROGRESS
-        analysis.processing_stage = ProcessingStage.LLM_ANALYSIS
         analysis.processing_step = 4
+        if options.ai_analysis_enabled:
+            analysis.processing_stage = ProcessingStage.LLM_ANALYSIS
         session.commit()
 
-        ocr_text, leaks = scrub_text(_build_paged_text(ocr_result), redaction_result.name_stems)
-        log.info(
-            "Cloud OCR text checked before LLM",
-            redaction_leak_count=leaks,
-            unmasked_handwriting=_unmasked_handwriting(ocr_result.raw),
+        ocr_text = _build_paged_text(ocr_result)
+        if options.anonymization_enabled:
+            # Identifiers and names that the local masking missed are removed from the text
+            ocr_text, leaks = scrub_text(
+                ocr_text, redaction_result.name_stems, options.redaction_categories
+            )
+            log.info(
+                "Cloud OCR text checked before LLM",
+                redaction_leak_count=leaks,
+                unmasked_handwriting=_unmasked_handwriting(ocr_result.raw),
+            )
+        prompt, legal_analysis = _run_ai_analysis(
+            options, ocr_text, ocr_result.page_count, original_filename, log
         )
-        prompt = _build_legal_analysis_prompt(
-            ocr_text,
-            original_filename,
-            ocr_result.page_count,
-        )
-        legal_analysis = _perform_legal_analysis(prompt, log)
         errors_with_bbox = _map_legal_errors(
             legal_analysis.get("errors", []),
             tesseract_words,
@@ -636,6 +678,10 @@ def run_legal_analysis_task(
             "summary": legal_analysis.get("summary", ""),
             "errors": errors_with_bbox,
             "applicable_laws": legal_analysis.get("applicable_laws", []),
+            # True when the user turned the AI analysis off for this analysis
+            "skipped": not options.ai_analysis_enabled,
+            # Deployment that produced the result, None when the analysis did not run
+            "model": _ai_model_used(options),
         }
         analysis.status = AnalysisStatus.COMPLETED
         analysis.processing_stage = ProcessingStage.COMPLETED
@@ -716,11 +762,48 @@ def _coerce_page(value: object) -> int | None:
     return None
 
 
+_TEMPERATURE = 0.5
+
+
+def _complete_json(client: AzureOpenAI, model: str, prompt: str, log: BoundLogger) -> str:
+    """Ask the model for a JSON answer and return its text.
+
+    Reasoning models accept only the default temperature. Known ones are sent none;
+    for other deployments a rejected temperature is retried without it.
+    """
+    from openai import BadRequestError
+
+    from app.core.ai_models import supports_temperature
+
+    request: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "response_format": {"type": "json_object"},
+    }
+    if supports_temperature(model):
+        request["temperature"] = _TEMPERATURE
+
+    try:
+        response = client.chat.completions.create(**request)
+    except BadRequestError as exc:
+        if "temperature" not in request or "temperature" not in str(exc):
+            raise
+        log.info("Model does not accept the temperature, retrying without it", model=model)
+        request.pop("temperature")
+        response = client.chat.completions.create(**request)
+
+    return response.choices[0].message.content or ""
+
+
 def _perform_legal_analysis(
     prompt: str,
     log: BoundLogger,
+    model: str | None = None,
 ) -> dict[str, Any]:
-    """Send the legal analysis prompt to Azure LLM."""
+    """Send the legal analysis prompt to Azure LLM.
+
+    `model` is the name of the Azure OpenAI deployment; None uses the default one.
+    """
     import json
 
     from openai import AzureOpenAI
@@ -737,14 +820,9 @@ def _perform_legal_analysis(
             api_version="2024-02-15-preview",
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
         ) as client:
-            response = client.chat.completions.create(
-                model="gpt-4.1",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-                response_format={"type": "json_object"},
+            response_text = _complete_json(
+                client, model or settings.AZURE_OPENAI_DEFAULT_MODEL, prompt, log
             )
-
-            response_text = response.choices[0].message.content or ""
 
         if not response_text:
             log.warning("LLM response was empty")
