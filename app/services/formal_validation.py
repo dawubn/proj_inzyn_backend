@@ -29,7 +29,7 @@ _DATE_RE = re.compile(
     re.IGNORECASE,
 )
 _REDACTION_LABEL_RE = re.compile(
-    r"\[?\s*(?:utajni\w*|tajniono|ajniono)\s*[:.]?\s*"
+    r"\[?\s*(?:utajni\w*|tajniono|ajniono)\s*[:.;]?\s*"
     r"(?P<label>data|adres|imi[eę](?:\s*/\s*naz\w*)?|im|"
     r"pesel|email|telefon|nip|regon|krs|numer dokumentu|numer rachunku|numer karty|numer kw|"
     r"numer rejestracyjny|numer identyfikacyjny|podpis|zdj[eę]cie|kod|dane medyczne)\s*\]?",
@@ -187,7 +187,7 @@ def _keyword_pattern(keyword: str) -> re.Pattern[str]:
     return re.compile(rf"\b{pattern}\b")
 
 
-EXTRACTOR_VERSION = "azure-formal-3.4"
+EXTRACTOR_VERSION = "azure-formal-3.8"
 _YEAR_DIGITS = 4
 _HEADER_LAST_LINE = 5
 _MIN_CLASSIFICATION_CUES = 2
@@ -219,13 +219,16 @@ _FIELD_LABELS = {
     ),
     "has_attachments_section": r"(?:lista zalacznikow|zalaczniki)",
 }
+# OCR can lose the colon next to a mask. Require an explicit mask in that case,
+# so prose such as "Powód wnosi o..." never supplies the party's identity.
+_ROLE_VALUE_START = r"(?=\s*:|\s*$|\s+\[?\s*(?:utajni\w*|tajniono|ajniono)\b)"
 _ROLE_LABELS = {
     "principal": _FIELD_LABELS["has_principal_section"],
     "attorney": _FIELD_LABELS["has_attorney_section"],
-    "claimant": r"(?:strona powodowa|powod(?:ka)?)(?=\s*:|\s*$)",
-    "defendant": r"(?:strona pozwana|pozwany|pozwana)(?=\s*:|\s*$)",
-    "client": r"(?:zamawiajacy|zleceniodawca|kupujacy|nabywca)(?=\s*:|\s*$)",
-    "provider": r"(?:wykonawca|zleceniobiorca|sprzedajacy|sprzedawca)(?=\s*:|\s*$)",
+    "claimant": r"(?:strona powodowa|powod(?:ka)?)" + _ROLE_VALUE_START,
+    "defendant": r"(?:strona pozwana|pozwany|pozwana)" + _ROLE_VALUE_START,
+    "client": r"(?:zamawiajacy|zleceniodawca|kupujacy|nabywca)" + _ROLE_VALUE_START,
+    "provider": r"(?:wykonawca|zleceniobiorca|sprzedajacy|sprzedawca)" + _ROLE_VALUE_START,
 }
 _IDENTITY_CAPTIONS = {
     _FIELD_LABELS["has_principal_section"]: "imie i nazwisko mocodawcy",
@@ -347,6 +350,28 @@ def _mask_only_fragment(text: str) -> bool:
     return not re.search(r"[^\W\d_]{2,}", remainder)
 
 
+def _only_masks_have_uncertain_ocr(context: DocumentContext, raw: dict[str, Any] | None) -> bool:
+    """Poor recognition of generated masks is not unreadable document prose."""
+    if set(context.limitations) != {"LOW_OCR_CONFIDENCE"}:
+        return False
+    masks = [match.span() for match in _REDACTION_LABEL_RE.finditer(context.text)]
+    uncertain = [
+        word
+        for page in (raw or {}).get("pages") or []
+        for word in page.get("words") or []
+        if isinstance(word.get("confidence"), int | float)
+        and word["confidence"] < MIN_WORD_CONFIDENCE
+    ]
+    for word in uncertain:
+        span = word.get("span") or {}
+        start, length = span.get("offset"), span.get("length")
+        if not isinstance(start, int) or not isinstance(length, int) or length <= 0:
+            return False
+        if not any(start < end and start + length > left for left, end in masks):
+            return False
+    return bool(uncertain)
+
+
 def _best(candidates: list[dict[str, Any]], context: DocumentContext) -> dict[str, Any]:
     if not candidates:
         reason = context.limitations[0] if context.limitations else "NOT_FOUND"
@@ -410,11 +435,10 @@ def _field(
             continue
         if scope_field and _scope_continuation(context, index):
             continue
-        # A bare role above a signature box is not a second identity field.
-        if (
-            pattern in _ROLE_LABELS.values()
-            and not line.text[match.end() :].strip()
-            and _above_signature(context, index)
+        # Party captions in signature boxes are not a second identity field.
+        if pattern in _ROLE_LABELS.values() and (
+            _role_in_signature_section(context, index)
+            or (not line.text[match.end() :].strip() and _above_signature(context, index))
         ):
             continue
         value, evidence = _block(context, index, match.end())
@@ -493,6 +517,24 @@ def _value_state(
     if len(re.findall(r"[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]{2,}", value)) < min_words:
         return "unknown", "INSUFFICIENT_VALUE"
     return "present", "VALUE_FOUND"
+
+
+def _role_in_signature_section(context: DocumentContext, index: int) -> bool:
+    """Party captions in an explicit signature section are not identity fields."""
+    for previous in reversed(context.lines[:index]):
+        if previous.page != context.lines[index].page:
+            return False
+        text = normalize_text(previous.text)
+        if re.fullmatch(_PREFIX + r"podpisy(?: stron(?: umowy)?)?\s*[:.]?", text):
+            return True
+        # A new section or a different field ends the signature block.
+        if re.match(r"^\s*(?:§\s*\d+|\d+[.)]\s+)", text):
+            return False
+        if _is_label(text) and not any(
+            _label_match(pattern, text) for pattern in _ROLE_LABELS.values()
+        ):
+            return False
+    return False
 
 
 def _above_signature(context: DocumentContext, index: int) -> bool:
@@ -646,24 +688,38 @@ def _dates(context: DocumentContext) -> dict[str, Any]:  # noqa: PLR0912 - expli
 
 
 def _signature(context: DocumentContext) -> dict[str, Any]:
-    lines = [
-        line
-        for line in context.lines
-        if _label_match(r"\(?(?:czytelny |wlasnoreczny )?podpis(?:y|u|em)?", line.text)
-    ]
-    # Read OCR is not a signature detector. Blank text can have an adjacent graphical mark,
-    # unless redaction found handwriting there and marked it as a signature.
-    for line in lines:
-        index = context.lines.index(line)
-        nearby = [
-            other
-            for other in context.lines[max(0, index - 2) : index + 3]
-            if other.page == line.page
-        ]
-        # Narrow masks split the label over two lines.
-        if "podpis" in _find_redaction_labels("\n".join(other.text for other in nearby)):
-            return _observation("masked", "REDACTED_PRESENCE_CONFIRMED", nearby)
+    signature_label = r"\(?(?:czytelny |wlasnoreczny )?podpis(?:y|u|em)?"
+    for index, line in enumerate(context.lines):
+        if "podpis" in _find_redaction_labels(line.text):
+            return _observation("masked", "REDACTED_PRESENCE_CONFIRMED", [line])
+        # A narrow generated mask may be read as two vertically adjacent lines.
+        caption = _label_match(signature_label, line.text)
+        value = line.text[caption.end() :] if caption else line.text
+        if not re.search(r"(?:^\s*|\[)\s*UTAJNIONO\s*[:.;]?\s*$", value, re.I):
+            continue
+        if index + 1 < len(context.lines):
+            following = context.lines[index + 1]
+            if (
+                following.page == line.page
+                and re.fullmatch(r"\s*PODPIS\s*\]?\s*", following.text, re.I)
+                and _adjacent_signature_mask(line, following)
+            ):
+                return _observation("masked", "REDACTED_PRESENCE_CONFIRMED", [line, following])
+    lines = [line for line in context.lines if _label_match(signature_label, line.text)]
+    # Without a generated signature marker, Read OCR alone cannot confirm a graphical mark.
     return _observation("unknown", "SIGNATURE_REQUIRES_VISUAL_REVIEW", lines)
+
+
+def _adjacent_signature_mask(label: OCRLine, value: OCRLine) -> bool:
+    if not label.polygon or not value.polygon:
+        return False
+    height = max(label.polygon[1::2]) - min(label.polygon[1::2])
+    gap = min(value.polygon[1::2]) - max(label.polygon[1::2])
+    return (
+        0 <= gap <= height * 2
+        and min(label.polygon[::2]) < max(value.polygon[::2])
+        and max(label.polygon[::2]) > min(value.polygon[::2])
+    )
 
 
 def _parties(context: DocumentContext, document_type: DocumentType) -> dict[str, Any]:
@@ -974,9 +1030,16 @@ class FormalDocumentExtractor:
             if attached_page["state"] in {"present", "masked"}:
                 observations["has_attachments_section"] = attachments = attached_page
         if not attachments["evidence"]:
-            if re.search(r"\bzalacznik\w*", normalize_text(context.text)):
-                attachments.update(state="unknown", reason_code="ATTACHMENT_CONTENT_UNVERIFIED")
-            elif not context.limitations:
+            references = [
+                line
+                for line in context.lines
+                if re.search(r"\bzalacznik\w*", normalize_text(line.text))
+            ]
+            if references:
+                observations["has_attachments_section"] = _observation(
+                    "unknown", "ATTACHMENT_CONTENT_UNVERIFIED", references
+                )
+            elif not context.limitations or _only_masks_have_uncertain_ocr(context, raw_ocr_result):
                 attachments.update(state="not_applicable", reason_code="NO_ATTACHMENT_REQUIREMENT")
         observations["has_date"] = _dates(context)
         observations["has_signature"] = _signature(context)

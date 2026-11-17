@@ -82,6 +82,16 @@ def test_signature_and_attachments_stack_below_last_line_of_last_text_page() -> 
     assert attachments["rects"][0]["y"] > signature["rects"][0]["y"]
 
 
+def test_uncertain_attachments_without_evidence_do_not_highlight_footer() -> None:
+    issue = _issue("has_attachments_section")
+    issue.details.update(outcome="unknown", reason_code="LOW_OCR_CONFIDENCE", evidence=[])
+    words = _page_words(1, [(0.97, "Dokument przeznaczony wyłącznie do testów aplikacji.")])
+
+    location = _location(locate_formal_issues([issue], words), "has_attachments_section")
+
+    assert location == {"kind": "page", "page": 1, "rects": []}
+
+
 def test_band_stays_inside_page_when_text_ends_at_bottom() -> None:
     words = _page_words(1, [(0.97, "stopka")])
 

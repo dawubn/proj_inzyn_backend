@@ -37,7 +37,8 @@ def extract_relation_dates(context: DocumentContext, kind: DocumentType) -> dict
             if "utajn" in value:
                 state = "masked"
             elif (
-                not context.limitations
+                # Uncertain OCR elsewhere must not invalidate a clearly read date line.
+                not (set(context.limitations) - {"LOW_OCR_CONFIDENCE"})
                 and line.confidence is not None
                 and line.confidence >= MIN_WORD_CONFIDENCE
                 and len(dates) == 1
