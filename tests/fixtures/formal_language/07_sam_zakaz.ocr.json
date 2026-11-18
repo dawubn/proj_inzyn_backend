@@ -1,0 +1,953 @@
+{
+  "content": "PEŁNOMOCNICTWO\nUTAJNIONO. ADRES] [UTAJNIONO: DATA]\nJTAJNIONO: IMII [UTAJNIONO. IMIE/NAZWISKO]\nMocodawca:\nPełnomocnik: UTAJNIONO: IMIE/NAZW\nPrzykładowa\nZakres pełnomocnictwa: pełnomocnik nie może podpisywać umów\nPodpis mocodawcy:\nDOKUMENT TESTOWY. Wszystkie dane i zdarzenia są fikcyjne. Dokument nie służy do użycia w obrocie prawnym.\n",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "angle": 0,
+      "width": 2481,
+      "height": 3508,
+      "unit": "pixel",
+      "words": [
+        {
+          "content": "PEŁNOMOCNICTWO",
+          "polygon": [
+            257,
+            298,
+            1076,
+            293,
+            1076,
+            370,
+            254,
+            368
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 0,
+            "length": 14
+          }
+        },
+        {
+          "content": "UTAJNIONO.",
+          "polygon": [
+            253,
+            517,
+            311,
+            518,
+            311,
+            529,
+            253,
+            529
+          ],
+          "confidence": 0.811,
+          "span": {
+            "offset": 15,
+            "length": 10
+          }
+        },
+        {
+          "content": "ADRES]",
+          "polygon": [
+            313,
+            518,
+            349,
+            518,
+            349,
+            529,
+            313,
+            529
+          ],
+          "confidence": 0.977,
+          "span": {
+            "offset": 26,
+            "length": 6
+          }
+        },
+        {
+          "content": "[UTAJNIONO:",
+          "polygon": [
+            454,
+            516,
+            515,
+            516,
+            515,
+            529,
+            454,
+            529
+          ],
+          "confidence": 0.653,
+          "span": {
+            "offset": 33,
+            "length": 11
+          }
+        },
+        {
+          "content": "DATA]",
+          "polygon": [
+            518,
+            516,
+            545,
+            517,
+            544,
+            529,
+            518,
+            529
+          ],
+          "confidence": 0.859,
+          "span": {
+            "offset": 45,
+            "length": 5
+          }
+        },
+        {
+          "content": "JTAJNIONO:",
+          "polygon": [
+            523,
+            662,
+            578,
+            660,
+            577,
+            676,
+            522,
+            678
+          ],
+          "confidence": 0.843,
+          "span": {
+            "offset": 51,
+            "length": 10
+          }
+        },
+        {
+          "content": "IMII",
+          "polygon": [
+            581,
+            659,
+            598,
+            659,
+            597,
+            676,
+            580,
+            676
+          ],
+          "confidence": 0.68,
+          "span": {
+            "offset": 62,
+            "length": 4
+          }
+        },
+        {
+          "content": "[UTAJNIONO.",
+          "polygon": [
+            601,
+            659,
+            662,
+            659,
+            662,
+            674,
+            600,
+            676
+          ],
+          "confidence": 0.653,
+          "span": {
+            "offset": 67,
+            "length": 11
+          }
+        },
+        {
+          "content": "IMIE/NAZWISKO]",
+          "polygon": [
+            665,
+            659,
+            750,
+            663,
+            750,
+            673,
+            664,
+            674
+          ],
+          "confidence": 0.963,
+          "span": {
+            "offset": 79,
+            "length": 14
+          }
+        },
+        {
+          "content": "Mocodawca:",
+          "polygon": [
+            251,
+            667,
+            512,
+            672,
+            512,
+            707,
+            251,
+            710
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 94,
+            "length": 10
+          }
+        },
+        {
+          "content": "Pełnomocnik:",
+          "polygon": [
+            252,
+            812,
+            538,
+            812,
+            538,
+            858,
+            252,
+            859
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 105,
+            "length": 12
+          }
+        },
+        {
+          "content": "UTAJNIONO:",
+          "polygon": [
+            545,
+            806,
+            600,
+            807,
+            598,
+            825,
+            544,
+            824
+          ],
+          "confidence": 0.799,
+          "span": {
+            "offset": 118,
+            "length": 10
+          }
+        },
+        {
+          "content": "IMIE/NAZW",
+          "polygon": [
+            603,
+            807,
+            659,
+            806,
+            657,
+            824,
+            602,
+            825
+          ],
+          "confidence": 0.963,
+          "span": {
+            "offset": 129,
+            "length": 9
+          }
+        },
+        {
+          "content": "Przykładowa",
+          "polygon": [
+            664,
+            814,
+            928,
+            813,
+            928,
+            859,
+            664,
+            859
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 139,
+            "length": 11
+          }
+        },
+        {
+          "content": "Zakres",
+          "polygon": [
+            248,
+            957,
+            386,
+            957,
+            387,
+            1007,
+            249,
+            1006
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 151,
+            "length": 6
+          }
+        },
+        {
+          "content": "pełnomocnictwa:",
+          "polygon": [
+            396,
+            957,
+            755,
+            956,
+            755,
+            1009,
+            397,
+            1007
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 158,
+            "length": 15
+          }
+        },
+        {
+          "content": "pełnomocnik",
+          "polygon": [
+            771,
+            956,
+            1033,
+            956,
+            1033,
+            1009,
+            772,
+            1009
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 174,
+            "length": 11
+          }
+        },
+        {
+          "content": "nie",
+          "polygon": [
+            1043,
+            956,
+            1109,
+            956,
+            1109,
+            1009,
+            1043,
+            1009
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 186,
+            "length": 3
+          }
+        },
+        {
+          "content": "może",
+          "polygon": [
+            1125,
+            956,
+            1233,
+            955,
+            1233,
+            1009,
+            1125,
+            1009
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 190,
+            "length": 4
+          }
+        },
+        {
+          "content": "podpisywać",
+          "polygon": [
+            1249,
+            955,
+            1490,
+            955,
+            1490,
+            1008,
+            1249,
+            1009
+          ],
+          "confidence": 0.993,
+          "span": {
+            "offset": 195,
+            "length": 10
+          }
+        },
+        {
+          "content": "umów",
+          "polygon": [
+            1504,
+            955,
+            1632,
+            954,
+            1632,
+            1008,
+            1503,
+            1008
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 206,
+            "length": 4
+          }
+        },
+        {
+          "content": "Podpis",
+          "polygon": [
+            252,
+            1101,
+            393,
+            1102,
+            393,
+            1155,
+            252,
+            1155
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 211,
+            "length": 6
+          }
+        },
+        {
+          "content": "mocodawcy:",
+          "polygon": [
+            409,
+            1102,
+            665,
+            1102,
+            665,
+            1156,
+            408,
+            1155
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 218,
+            "length": 10
+          }
+        },
+        {
+          "content": "DOKUMENT",
+          "polygon": [
+            249,
+            1435,
+            508,
+            1434,
+            508,
+            1485,
+            249,
+            1482
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 229,
+            "length": 8
+          }
+        },
+        {
+          "content": "TESTOWY.",
+          "polygon": [
+            519,
+            1434,
+            736,
+            1433,
+            736,
+            1486,
+            519,
+            1485
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 238,
+            "length": 8
+          }
+        },
+        {
+          "content": "Wszystkie",
+          "polygon": [
+            750,
+            1433,
+            954,
+            1433,
+            954,
+            1488,
+            749,
+            1486
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 247,
+            "length": 9
+          }
+        },
+        {
+          "content": "dane",
+          "polygon": [
+            969,
+            1433,
+            1060,
+            1432,
+            1060,
+            1488,
+            969,
+            1488
+          ],
+          "confidence": 0.992,
+          "span": {
+            "offset": 257,
+            "length": 4
+          }
+        },
+        {
+          "content": "i",
+          "polygon": [
+            1071,
+            1432,
+            1089,
+            1432,
+            1089,
+            1488,
+            1070,
+            1488
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 262,
+            "length": 1
+          }
+        },
+        {
+          "content": "zdarzenia",
+          "polygon": [
+            1104,
+            1432,
+            1298,
+            1432,
+            1298,
+            1489,
+            1103,
+            1488
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 264,
+            "length": 9
+          }
+        },
+        {
+          "content": "są",
+          "polygon": [
+            1314,
+            1432,
+            1351,
+            1432,
+            1350,
+            1489,
+            1314,
+            1489
+          ],
+          "confidence": 0.991,
+          "span": {
+            "offset": 274,
+            "length": 2
+          }
+        },
+        {
+          "content": "fikcyjne.",
+          "polygon": [
+            1361,
+            1432,
+            1537,
+            1432,
+            1537,
+            1489,
+            1361,
+            1489
+          ],
+          "confidence": 0.994,
+          "span": {
+            "offset": 277,
+            "length": 9
+          }
+        },
+        {
+          "content": "Dokument",
+          "polygon": [
+            1552,
+            1432,
+            1765,
+            1432,
+            1764,
+            1489,
+            1552,
+            1489
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 287,
+            "length": 8
+          }
+        },
+        {
+          "content": "nie",
+          "polygon": [
+            1776,
+            1432,
+            1842,
+            1432,
+            1841,
+            1489,
+            1775,
+            1489
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 296,
+            "length": 3
+          }
+        },
+        {
+          "content": "służy",
+          "polygon": [
+            1856,
+            1432,
+            1958,
+            1433,
+            1957,
+            1489,
+            1855,
+            1489
+          ],
+          "confidence": 0.997,
+          "span": {
+            "offset": 300,
+            "length": 5
+          }
+        },
+        {
+          "content": "do",
+          "polygon": [
+            1971,
+            1433,
+            2022,
+            1433,
+            2021,
+            1489,
+            1970,
+            1489
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 306,
+            "length": 2
+          }
+        },
+        {
+          "content": "użycia",
+          "polygon": [
+            2037,
+            1433,
+            2159,
+            1433,
+            2158,
+            1488,
+            2036,
+            1488
+          ],
+          "confidence": 0.998,
+          "span": {
+            "offset": 309,
+            "length": 6
+          }
+        },
+        {
+          "content": "w",
+          "polygon": [
+            2173,
+            1433,
+            2213,
+            1433,
+            2213,
+            1488,
+            2172,
+            1488
+          ],
+          "confidence": 0.996,
+          "span": {
+            "offset": 316,
+            "length": 1
+          }
+        },
+        {
+          "content": "obrocie",
+          "polygon": [
+            251,
+            1506,
+            410,
+            1507,
+            409,
+            1557,
+            251,
+            1557
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 318,
+            "length": 7
+          }
+        },
+        {
+          "content": "prawnym.",
+          "polygon": [
+            425,
+            1507,
+            630,
+            1510,
+            630,
+            1557,
+            425,
+            1557
+          ],
+          "confidence": 0.995,
+          "span": {
+            "offset": 326,
+            "length": 8
+          }
+        }
+      ],
+      "lines": [
+        {
+          "content": "PEŁNOMOCNICTWO",
+          "polygon": [
+            254,
+            294,
+            1075,
+            293,
+            1075,
+            369,
+            254,
+            370
+          ],
+          "spans": [
+            {
+              "offset": 0,
+              "length": 14
+            }
+          ]
+        },
+        {
+          "content": "UTAJNIONO. ADRES]",
+          "polygon": [
+            252,
+            517,
+            349,
+            517,
+            349,
+            529,
+            252,
+            528
+          ],
+          "spans": [
+            {
+              "offset": 15,
+              "length": 17
+            }
+          ]
+        },
+        {
+          "content": "[UTAJNIONO: DATA]",
+          "polygon": [
+            453,
+            516,
+            544,
+            516,
+            544,
+            529,
+            453,
+            528
+          ],
+          "spans": [
+            {
+              "offset": 33,
+              "length": 17
+            }
+          ]
+        },
+        {
+          "content": "JTAJNIONO: IMII [UTAJNIONO. IMIE/NAZWISKO]",
+          "polygon": [
+            522,
+            659,
+            749,
+            658,
+            749,
+            675,
+            522,
+            677
+          ],
+          "spans": [
+            {
+              "offset": 51,
+              "length": 42
+            }
+          ]
+        },
+        {
+          "content": "Mocodawca:",
+          "polygon": [
+            251,
+            667,
+            511,
+            667,
+            511,
+            709,
+            251,
+            709
+          ],
+          "spans": [
+            {
+              "offset": 94,
+              "length": 10
+            }
+          ]
+        },
+        {
+          "content": "Pełnomocnik:",
+          "polygon": [
+            252,
+            811,
+            537,
+            811,
+            537,
+            857,
+            252,
+            858
+          ],
+          "spans": [
+            {
+              "offset": 105,
+              "length": 12
+            }
+          ]
+        },
+        {
+          "content": "UTAJNIONO: IMIE/NAZW",
+          "polygon": [
+            543,
+            806,
+            658,
+            806,
+            658,
+            824,
+            543,
+            824
+          ],
+          "spans": [
+            {
+              "offset": 118,
+              "length": 20
+            }
+          ]
+        },
+        {
+          "content": "Przykładowa",
+          "polygon": [
+            663,
+            812,
+            927,
+            812,
+            927,
+            859,
+            663,
+            859
+          ],
+          "spans": [
+            {
+              "offset": 139,
+              "length": 11
+            }
+          ]
+        },
+        {
+          "content": "Zakres pełnomocnictwa: pełnomocnik nie może podpisywać umów",
+          "polygon": [
+            248,
+            954,
+            1631,
+            954,
+            1631,
+            1008,
+            248,
+            1008
+          ],
+          "spans": [
+            {
+              "offset": 151,
+              "length": 59
+            }
+          ]
+        },
+        {
+          "content": "Podpis mocodawcy:",
+          "polygon": [
+            251,
+            1101,
+            664,
+            1101,
+            664,
+            1155,
+            251,
+            1154
+          ],
+          "spans": [
+            {
+              "offset": 211,
+              "length": 17
+            }
+          ]
+        },
+        {
+          "content": "DOKUMENT TESTOWY. Wszystkie dane i zdarzenia są fikcyjne. Dokument nie służy do użycia w",
+          "polygon": [
+            249,
+            1432,
+            2212,
+            1432,
+            2212,
+            1488,
+            249,
+            1487
+          ],
+          "spans": [
+            {
+              "offset": 229,
+              "length": 88
+            }
+          ]
+        },
+        {
+          "content": "obrocie prawnym.",
+          "polygon": [
+            250,
+            1506,
+            629,
+            1507,
+            629,
+            1557,
+            250,
+            1556
+          ],
+          "spans": [
+            {
+              "offset": 318,
+              "length": 16
+            }
+          ]
+        }
+      ],
+      "spans": [
+        {
+          "offset": 0,
+          "length": 334
+        }
+      ]
+    }
+  ],
+  "stringIndexType": "unicodeCodePoint"
+}

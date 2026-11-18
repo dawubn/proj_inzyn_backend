@@ -14,21 +14,13 @@ from app.utils.text_normalize import normalize_text
 logger = structlog.get_logger(__name__)
 
 _LABEL_TO_DOCUMENT_TYPE: dict[str, DocumentType] = {
-    "financial_reports": DocumentType.FINANCIAL_REPORT,
-    "government_tenders": DocumentType.GOVERNMENT_TENDER,
-    "laws_and_regulations": DocumentType.LAW_AND_REGULATION,
-    "manuals": DocumentType.MANUAL,
-    "patents": DocumentType.PATENT,
-    "scientific_articles": DocumentType.SCIENTIFIC_ARTICLE,
-    "invoices": DocumentType.INVOICE,
     "contracts": DocumentType.CONTRACT,
-    "id_card": DocumentType.ID_CARD,
-    "passport": DocumentType.PASSPORT,
-    "bank_statements": DocumentType.BANK_STATEMENT,
-    "tax_forms": DocumentType.TAX_FORM,
+    "invoices": DocumentType.INVOICE,
+    "patents": DocumentType.PATENT,
     "lawsuits": DocumentType.LAWSUIT,
     "power_of_attorney": DocumentType.POWER_OF_ATTORNEY,
     "applications": DocumentType.APPLICATION,
+    "demand_letters": DocumentType.DEMAND_LETTER,
 }
 
 
@@ -69,10 +61,10 @@ class ClassificationService:
         confidence = float(max(probabilities))
         all_scores: dict[str, float] = {}
         for label, prob in zip(ClassificationService._classes, probabilities, strict=False):
-            mapped_label = _LABEL_TO_DOCUMENT_TYPE.get(label, DocumentType.OTHER).value
+            mapped_label = _LABEL_TO_DOCUMENT_TYPE.get(label, DocumentType.UNKNOWN).value
             all_scores[mapped_label] = round(float(prob), 4)
 
-        document_type = _LABEL_TO_DOCUMENT_TYPE.get(predicted_label, DocumentType.OTHER)
+        document_type = _LABEL_TO_DOCUMENT_TYPE.get(predicted_label, DocumentType.UNKNOWN)
 
         if confidence < settings.CLASSIFIER_MIN_CONFIDENCE:
             logger.info(

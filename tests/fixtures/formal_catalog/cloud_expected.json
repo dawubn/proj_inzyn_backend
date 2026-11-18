@@ -1,0 +1,15 @@
+[
+  {
+    "file": "09_invoice.pdf",
+    "type": "invoice",
+    "expected": {
+      "has_invoice_number": "pass",
+      "has_issue_date": "pass",
+      "has_seller": "pass",
+      "has_buyer": "fail",
+      "has_invoice_items": "pass",
+      "has_invoice_total": "pass",
+      "has_tax_details": "pass"
+    }
+  }
+]

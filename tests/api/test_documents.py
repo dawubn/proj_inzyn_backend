@@ -10,8 +10,8 @@ async def _get_auth_headers(
         json={
             "email": email,
             "password": "Str0ngPass!",
-            "full_name": "Doc User",
-            "role": "business_user",
+            "name": "Doc",
+            "surname": "User",
         },
     )
     await client.post(
@@ -127,3 +127,23 @@ async def test_patch_document_type_forbidden(client: AsyncClient, tmp_path) -> N
         json={"document_type": "invoice"},
     )
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("document_type", [None, "power_of_attorney", "invalid_type"])
+async def test_upload_persists_type_atomically(client: AsyncClient, document_type) -> None:
+    await _get_auth_headers(client, email=f"upload_{document_type}@example.com")
+    response = await client.post(
+        "/api/v1/documents",
+        files={"file": ("typed.pdf", b"%PDF-1.4 test", "application/pdf")},
+        data={"document_type": document_type} if document_type else {},
+    )
+    if document_type == "invalid_type":
+        assert response.status_code == 422
+        documents = await client.get("/api/v1/documents")
+        assert documents.json()["total"] == 0
+    else:
+        assert response.status_code == 201
+        document_id = response.json()["id"]
+        document = await client.get(f"/api/v1/documents/{document_id}")
+        assert document.json()["document_type"] == (document_type or "unknown")

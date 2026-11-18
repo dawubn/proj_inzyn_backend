@@ -5,10 +5,12 @@ Azure SDK is mocked, no real API calls are made.
 Tests verify mapping logic and error handling.
 """
 
+import io
 from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PIL import Image
 
 from app.adapters.azure_ocr import AzureOCRAdapter, OCRPage, OCRResult
 from app.core.exceptions import OCRServiceError
@@ -124,6 +126,12 @@ class TestAnalyzeDocument:
         assert result.text_content == "Test content"
         assert result.page_count == 1
         mock_client.begin_analyze_document.assert_called_once()
+        request = mock_client.begin_analyze_document.call_args.args[1]
+        assert request.as_dict() == {"base64Source": "ZmFrZS1wZGYtYnl0ZXM="}
+        assert (
+            mock_client.begin_analyze_document.call_args.kwargs["string_index_type"]
+            == "unicodeCodePoint"
+        )
 
     def test_raises_ocr_service_error_on_azure_http_error(self, adapter: AzureOCRAdapter) -> None:
         from azure.core.exceptions import HttpResponseError
@@ -153,6 +161,57 @@ class TestAnalyzeDocument:
 
         with pytest.raises(OCRServiceError, match="Unexpected OCR error"):
             adapter.analyze_document(b"bytes", "application/pdf")
+
+
+def _tiff(pages: int) -> bytes:
+    buffer = io.BytesIO()
+    frames = [Image.new("RGB", (20, 20), "white") for _ in range(pages)]
+    frames[0].save(buffer, format="TIFF", save_all=True, append_images=frames[1:])
+    return buffer.getvalue()
+
+
+def test_tiff_batches_preserve_every_page_and_rebase_unicode_spans(adapter):
+    requests = []
+
+    def analyze(data, content_type):
+        with Image.open(io.BytesIO(data)) as image:
+            requests.append(image.n_frames)
+            pages = [
+                {
+                    "pageNumber": index + 1,
+                    "width": 20,
+                    "height": 20,
+                    "lines": [{"content": "Żółć😀", "spans": [{"offset": 0, "length": 5}]}],
+                    "words": [
+                        {
+                            "content": "Żółć😀",
+                            "span": {"offset": 0, "length": 5},
+                            "confidence": 0.99,
+                        }
+                    ],
+                }
+                for index in range(image.n_frames)
+            ]
+        assert content_type == "image/tiff"
+        return adapter._map_result({"content": "Żółć😀", "pages": pages})
+
+    with patch.object(adapter, "_analyze_bytes", side_effect=analyze):
+        result = adapter.analyze_document(_tiff(3), "image/tiff")
+    assert requests == [2, 1]
+    assert result.page_count == 3
+    assert [p.page_number for p in result.pages] == [1, 2, 3]
+    assert result.raw["pages"][2]["lines"][0]["spans"][0]["offset"] == 6
+    assert result.raw["pages"][2]["words"][0]["span"]["offset"] == 6
+    assert result.text_content[6:11] == "Żółć😀"
+
+
+def test_tiff_partial_result_is_an_error_instead_of_a_complete_document(adapter):
+    partial = adapter._map_result({"content": "only page one", "pages": [{"pageNumber": 1}]})
+    with (
+        patch.object(adapter, "_analyze_bytes", return_value=partial),
+        pytest.raises(OCRServiceError, match="wszystkich stron"),
+    ):
+        adapter.analyze_document(_tiff(2), "image/tiff")
 
 
 def _make_pdf(pages: int) -> bytes:
@@ -246,7 +305,7 @@ class TestAnalyzePaged:
                 raw=_raw_chunk(["three"]), text_content="", pages=[], page_count=1, confidence=None
             ),
         ]
-        with patch.object(adapter, "analyze_document", side_effect=chunk_results) as analyze:
+        with patch.object(adapter, "_analyze_bytes", side_effect=chunk_results) as analyze:
             result = adapter.analyze_paged(_make_pdf(3), "application/pdf")
 
         assert analyze.call_count == 2
@@ -268,3 +327,12 @@ class TestAnalyzePaged:
 
         assert result.text_content == "x"
         mock_client.begin_analyze_document.assert_called_once()
+
+
+def test_paged_pdf_partial_result_is_an_error(adapter: AzureOCRAdapter) -> None:
+    partial = adapter._map_result(_raw_chunk(["only page one"]))
+    with (
+        patch.object(adapter, "_analyze_bytes", return_value=partial),
+        pytest.raises(OCRServiceError, match="wszystkich stron"),
+    ):
+        adapter.analyze_paged(_make_pdf(2), "application/pdf")

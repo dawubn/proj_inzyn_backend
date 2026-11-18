@@ -7,7 +7,8 @@ _PUNCT_PATTERN = re.compile(r"[^\w\s]")
 
 
 def _strip_diacritics(text: str) -> str:
-    nfkd = unicodedata.normalize("NFKD", text)
+    # NFKD does not decompose "ł", so it would be dropped instead of becoming "l".
+    nfkd = unicodedata.normalize("NFKD", text.replace("ł", "l").replace("Ł", "L"))
     return nfkd.encode("ascii", "ignore").decode("ascii")
 
 

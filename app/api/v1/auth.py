@@ -1,19 +1,33 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.api.cookies import clear_auth_cookies, set_auth_cookies
 from app.db.session import get_db
+from app.repositories.password_reset_token import PasswordResetTokenRepository
 from app.repositories.user import UserRepository
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse
+from app.schemas.auth import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    RefreshRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+)
+from app.schemas.common import MessageResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth import AuthService
+from app.services.email import send_password_reset_email
+from app.services.password_reset import PasswordResetService, build_reset_url
 
 router = APIRouter()
 
 
 def _auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(UserRepository(db))
+
+
+def _password_reset_service(db: AsyncSession = Depends(get_db)) -> PasswordResetService:
+    return PasswordResetService(UserRepository(db), PasswordResetTokenRepository(db))
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)  # type: ignore[misc]
@@ -48,23 +62,7 @@ async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -
         }
     )
 
-    response.set_cookie(
-        key="access_token",
-        value=tokens.access_token,
-        httponly=True,
-        secure=settings.APP_ENV == "production",
-        samesite="lax",
-        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-
-    response.set_cookie(
-        key="refresh_token",
-        value=tokens.refresh_token,
-        httponly=True,
-        secure=settings.APP_ENV == "production",
-        samesite="strict",
-        max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-    )
+    set_auth_cookies(response, tokens)
 
     return response
 
@@ -89,25 +87,7 @@ async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service
 
     response = Response(status_code=204)
 
-    # Set access token cookie
-    response.set_cookie(
-        key="access_token",
-        value=tokens.access_token,
-        httponly=True,
-        secure=settings.APP_ENV == "production",
-        samesite="lax",
-        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-
-    # Set refresh token cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=tokens.refresh_token,
-        httponly=True,
-        secure=settings.APP_ENV == "production",
-        samesite="strict",
-        max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-    )
+    set_auth_cookies(response, tokens)
 
     return response
 
@@ -116,6 +96,47 @@ async def refresh(data: RefreshRequest, svc: AuthService = Depends(_auth_service
 async def logout() -> Response:
     """Logout by clearing secure cookies."""
     response = Response(status_code=204)
-    response.delete_cookie(key="access_token", secure=settings.APP_ENV == "production")
-    response.delete_cookie(key="refresh_token", secure=settings.APP_ENV == "production")
+    clear_auth_cookies(response)
+    return response
+
+
+@router.post("/forgot-password", response_model=MessageResponse, status_code=202)  # type: ignore[misc]
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    svc: PasswordResetService = Depends(_password_reset_service),
+) -> MessageResponse:
+    """Send a password reset link to the given email.
+
+    The response is the same whether or not an account with this email exists,
+    so the endpoint cannot be used to check which emails are registered.
+    """
+    result = await svc.request_reset(data.email)
+    if result:
+        user, token = result
+        background_tasks.add_task(send_password_reset_email, user.email, build_reset_url(token))
+
+    return MessageResponse(
+        message="If an account with this email exists, a password reset link has been sent."
+    )
+
+
+@router.post(
+    "/reset-password",
+    status_code=204,
+    responses={400: {"description": "Reset link is invalid, already used or expired"}},
+)  # type: ignore[misc]
+async def reset_password(
+    data: ResetPasswordRequest,
+    svc: PasswordResetService = Depends(_password_reset_service),
+) -> Response:
+    """Set a new password using the token from the reset link.
+
+    The link works once. All existing sessions of the user stop working,
+    and the session cookies of this browser are cleared.
+    """
+    await svc.reset_password(data.token, data.new_password)
+
+    response = Response(status_code=204)
+    clear_auth_cookies(response)
     return response

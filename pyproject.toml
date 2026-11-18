@@ -36,10 +36,18 @@ dependencies = [
     "spacy>=3.7.0",
     "langdetect>=1.0.9",
     "scikit-learn>=1.5.0",
+    "rapidocr>=3.10.0",
+    "onnxruntime>=1.20.0",
+    "tokenizers>=0.21.0",
+    "opencv-python-headless>=4.10.0",
+    "zxing-cpp>=2.3.0",
+    "phonenumbers>=8.13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "matplotlib>=3.9,<4",
+    "reportlab>=4.2,<5",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
@@ -75,8 +83,8 @@ known-first-party = ["app"]
 "app/tasks/legal_analysis.py" = ["E501"]
 "app/core/config.py" = ["S105"]
 "app/adapters/azure_ocr.py" = ["PLR0912", "ANN401"]
-"app/adapters/local_ocr.py" = ["ANN401"]
-"app/services/redaction_detectors.py" = ["PLR0912", "PLR2004", "E501"]
+"app/adapters/local_ocr.py" = ["ANN401", "PLR2004", "PLC0415"]
+"app/services/redaction_*.py" = ["ANN401", "PLC0415", "PLR0911", "PLR0912", "PLR2004", "E501"]
 "app/api/**/*.py" = ["ARG001"]
 "app/repositories/base.py" = ["UP046"]
 "app/schemas/common.py" = ["UP046"]

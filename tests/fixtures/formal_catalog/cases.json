@@ -1,0 +1,156 @@
+[
+  {
+    "type": "application",
+    "title": "CURRICULUM VITAE",
+    "rows": [
+      [
+        "has_candidate",
+        "Imię i nazwisko",
+        "Jan Testowski"
+      ],
+      [
+        "has_contact",
+        "Kontakt",
+        "jan.testowski@example.com"
+      ],
+      [
+        "has_experience",
+        "Doświadczenie zawodowe",
+        "Specjalista ds. sprzedaży w firmie Testowa w latach 2020-2026"
+      ],
+      [
+        "has_education",
+        "Wykształcenie",
+        "Studia magisterskie z zarządzania na Uniwersytecie Testowym"
+      ],
+      [
+        "has_skills",
+        "Umiejętności",
+        "Obsługa arkuszy kalkulacyjnych i język angielski"
+      ],
+      [
+        "has_data_consent",
+        "Klauzula",
+        "Wyrażam zgodę na przetwarzanie moich danych w procesie rekrutacji"
+      ]
+    ]
+  },
+  {
+    "type": "invoice",
+    "title": "FAKTURA VAT",
+    "rows": [
+      [
+        "has_invoice_number",
+        "Numer faktury",
+        "TEST/29/2026"
+      ],
+      [
+        "has_issue_date",
+        "Data wystawienia",
+        "29.10.2026"
+      ],
+      [
+        "has_seller",
+        "Sprzedawca",
+        "Testowa Firma Alfa"
+      ],
+      [
+        "has_buyer",
+        "Nabywca",
+        "Testowa Firma Beta"
+      ],
+      [
+        "has_invoice_items",
+        "Nazwa towaru lub usługi",
+        "Przegląd instalacji grzewczej"
+      ],
+      [
+        "has_invoice_total",
+        "Do zapłaty",
+        "1230,00 PLN"
+      ],
+      [
+        "has_tax_details",
+        "Stawka VAT",
+        "23%"
+      ]
+    ]
+  },
+  {
+    "type": "patent",
+    "title": "DOKUMENT PATENTOWY — TEST",
+    "rows": [
+      [
+        "has_invention_title",
+        "Tytuł wynalazku",
+        "Urządzenie do pomiaru temperatury cieczy"
+      ],
+      [
+        "has_patent_applicant",
+        "Zgłaszający",
+        "Jan Testowski"
+      ],
+      [
+        "has_invention_description",
+        "Opis wynalazku",
+        "Układ zawiera czujnik i moduł pomiarowy połączony przewodem"
+      ],
+      [
+        "has_patent_claims",
+        "Zastrzeżenia patentowe",
+        "Urządzenie znamienne tym że posiada izolowany czujnik"
+      ],
+      [
+        "has_patent_abstract",
+        "Skrót opisu",
+        "Rozwiązanie umożliwia pomiar temperatury bez kontaktu użytkownika"
+      ],
+      [
+        "has_patent_number",
+        "Numer zgłoszenia",
+        "TEST/000001"
+      ]
+    ]
+  },
+  {
+    "type": "demand_letter",
+    "title": "PRZEDSĄDOWE WEZWANIE DO ZAPŁATY",
+    "rows": [
+      [
+        "has_creditor",
+        "Wierzyciel",
+        "Testowa Firma Alfa"
+      ],
+      [
+        "has_debtor",
+        "Dłużnik",
+        "Jan Testowski"
+      ],
+      [
+        "has_demand_amount",
+        "Kwota do zapłaty",
+        "4 500,00 zł"
+      ],
+      [
+        "has_payment_deadline",
+        "Termin zapłaty",
+        "7 dni od doręczenia wezwania"
+      ],
+      [
+        "has_demand_date",
+        "Data wezwania",
+        "29.10.2026"
+      ],
+      [
+        "has_signature",
+        "Podpis wierzyciela",
+        "................"
+      ],
+      [
+        "has_demand_basis",
+        "Podstawa roszczenia",
+        "Faktura nr TEST/29/2026"
+      ]
+    ]
+  }
+]

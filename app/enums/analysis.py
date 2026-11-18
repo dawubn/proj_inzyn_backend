@@ -4,7 +4,10 @@ from enum import StrEnum
 class AnalysisStatus(StrEnum):
     # General states
     PENDING = "pending"
+    QUEUED = "queued"
     IN_PROGRESS = "in_progress"
+    CANCELLING = "cancelling"
+    CANCELLED = "cancelled"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -16,6 +19,41 @@ class AnalysisStatus(StrEnum):
     VALIDATING = "validating"
 
 
+# Statusy zajmujące slot przetwarzania użytkownika.
+# OCR_COMPLETED utrzymuje slot między OCR a kolejnym etapem.
+# CANCELLING utrzymuje slot do potwierdzenia zakończenia pracy.
+ACTIVE_STATUSES: frozenset[AnalysisStatus] = frozenset(
+    {
+        AnalysisStatus.IN_PROGRESS,
+        AnalysisStatus.CANCELLING,
+        AnalysisStatus.OCR_IN_PROGRESS,
+        AnalysisStatus.OCR_COMPLETED,
+        AnalysisStatus.CLASSIFYING,
+        AnalysisStatus.VALIDATING,
+    }
+)
+
+
+TERMINAL_STATUSES: frozenset[AnalysisStatus] = frozenset(
+    {
+        AnalysisStatus.COMPLETED,
+        AnalysisStatus.FAILED,
+        AnalysisStatus.OCR_FAILED,
+        AnalysisStatus.CANCELLED,
+    }
+)
+
+
+# Statusy, dla których można zgłosić anulowanie.
+CANCELLABLE_STATUSES: frozenset[AnalysisStatus] = frozenset(
+    {
+        AnalysisStatus.PENDING,
+        AnalysisStatus.QUEUED,
+        *(status for status in ACTIVE_STATUSES if status != AnalysisStatus.CANCELLING),
+    }
+)
+
+
 class ProcessingStage(StrEnum):
     # Detailed processing stages for granular status tracking.
     PENDING = "pending"
@@ -24,6 +62,16 @@ class ProcessingStage(StrEnum):
     AZURE_OCR = "azure_ocr"
     LLM_ANALYSIS = "llm_analysis"
     COMPLETED = "completed"
+
+
+class RedactionCategory(StrEnum):
+    # Kinds of personal data that anonymization can cover.
+    PERSON = "person"
+    ADDRESS = "address"
+    DATE = "date"
+    PESEL = "pesel"
+    EMAIL = "email"
+    PHONE = "phone"
 
 
 class ValidationSeverity(StrEnum):
@@ -40,4 +88,4 @@ class ReportStatus(StrEnum):
 
 class UserRole(StrEnum):
     ADMIN = "admin"
-    BUSINESS_USER = "business_user"
+    USER = "user"

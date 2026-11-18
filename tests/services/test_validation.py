@@ -17,7 +17,10 @@ def test_required_field_uses_configured_user_message() -> None:
         order=10,
     )
 
-    issues = RuleEngineService().run([rule], {"has_signature": False})
+    issues = RuleEngineService().run(
+        [rule],
+        {"observations": {"has_signature": {"state": "missing", "reason_code": "NOT_FOUND"}}},
+    )
 
     assert len(issues) == 1
     assert issues[0].message == "Brakuje podpisu albo oznaczenia miejsca na podpis."

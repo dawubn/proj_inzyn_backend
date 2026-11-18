@@ -8,7 +8,7 @@ REST API backend for document completeness analysis and local anonymisation.
 - **SQLAlchemy 2.0** + **Alembic** — ORM & migrations (PostgreSQL)
 - **Celery** + **Redis** — async task queue
 - **Azure AI Document Intelligence** — cloud OCR provider
-- **Tesseract OCR** + **spaCy** + **PyMuPDF** — local OCR and anonymisation
+- **Tesseract OCR** + **RapidOCR** + **spaCy** + **HerBERT NER** + **PyMuPDF** — local OCR and anonymisation
 - **JWT** — authentication
 - **Docker Compose** — local development
 
@@ -106,6 +106,9 @@ pip install -e ".[dev]"
 python -m spacy download pl_core_news_lg
 python -m spacy download en_core_web_lg
 
+# Download anonymisation models
+REDACTION_MODELS_DIR=./models python scripts/download_redaction_models.py
+
 # Start DB + Redis separately (e.g. via Docker)
 docker compose up db redis -d
 
@@ -146,7 +149,23 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/auth/register` | Register a new user |
 | POST | `/api/v1/auth/login` | Login, get JWT tokens |
 | POST | `/api/v1/auth/refresh` | Refresh access token |
+| POST | `/api/v1/auth/forgot-password` | Send a password reset link by email |
+| POST | `/api/v1/auth/reset-password` | Set a new password with the token from the link |
 | GET | `/api/v1/users/me` | Get current user profile |
+| PATCH | `/api/v1/users/me` | Update own name, surname and company |
+| POST | `/api/v1/users/me/password` | Change own password (requires the current one) |
+
+#### Password reset
+
+`forgot-password` always answers `202` with the same message, whether or not the email is
+registered. When it is, the user gets a link to `FRONTEND_URL/reset-password?token=...`.
+The link is valid for `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (30 by default), works once,
+and a newer link replaces the older one. Setting a new password ends all existing sessions
+of the user.
+
+Emails are sent over SMTP (`SMTP_*` variables in `.env`). Without `SMTP_HOST` nothing is
+sent; in development the message with the link is written to the API log, so the flow can
+be tested without a mail server.
 
 ### Documents
 | Method | Path | Description | Access |
@@ -164,6 +183,7 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/redactions/full-ocr` | Async full OCR pipeline: local → redaction → Azure | Analysis ID (HTTP 202) | Owner |
 | POST | `/api/v1/redactions/azure-ocr` | Async Azure OCR only | Analysis ID (HTTP 202) | Owner |
 | POST | `/api/v1/redactions/legal-analysis` | Async full pipeline + legal analysis (LLM) | Analysis ID (HTTP 202) | Owner |
+| GET | `/api/v1/redactions/options` | What can be configured when an analysis is started | Categories and AI models | Any user |
 | GET | `/api/v1/redactions` | List user's analyses | Analyses list | Owner |
 | GET | `/api/v1/redactions/{analysis_id}` | Get analysis status & results | Analysis details | Owner, Admin |
 | DELETE | `/api/v1/redactions/{analysis_id}` | Delete analysis | HTTP 204 | Owner |
@@ -172,11 +192,11 @@ pytest tests/api/test_auth.py -v
 ### Synchronous Redaction (`POST /api/v1/redactions`)
 
 Accepts `multipart/form-data` with field `file` (PDF, PNG, JPG/JPEG).
-Runs OCR locally via Tesseract, detects sensitive data with regex + spaCy NER, and returns the
-file with all detected fields masked by black rectangles. **Nothing is stored in database.**
+Runs OCR locally via Tesseract and RapidOCR, detects sensitive data with rules, NER and image checks,
+and returns the file with all detected fields masked by black rectangles. **Nothing is stored in database.**
 
-Detected types: PESEL (11-digit), e-mail, phone (Polish mobile), numeric dates,
-Polish descriptive dates (`27 stycznia 1975`), person names, places, English-style addresses.
+Detected types: PESEL, NIP, REGON, KRS, ID and passport numbers, bank accounts, cards, phones,
+e-mails, person names, addresses, signatures, faces and QR or bar codes. Dates stay visible.
 
 ```bash
 # PDF — returns anonymized PDF
@@ -206,6 +226,28 @@ All return `202 Accepted` with analysis ID and task ID:
 ```
 
 Use `GET /api/v1/redactions/{analysis_id}` to poll analysis status.
+
+#### Analysis options
+
+`POST /api/v1/redactions/legal-analysis` accepts optional query parameters that change
+how a single analysis runs. Without them the full pipeline runs.
+
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `anonymize` | `true` | `false` sends the document on without masking personal data |
+| `redaction_categories` | all | Kinds of data to mask (repeatable): `person`, `address`, `date`, `pesel`, `email`, `phone` |
+| `ai_analysis` | `true` | `false` skips the legal analysis by the AI model |
+| `ai_model` | `AZURE_OPENAI_DEFAULT_MODEL` | One of `AZURE_OPENAI_MODELS` |
+
+`AZURE_OPENAI_MODELS` lists the Azure OpenAI deployments a user can choose from; the names
+have to match deployments that exist in the Azure OpenAI resource. The options used are
+returned with the analysis in the `options` field.
+
+`GET /api/v1/redactions/options` describes each model with its relative cost, speed and
+quality and with the result of a comparison on a test document. These profiles live in
+`app/core/ai_models.py`; a deployment without a profile is offered without a description.
+Reasoning models (`gpt-6*`) accept only the default temperature, so the call leaves it out
+for them, and retries without it when another deployment rejects it.
 
 #### Legal Analysis (`POST /api/v1/redactions/legal-analysis`)
 
@@ -264,22 +306,38 @@ curl -X GET http://localhost:8000/api/v1/redactions/$ANALYSIS_ID \
 - **Non-admin users**: Can only access their own documents and analyses
 - **Admin users**: Full access to all documents and analyses across all users
 - **Attempting unauthorized access**: Returns 404 NotFound (not 403 for security)
+
+Every account is created with the `user` role; the role cannot be chosen at registration.
+To make an existing account an admin:
+
+```bash
+docker compose exec api python scripts/set_user_role.py user@example.com admin
+```
+
 Docker handles all OCR dependencies automatically during `docker compose up --build`.
+
+## Anonymisation
+
+Pages are masked locally before anything is sent to Azure. Detection lives in
+`app/services/redaction_*.py`.
+
+Polish NER uses [lexedit/herbert-polish-legal-ner-ocr](https://huggingface.co/lexedit/herbert-polish-legal-ner-ocr)
+(CC BY 4.0), face detection uses YuNet from the OpenCV Zoo (MIT).
 
 ## Document Classification
 
 `POST /api/v1/classify` accepts OCR text and returns a predefined document type with confidence.
-Uses a TF-IDF + Logistic Regression pipeline trained on the DocLayNet dataset. The endpoint
+Uses a TF-IDF + Logistic Regression pipeline trained on generated training text. The endpoint
 accepts the normalised payload (`text_content`), Azure-style alias (`content`), or the full raw
 OCR payload (`ocr_raw_result.content`).
 
-Detected types: `invoice`, `contract`, `id_card`, `passport`, `bank_statement`, `tax_form`,
-`financial_report`, `government_tender`, `law_and_regulation`, `manual`, `patent`,
-`scientific_article`, `lawsuit`, `power_of_attorney`, `application`.
+Detected types: `contract`, `invoice`, `patent`, `lawsuit`, `power_of_attorney`,
+`application` (job application or CV) and `demand_letter` (pre-trial demand for payment).
+Anything else is returned as `unknown`.
 
 The same classifier runs automatically after every OCR analysis — its result is stored on the
-analysis (`detected_document_type`, `classification_confidence`) and on the document
-(`document_type`), so the frontend gets the type without an extra call.
+analysis (`detected_document_type`, `classification_confidence`) and suggested on the document
+(`suggested_document_type`), so the frontend gets the type without an extra call.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/classify \
@@ -325,22 +383,25 @@ confirm the type instead of trusting a weak guess.
 
 To add a new document type:
 
-1. Add the value to `DocumentType` in `app/enums/document.py` (e.g. `DEED = "deed"`).
-2. Add a template entry for the new class in `scripts/generate_synthetic_training_data.py`
+1. Add the value to `DocumentType` in `app/enums/document.py` (e.g. `DEED = "deed"`) and a
+   migration that adds it to the `ck_documents_document_type` constraint.
+2. Add a validation profile: a spec in `app/services/formal_catalog.py` or a built-in profile in
+   `app/services/mvp_validation_profiles.py`.
+3. Add a template entry for the new class in `scripts/generate_synthetic_training_data.py`
    (`_CLASS_TEMPLATES` dict — folder name = class label, e.g. `"deeds": {...}`).
-3. Map the folder name to the enum value in `_LABEL_TO_DOCUMENT_TYPE` in
+4. Map the folder name to the enum value in `_LABEL_TO_DOCUMENT_TYPE` in
    `app/services/classification.py` (e.g. `"deeds": DocumentType.DEED`).
-4. Regenerate training data and retrain the model:
+5. Regenerate training data and retrain the model:
    ```bash
    python scripts/generate_synthetic_training_data.py
    python scripts/train_classifier.py
    ```
-5. Restart the API and worker so they pick up the new model:
+6. Restart the API and worker so they pick up the new model:
    ```bash
    docker compose restart api worker
    ```
 
-Labels that exist in the model but are not mapped fall back to `DocumentType.OTHER`.
+Labels that exist in the model but are not mapped fall back to `DocumentType.UNKNOWN`.
 
 ## Project Structure
 
@@ -419,6 +480,8 @@ Key variables:
 - `AZURE_DOCUMENT_INTELLIGENCE_KEY` — Azure Document Intelligence API key
 - `AZURE_OPENAI_ENDPOINT` — Azure OpenAI endpoint (for legal analysis)
 - `AZURE_OPENAI_KEY` — Azure OpenAI API key (for legal analysis)
+- `REDACTION_MODELS_DIR` — local anonymisation models (default `/opt/cerberdoc/models`)
+- `REDACTION_SECOND_OCR_ENABLED`, `REDACTION_VERIFY_ENABLED` — second OCR engine and re-check of masked pages
 
 ### Azure Configuration
 
@@ -444,3 +507,37 @@ Key variables:
    ```
 
 > **Note:** Legal analysis (`POST /api/v1/redactions/legal-analysis`) gracefully degrades if Azure OpenAI is not configured — returns empty results.
+
+## Effectiveness Tests
+
+Generates 100 synthetic PDFs across 7 document types and runs the backend pipeline. Measures missing-field detection (TP, FN, FP, recall, precision), invalid-date outcomes, report consistency, and PDF export availability.
+
+Grammar defects, advisory fields, signatures, and visual elements are not scored. Classification accuracy is not tested.
+
+### Running
+
+From the backend directory:
+
+```powershell
+py -3.12 -m tests.effectiveness.run
+```
+
+Generate documents only:
+
+```powershell
+py -3.12 -m tests.effectiveness.run --generate-only
+```
+
+Requires a running backend and a test account. Credentials are prompted or read from `TEST_ACCESS_TOKEN`, `TEST_EMAIL`, and `TEST_PASSWORD`. Real OCR/LLM calls may incur charges.
+
+### Results
+
+Saved in `tests/effectiveness/result/test-YYYY-MM-DD/`:
+
+- `documents/` — generated PDFs.
+- `reports/` — downloaded PDF reports.
+- `log.json` — execution log.
+- `report_result.json` — detailed results.
+- `chart.png` — detection metrics and report consistency.
+
+Report consistency requires independent summaries via `--reference-summaries`. Without them, reports remain unchecked and execution returns a non-zero exit code. PDF checks verify availability and the header, not full content correctness.

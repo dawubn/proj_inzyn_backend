@@ -5,6 +5,7 @@ from app.schemas.common import OrmBase, TimestampSchema, UUIDSchema
 
 
 class DocumentCreate(OrmBase):
+    document_type: DocumentType = DocumentType.UNKNOWN
     description: str | None = Field(default=None, max_length=1000)
 
 

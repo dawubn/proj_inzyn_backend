@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.pagination import PaginationParams
 from app.db.session import get_db
+from app.enums.document import DocumentType
 from app.models.user import User
 from app.repositories.document import DocumentRepository
 from app.schemas.common import PaginatedResponse
@@ -61,6 +62,7 @@ async def list_user_documents(
 async def upload_document(
     file: UploadFile = File(...),
     description: str | None = Form(default=None),
+    document_type: DocumentType = Form(default=DocumentType.UNKNOWN),
     current_user: User = Depends(get_current_user),
     svc: DocumentService = Depends(_document_service),
 ) -> DocumentResponse:
@@ -75,7 +77,7 @@ async def upload_document(
         filename=file.filename or "unnamed",
         content=content,
         content_type=file.content_type or "application/octet-stream",
-        metadata=DocumentCreate(description=description),
+        metadata=DocumentCreate(description=description, document_type=document_type),
     )
     return DocumentResponse.model_validate(doc)
 

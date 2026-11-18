@@ -1,16 +1,29 @@
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import structlog
 from celery import Task
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.adapters.local_ocr import LocalOCRAdapter
-from app.enums.analysis import AnalysisStatus
+from app.enums.analysis import ACTIVE_STATUSES, TERMINAL_STATUSES, AnalysisStatus, ProcessingStage
+from app.enums.document import DocumentStatus
+from app.models.document import Document
+from app.models.document_analysis import DocumentAnalysis
 from app.tasks.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
+
+
+class _LocalOCRStoppedError(Exception):
+    """Stop processing without treating the current state as a task failure."""
+
+    def __init__(self, result: dict[str, Any]) -> None:
+        super().__init__(str(result.get("status", "stopped")))
+        self.result = result
 
 
 def _get_db_session() -> Session:
@@ -25,82 +38,246 @@ def _get_db_session() -> Session:
     return sessionmaker(bind=engine)()
 
 
+def _lock_analysis(
+    session: Session,
+    analysis_id: uuid.UUID,
+) -> DocumentAnalysis | None:
+    """Use the same owner lock as the API and refresh the processing state."""
+    owner_id = session.execute(
+        select(DocumentAnalysis.owner_id).where(DocumentAnalysis.id == analysis_id)
+    ).scalar_one_or_none()
+
+    if owner_id is None:
+        return None
+
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(CAST(:owner_id AS text), 0))"),
+        {"owner_id": str(owner_id)},
+    )
+
+    return session.execute(
+        select(DocumentAnalysis)
+        .where(DocumentAnalysis.id == analysis_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
+
+
+def _update_document_status(
+    session: Session,
+    analysis: DocumentAnalysis,
+    fallback: DocumentStatus,
+) -> None:
+    """Do not hide other processing requests for the same document."""
+    document = session.get(Document, analysis.document_id)
+    if document is None:
+        return
+
+    other_statuses = list(
+        session.execute(
+            select(DocumentAnalysis.status).where(
+                DocumentAnalysis.document_id == analysis.document_id,
+                DocumentAnalysis.id != analysis.id,
+            )
+        ).scalars()
+    )
+
+    if any(status in ACTIVE_STATUSES for status in other_statuses):
+        document.status = DocumentStatus.PROCESSING
+    elif any(
+        status in {AnalysisStatus.QUEUED, AnalysisStatus.PENDING} for status in other_statuses
+    ):
+        document.status = DocumentStatus.QUEUED
+    elif fallback == DocumentStatus.UPLOADED and AnalysisStatus.COMPLETED in other_statuses:
+        document.status = DocumentStatus.PROCESSED
+    else:
+        document.status = fallback
+
+
+def _finish_cancellation(
+    session: Session,
+    analysis: DocumentAnalysis,
+) -> None:
+    """Confirm cancellation only after this worker has stopped OCR work."""
+    now = datetime.now(UTC)
+
+    analysis.cancel_requested_at = analysis.cancel_requested_at or now
+    analysis.cancelled_at = now
+    analysis.finished_at = now
+    analysis.status = AnalysisStatus.CANCELLED
+
+    _update_document_status(session, analysis, DocumentStatus.UPLOADED)
+    session.commit()
+
+
+def _cancellation_requested(analysis: DocumentAnalysis) -> bool:
+    return analysis.status == AnalysisStatus.CANCELLING or analysis.cancel_requested_at is not None
+
+
+def _local_ocr_checkpoint(
+    session: Session,
+    analysis_id: uuid.UUID,
+    task_id: str,
+    *,
+    document_id: uuid.UUID | None = None,
+    check_dispatch: bool = False,
+) -> DocumentAnalysis:
+    """Lock the analysis and stop if this task must not continue."""
+    analysis = _lock_analysis(session, analysis_id)
+
+    if analysis is None:
+        session.rollback()
+        raise _LocalOCRStoppedError({"status": "error", "detail": "analysis_not_found"})
+
+    if document_id is not None and analysis.document_id != document_id:
+        raise ValueError("Document does not match the processing request")
+
+    if analysis.status in TERMINAL_STATUSES:
+        result = {
+            "status": str(analysis.status),
+            "analysis_id": str(analysis_id),
+        }
+        session.rollback()
+        raise _LocalOCRStoppedError(result)
+
+    if analysis.task_id and analysis.task_id != task_id:
+        session.rollback()
+        raise _LocalOCRStoppedError({"status": "ignored", "detail": "stale_task"})
+
+    if _cancellation_requested(analysis):
+        _finish_cancellation(session, analysis)
+        raise _LocalOCRStoppedError(
+            {
+                "status": "cancelled",
+                "analysis_id": str(analysis_id),
+            }
+        )
+
+    # Only the dispatcher can reserve a queued request for execution.
+    if check_dispatch and analysis.status == AnalysisStatus.QUEUED:
+        session.rollback()
+        raise _LocalOCRStoppedError({"status": "ignored", "detail": "not_dispatched"})
+
+    return analysis
+
+
 @celery_app.task(  # type: ignore[misc]
     bind=True,
     name="app.tasks.local_ocr.run_local_ocr_task",
     max_retries=3,
     default_retry_delay=30,
 )
-def run_local_ocr_task(self: Task, analysis_id: str, document_id: str) -> dict[str, Any]:
-    """
-    Run local OCR (Tesseract) on a document.
+def run_local_ocr_task(
+    self: Task,
+    analysis_id: str,
+    document_id: str,
+) -> dict[str, Any]:
+    """Run standalone local OCR with cooperative cancellation."""
+    log = logger.bind(
+        analysis_id=analysis_id,
+        document_id=document_id,
+        task_id=self.request.id,
+    )
+    log.info("Local OCR processing started")
 
-    Steps:
-    1. Load analysis and document from DB
-    2. Set status to OCR_IN_PROGRESS
-    3. Load file from disk
-    4. Run LocalOCRAdapter
-    5. Save result to DB
-    """
-    log = logger.bind(analysis_id=analysis_id, document_id=document_id, task_id=self.request.id)
-    log.info("Local OCR task started")
-
+    analysis_uuid = uuid.UUID(analysis_id)
+    document_uuid = uuid.UUID(document_id)
+    task_id = str(self.request.id)
     session = _get_db_session()
-    analysis = None
 
     try:
-        from app.models.document import Document
-        from app.models.document_analysis import DocumentAnalysis
+        analysis = _local_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+            document_id=document_uuid,
+            check_dispatch=True,
+        )
 
-        # 1. Load analysis and document from DB
-        analysis = session.get(DocumentAnalysis, uuid.UUID(analysis_id))
-        if not analysis:
-            log.error("Analysis not found")
-            return {"status": "error", "detail": "analysis_not_found"}
-
-        # 2. Set status to OCR_IN_PROGRESS
-        analysis.status = AnalysisStatus.OCR_IN_PROGRESS
-        session.commit()
-        log.info("Status updated to OCR_IN_PROGRESS")
-
-        # Załaduj dokument
-        document = session.get(Document, uuid.UUID(document_id))
-        if not document:
+        document = session.get(Document, document_uuid)
+        if document is None:
             raise FileNotFoundError(f"Document {document_id} not found")
 
-        # 3. Load file from disk
         file_path = Path(document.storage_path)
+        file_extension = document.file_extension.lower()
+
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        # 4. Run LocalOCRAdapter
+        analysis.task_id = task_id
+        analysis.status = AnalysisStatus.OCR_IN_PROGRESS
+        analysis.processing_stage = ProcessingStage.LOCAL_OCR
+        analysis.started_at = analysis.started_at or datetime.now(UTC)
+        analysis.error_message = None
+        document.status = DocumentStatus.PROCESSING
+
+        # Release the owner lock before the expensive OCR call.
+        session.commit()
+
         ocr_adapter = LocalOCRAdapter()
 
-        if document.file_extension.lower() == "pdf":
-            words_per_page, images = ocr_adapter.ocr_pdf(file_path)
+        if file_extension == "pdf":
+            words_per_page, _images = ocr_adapter.ocr_pdf(file_path)
         else:
-            words_per_page, images = ocr_adapter.ocr_image(file_path)
+            words_per_page, _images = ocr_adapter.ocr_image(file_path)
 
-        log.info("Local OCR completed", pages=len(words_per_page))
+        # Re-read under the owner lock before writing any results.
+        analysis = _local_ocr_checkpoint(
+            session,
+            analysis_uuid,
+            task_id,
+        )
 
-        # 5. Save result to DB
         analysis.ocr_raw_result = {
             "words_per_page": words_per_page,
             "page_count": len(words_per_page),
             "provider": "local_tesseract",
         }
         analysis.ocr_provider = "local_tesseract"
-        analysis.status = AnalysisStatus.OCR_COMPLETED
+
+        # Standalone local OCR ends here; OCR_COMPLETED would retain the slot.
+        analysis.status = AnalysisStatus.COMPLETED
+        analysis.processing_stage = ProcessingStage.COMPLETED
+        analysis.processing_step = 4
+        analysis.finished_at = datetime.now(UTC)
+        analysis.error_message = None
+
+        _update_document_status(session, analysis, DocumentStatus.PROCESSED)
         session.commit()
-        log.info("Local OCR result saved", pages=len(words_per_page))
+
+        log.info("Local OCR processing completed", pages=len(words_per_page))
+
+    except _LocalOCRStoppedError as stopped:
+        return stopped.result
 
     except Exception as exc:
-        log.exception("Local OCR task failed")
-        if analysis:
-            analysis.status = AnalysisStatus.OCR_FAILED
-            analysis.error_message = str(exc)
+        session.rollback()
+        log.exception("Local OCR processing failed")
+
+        try:
+            analysis = _local_ocr_checkpoint(
+                session,
+                analysis_uuid,
+                task_id,
+            )
+        except _LocalOCRStoppedError as stopped:
+            return stopped.result
+
+        analysis.error_message = str(exc)
+
+        if self.request.retries < self.max_retries:
+            # Retain the owner's slot during the retry delay.
+            analysis.status = AnalysisStatus.OCR_IN_PROGRESS
             session.commit()
-        raise self.retry(exc=exc) from exc
+            raise self.retry(exc=exc) from exc
+
+        analysis.status = AnalysisStatus.OCR_FAILED
+        analysis.finished_at = datetime.now(UTC)
+
+        _update_document_status(session, analysis, DocumentStatus.FAILED)
+        session.commit()
+
+        raise
 
     else:
         return {"status": "success", "analysis_id": analysis_id}

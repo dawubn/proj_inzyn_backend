@@ -47,6 +47,7 @@ class DocumentService:
             mime_type=content_type,
             status=DocumentStatus.UPLOADED,
             description=metadata.description,
+            document_type=metadata.document_type,
         )
         created = await self._docs.create(doc)
         logger.info("Document uploaded", document_id=str(created.id), owner_id=str(owner_id))
