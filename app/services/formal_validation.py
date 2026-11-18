@@ -11,6 +11,7 @@ from app.services.formal_catalog import EXTENDED_DOCUMENT_SPECS, FieldSpec
 from app.services.formal_context import MIN_WORD_CONFIDENCE, DocumentContext, OCRLine, reading_lines
 from app.services.formal_empty_fields import find_possible_empty_fields
 from app.services.formal_language import explicit_absence, has_affirmative_action
+from app.services.formal_relations import extract_relation_dates
 
 _PL_TRANSLATION = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
 
@@ -28,9 +29,10 @@ _DATE_RE = re.compile(
     re.IGNORECASE,
 )
 _REDACTION_LABEL_RE = re.compile(
-    r"\[?\s*(?:utajni\w*|tajniono|ajniono)\s*[:.]?\s*"
+    r"\[?\s*(?:utajni\w*|tajniono|ajniono)\s*[:.;]?\s*"
     r"(?P<label>data|adres|imi[eę](?:\s*/\s*naz\w*)?|im|"
-    r"pesel|email|telefon|nip|numer dokumentu|numer rachunku)\s*\]?",
+    r"pesel|email|telefon|nip|regon|krs|numer dokumentu|numer rachunku|numer karty|numer kw|"
+    r"numer rejestracyjny|numer identyfikacyjny|podpis|zdj[eę]cie|kod|dane medyczne)\s*\]?",
     re.IGNORECASE,
 )
 
@@ -64,7 +66,14 @@ _CLASSIFICATION_KEYWORDS: dict[DocumentType, tuple[str, ...]] = {
         "zakres pelnomocnictwa",
     ),
     DocumentType.INVOICE: ("faktura", "nabywca", "sprzedawca", "kwota brutto", "vat"),
-    DocumentType.TAX_FORM: ("deklaracja", "pit", "urzad skarbowy", "nip", "podatek"),
+    DocumentType.DEMAND_LETTER: (
+        "wezwanie do zaplaty",
+        "przedsadowe",
+        "wzywam",
+        "wierzyciel",
+        "dluznik",
+        "zaleglosc",
+    ),
 }
 
 
@@ -185,7 +194,7 @@ def _keyword_pattern(keyword: str) -> re.Pattern[str]:
     return re.compile(rf"\b{pattern}\b")
 
 
-EXTRACTOR_VERSION = "azure-formal-3.3"
+EXTRACTOR_VERSION = "azure-formal-3.8"
 _YEAR_DIGITS = 4
 _HEADER_LAST_LINE = 5
 _MIN_CLASSIFICATION_CUES = 2
@@ -217,13 +226,16 @@ _FIELD_LABELS = {
     ),
     "has_attachments_section": r"(?:lista zalacznikow|zalaczniki)",
 }
+# OCR can lose the colon next to a mask. Require an explicit mask in that case,
+# so prose such as "Powód wnosi o..." never supplies the party's identity.
+_ROLE_VALUE_START = r"(?=\s*:|\s*$|\s+\[?\s*(?:utajni\w*|tajniono|ajniono)\b)"
 _ROLE_LABELS = {
     "principal": _FIELD_LABELS["has_principal_section"],
     "attorney": _FIELD_LABELS["has_attorney_section"],
-    "claimant": r"(?:strona powodowa|powod(?:ka)?)(?=\s*:|\s*$)",
-    "defendant": r"(?:strona pozwana|pozwany|pozwana)(?=\s*:|\s*$)",
-    "client": r"(?:zamawiajacy|zleceniodawca|kupujacy|nabywca)(?=\s*:|\s*$)",
-    "provider": r"(?:wykonawca|zleceniobiorca|sprzedajacy|sprzedawca)(?=\s*:|\s*$)",
+    "claimant": r"(?:strona powodowa|powod(?:ka)?)" + _ROLE_VALUE_START,
+    "defendant": r"(?:strona pozwana|pozwany|pozwana)" + _ROLE_VALUE_START,
+    "client": r"(?:zamawiajacy|zleceniodawca|kupujacy|nabywca)" + _ROLE_VALUE_START,
+    "provider": r"(?:wykonawca|zleceniobiorca|sprzedajacy|sprzedawca)" + _ROLE_VALUE_START,
 }
 _IDENTITY_CAPTIONS = {
     _FIELD_LABELS["has_principal_section"]: "imie i nazwisko mocodawcy",
@@ -345,6 +357,28 @@ def _mask_only_fragment(text: str) -> bool:
     return not re.search(r"[^\W\d_]{2,}", remainder)
 
 
+def _only_masks_have_uncertain_ocr(context: DocumentContext, raw: dict[str, Any] | None) -> bool:
+    """Poor recognition of generated masks is not unreadable document prose."""
+    if set(context.limitations) != {"LOW_OCR_CONFIDENCE"}:
+        return False
+    masks = [match.span() for match in _REDACTION_LABEL_RE.finditer(context.text)]
+    uncertain = [
+        word
+        for page in (raw or {}).get("pages") or []
+        for word in page.get("words") or []
+        if isinstance(word.get("confidence"), int | float)
+        and word["confidence"] < MIN_WORD_CONFIDENCE
+    ]
+    for word in uncertain:
+        span = word.get("span") or {}
+        start, length = span.get("offset"), span.get("length")
+        if not isinstance(start, int) or not isinstance(length, int) or length <= 0:
+            return False
+        if not any(start < end and start + length > left for left, end in masks):
+            return False
+    return bool(uncertain)
+
+
 def _best(candidates: list[dict[str, Any]], context: DocumentContext) -> dict[str, Any]:
     if not candidates:
         reason = context.limitations[0] if context.limitations else "NOT_FOUND"
@@ -408,11 +442,10 @@ def _field(
             continue
         if scope_field and _scope_continuation(context, index):
             continue
-        # A bare role above a signature box is not a second identity field.
-        if (
-            pattern in _ROLE_LABELS.values()
-            and not line.text[match.end() :].strip()
-            and _above_signature(context, index)
+        # Party captions in signature boxes are not a second identity field.
+        if pattern in _ROLE_LABELS.values() and (
+            _role_in_signature_section(context, index)
+            or (not line.text[match.end() :].strip() and _above_signature(context, index))
         ):
             continue
         value, evidence = _block(context, index, match.end())
@@ -491,6 +524,24 @@ def _value_state(
     if len(re.findall(r"[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]{2,}", value)) < min_words:
         return "unknown", "INSUFFICIENT_VALUE"
     return "present", "VALUE_FOUND"
+
+
+def _role_in_signature_section(context: DocumentContext, index: int) -> bool:
+    """Party captions in an explicit signature section are not identity fields."""
+    for previous in reversed(context.lines[:index]):
+        if previous.page != context.lines[index].page:
+            return False
+        text = normalize_text(previous.text)
+        if re.fullmatch(_PREFIX + r"podpisy(?: stron(?: umowy)?)?\s*[:.]?", text):
+            return True
+        # A new section or a different field ends the signature block.
+        if re.match(r"^\s*(?:§\s*\d+|\d+[.)]\s+)", text):
+            return False
+        if _is_label(text) and not any(
+            _label_match(pattern, text) for pattern in _ROLE_LABELS.values()
+        ):
+            return False
+    return False
 
 
 def _above_signature(context: DocumentContext, index: int) -> bool:
@@ -644,13 +695,38 @@ def _dates(context: DocumentContext) -> dict[str, Any]:  # noqa: PLR0912 - expli
 
 
 def _signature(context: DocumentContext) -> dict[str, Any]:
-    lines = [
-        line
-        for line in context.lines
-        if _label_match(r"\(?(?:czytelny |wlasnoreczny )?podpis(?:y|u|em)?", line.text)
-    ]
-    # Read OCR is not a signature detector. Blank text can have an adjacent graphical mark.
+    signature_label = r"\(?(?:czytelny |wlasnoreczny )?podpis(?:y|u|em)?"
+    for index, line in enumerate(context.lines):
+        if "podpis" in _find_redaction_labels(line.text):
+            return _observation("masked", "REDACTED_PRESENCE_CONFIRMED", [line])
+        # A narrow generated mask may be read as two vertically adjacent lines.
+        caption = _label_match(signature_label, line.text)
+        value = line.text[caption.end() :] if caption else line.text
+        if not re.search(r"(?:^\s*|\[)\s*UTAJNIONO\s*[:.;]?\s*$", value, re.I):
+            continue
+        if index + 1 < len(context.lines):
+            following = context.lines[index + 1]
+            if (
+                following.page == line.page
+                and re.fullmatch(r"\s*PODPIS\s*\]?\s*", following.text, re.I)
+                and _adjacent_signature_mask(line, following)
+            ):
+                return _observation("masked", "REDACTED_PRESENCE_CONFIRMED", [line, following])
+    lines = [line for line in context.lines if _label_match(signature_label, line.text)]
+    # Without a generated signature marker, Read OCR alone cannot confirm a graphical mark.
     return _observation("unknown", "SIGNATURE_REQUIRES_VISUAL_REVIEW", lines)
+
+
+def _adjacent_signature_mask(label: OCRLine, value: OCRLine) -> bool:
+    if not label.polygon or not value.polygon:
+        return False
+    height = max(label.polygon[1::2]) - min(label.polygon[1::2])
+    gap = min(value.polygon[1::2]) - max(label.polygon[1::2])
+    return (
+        0 <= gap <= height * 2
+        and min(label.polygon[::2]) < max(value.polygon[::2])
+        and max(label.polygon[::2]) > min(value.polygon[::2])
+    )
 
 
 def _parties(context: DocumentContext, document_type: DocumentType) -> dict[str, Any]:
@@ -697,14 +773,7 @@ _AMOUNT_VALUE = re.compile(
     r"(?:[.,]\d{1,2})?(?:\s*(?:[A-Z]{3}|zl))?",
     re.I,
 )
-_UNSTRUCTURED_TYPES = {
-    DocumentType.SCIENTIFIC_ARTICLE,
-    DocumentType.PATENT,
-    DocumentType.MANUAL,
-    DocumentType.LAW_AND_REGULATION,
-    DocumentType.FINANCIAL_REPORT,
-    DocumentType.GOVERNMENT_TENDER,
-}
+_UNSTRUCTURED_TYPES = {DocumentType.PATENT}
 
 
 def _catalog_context(context: DocumentContext, specs: tuple[FieldSpec, ...]) -> DocumentContext:
@@ -718,8 +787,7 @@ def _catalog_context(context: DocumentContext, specs: tuple[FieldSpec, ...]) -> 
             lines.append(line)
             continue
         if any(
-            spec.kind in {"section", "title", "transactions"} and _catalog_match(spec, line.text)
-            for spec in specs
+            spec.kind in {"section", "title"} and _catalog_match(spec, line.text) for spec in specs
         ):
             lines.append(line)
             continue
@@ -773,15 +841,13 @@ def _catalog_match(spec: FieldSpec, text: str) -> re.Match[str] | None:
     return _label_match(rf"(?:{spec.pattern})(?:\s*/\s*(?:{spec.pattern}))*", text)
 
 
-def _catalog_date(value: str, period: bool = False) -> tuple[str, str]:
+def _catalog_date(value: str) -> tuple[str, str]:
     dates = [_parse_date(match.group()) for match in _DATE_RE.finditer(value)]
     if dates:
         if None in dates:
             return "invalid", "INVALID_DATE"
-        if not period and len(set(dates)) > 1:
+        if len(set(dates)) > 1:
             return "unknown", "CONFLICTING_DATES"
-        return "present", "VALUE_FOUND"
-    if period and re.fullmatch(r"(?:rok\s+)?\d{4}(?:\s*r\.?)?", normalize_text(value)):
         return "present", "VALUE_FOUND"
     return "unknown", "UNRECOGNIZED_DATE"
 
@@ -791,21 +857,17 @@ def _catalog_value(spec: FieldSpec, value: str) -> tuple[str, str]:
     text = normalize_text(value).strip()
     if labels.intersection(spec.masks):
         return "masked", "REDACTED_VALUE"
-    if spec.kind == "transactions" and re.fullmatch(
-        r"(?:brak (?:operacji|transakcji)(?: w (?:tym )?okresie)?|no transactions)[.!]?", text
-    ):
-        return "present", "EXPLICIT_NO_TRANSACTIONS"
     if _empty(value) or re.match(r"^(?:wpisz|podaj|uzupelnij)\b", text):
         return "empty", "EMPTY_FIELD"
-    if labels and spec.kind not in {"section", "text", "title", "transactions"}:
+    if labels and spec.kind not in {"section", "text", "title"}:
         return "unknown", "MASK_TYPE_MISMATCH"
     return _catalog_readable_value(spec, value)
 
 
 def _catalog_readable_value(spec: FieldSpec, value: str) -> tuple[str, str]:
     text = normalize_text(value).strip()
-    if spec.kind in {"date", "period"}:
-        return _catalog_date(value, period=spec.kind == "period")
+    if spec.kind == "date":
+        return _catalog_date(value)
     if spec.kind in {"amount", "tax"}:
         if _AMOUNT_VALUE.fullmatch(text) or (
             spec.kind == "tax"
@@ -813,15 +875,8 @@ def _catalog_readable_value(spec: FieldSpec, value: str) -> tuple[str, str]:
         ):
             return "present", "VALUE_FOUND"
         return "unknown", "UNRECOGNIZED_NUMBER"
-    if spec.kind in {"identifier", "account", "pesel", "tax_id", "form_code"}:
-        patterns = {
-            "identifier": r"(?=.*\d)[\w ./()-]+",
-            "account": r"(?:[A-Z]{2})?\d[\d A-Z-]{13,36}",
-            "pesel": r"\d{11}",
-            "tax_id": r"(?:\d[ -]?){10,11}",
-            "form_code": r"(?:PIT|CIT|VAT|PCC|SD|AKC)[ -]?\d+[A-Z]?(?:\s*\(\d+\))?",
-        }
-        valid = bool(re.fullmatch(patterns[spec.kind], value, re.I))
+    if spec.kind == "identifier":
+        valid = bool(re.fullmatch(r"(?=.*\d)[\w ./()-]+", value, re.I))
         return ("present", "VALUE_FOUND") if valid else ("unknown", "UNRECOGNIZED_IDENTIFIER")
     if spec.key == "has_invoice_items" and re.match(
         r"^(?:ilosc|cena|wartosc netto|quantity|unit price)\b", text
@@ -838,22 +893,12 @@ def _catalog_readable_value(spec: FieldSpec, value: str) -> tuple[str, str]:
 def _catalog_field(
     context: DocumentContext, spec: FieldSpec, specs: tuple[FieldSpec, ...]
 ) -> dict[str, Any]:
-    if spec.kind in {"signature", "visual"}:
-        return _observation(
-            "unknown",
-            (
-                "SIGNATURE_REQUIRES_VISUAL_REVIEW"
-                if spec.kind == "signature"
-                else "VISUAL_REVIEW_REQUIRED"
-            ),
-            [],
-        )
+    if spec.kind == "signature":
+        return _observation("unknown", "SIGNATURE_REQUIRES_VISUAL_REVIEW", [])
     candidates = []
     for index, line in enumerate(context.lines):
         match = _catalog_match(spec, line.text)
         if not match:
-            if spec.kind == "form_code" and _catalog_value(spec, line.text)[0] == "present":
-                candidates.append(_observation("present", "VALUE_FOUND", [line], line.text))
             continue
         value, evidence, uncertain_layout = _catalog_block(context, index, match.end(), specs)
         state, reason = _catalog_value(spec, value)
@@ -915,7 +960,8 @@ def _catalog_fields(context: DocumentContext, dtype: DocumentType) -> dict[str, 
         result = _catalog_field(context, spec, document_spec.fields)
         if result["state"] == "missing" and (spec.advisory or dtype in _UNSTRUCTURED_TYPES):
             result.update(state="unknown", reason_code="VARIANT_FIELD_REVIEW")
-        if spec.key == "has_application_date" and not result["evidence"]:
+        # A letter usually has its date in the heading without a caption.
+        if spec.key == "has_demand_date" and not result["evidence"]:
             result = _dates(context)
         results[spec.key] = result
     return results
@@ -961,9 +1007,16 @@ class FormalDocumentExtractor:
             if attached_page["state"] in {"present", "masked"}:
                 observations["has_attachments_section"] = attachments = attached_page
         if not attachments["evidence"]:
-            if re.search(r"\bzalacznik\w*", normalize_text(context.text)):
-                attachments.update(state="unknown", reason_code="ATTACHMENT_CONTENT_UNVERIFIED")
-            elif not context.limitations:
+            references = [
+                line
+                for line in context.lines
+                if re.search(r"\bzalacznik\w*", normalize_text(line.text))
+            ]
+            if references:
+                observations["has_attachments_section"] = _observation(
+                    "unknown", "ATTACHMENT_CONTENT_UNVERIFIED", references
+                )
+            elif not context.limitations or _only_masks_have_uncertain_ocr(context, raw_ocr_result):
                 attachments.update(state="not_applicable", reason_code="NO_ATTACHMENT_REQUIREMENT")
         observations["has_date"] = _dates(context)
         observations["has_signature"] = _signature(context)
@@ -992,6 +1045,9 @@ class FormalDocumentExtractor:
         fields.update(
             {key: item["state"] in {"present", "masked"} for key, item in observations.items()}
         )
+        relation_dates = extract_relation_dates(catalog_context, effective_type)
+        observations.update(relation_dates)
+        fields.update({key: item["value"] for key, item in relation_dates.items()})
         return FormalExtractionResult(detected_type, confidence, fields, effective_type)
 
     def _classify(

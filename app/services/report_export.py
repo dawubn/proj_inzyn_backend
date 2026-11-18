@@ -35,20 +35,11 @@ DOCUMENT_TYPE_LABELS = {
     "unknown": "Nieznany",
     "lawsuit": "Pozew",
     "power_of_attorney": "Pełnomocnictwo",
-    "application": "Wniosek",
+    "application": "Podanie o pracę / CV",
     "invoice": "Faktura",
     "contract": "Umowa",
-    "id_card": "Dowód osobisty",
-    "passport": "Paszport",
-    "bank_statement": "Wyciąg bankowy",
-    "tax_form": "Formularz podatkowy",
-    "financial_report": "Sprawozdanie finansowe",
-    "government_tender": "Przetarg publiczny",
-    "law_and_regulation": "Akt prawny",
-    "manual": "Instrukcja",
     "patent": "Patent",
-    "scientific_article": "Artykuł naukowy",
-    "other": "Inny",
+    "demand_letter": "Wezwanie przedsądowe",
 }
 VALIDATION_STATUS_LABELS = {
     "complete": "Dokument kompletny",
@@ -101,7 +92,6 @@ REASON_MESSAGES = {
     "VARIANT_FIELD_REVIEW": (
         "Sprawdź, czy ten element występuje i jest potrzebny w tym rodzaju dokumentu."
     ),
-    "VISUAL_REVIEW_REQUIRED": "Sprawdź zdjęcie i zabezpieczenia na oryginale dokumentu.",
     "TABLE_CONTENT_UNVERIFIED": (
         "Sprawdź, czy tabela zawiera wypełnione pozycje, a nie tylko nagłówki."
     ),

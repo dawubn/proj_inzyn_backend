@@ -15,8 +15,8 @@ async def _login(client: AsyncClient, email: str) -> None:
         json={
             "email": email,
             "password": "Str0ngPass!",
-            "full_name": "Report User",
-            "role": "business_user",
+            "name": "Report",
+            "surname": "User",
         },
     )
     await client.post("/api/v1/auth/login", json={"email": email, "password": "Str0ngPass!"})

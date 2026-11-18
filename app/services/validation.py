@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import operator
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from app.enums.analysis import ValidationSeverity
 from app.models.validation_rule import ValidationRule
 from app.schemas.analysis_report import ValidationIssue
 
-ENGINE_VERSION = "formal-rules-2.2"
+ENGINE_VERSION = "formal-rules-2.3"
 
 _REASON_MESSAGES = {
     "MASK_TYPE_MISMATCH": "Ukryta wartość dotyczy innego rodzaju danych. Sprawdź właściwe pole.",
@@ -23,7 +25,6 @@ _REASON_MESSAGES = {
     "VARIANT_FIELD_REVIEW": (
         "Sprawdź, czy ten element występuje i jest potrzebny w tym rodzaju dokumentu."
     ),
-    "VISUAL_REVIEW_REQUIRED": "Zdjęcie i zabezpieczenia dokumentu wymagają oceny oryginału.",
     "TABLE_CONTENT_UNVERIFIED": (
         "Rozpoznano nagłówki tabeli; sprawdź, czy zawiera także wypełnione pozycje."
     ),
@@ -114,11 +115,108 @@ class RuleEngineService:
         ]
 
     def evaluate(self, rules: list[ValidationRule], fields: dict[str, Any]) -> list[RuleResult]:
-        return [
-            self._evaluate(rule, fields)
-            for rule in sorted(rules, key=lambda r: r.order)
-            if rule.is_active
-        ]
+        active = sorted((r for r in rules if r.is_active), key=lambda r: r.order)
+        by_name = {r.name: r for r in active}
+        results: dict[int, RuleResult] = {}
+        visiting: set[int] = set()
+
+        def visit(rule: ValidationRule) -> RuleResult:
+            if id(rule) in results:
+                return results[id(rule)]
+            if id(rule) in visiting:
+                return self._blocked(
+                    rule, "error", "INVALID_DEPENDENCY", "Wykryto cykl zależności reguł."
+                )
+            visiting.add(id(rule))
+            config = rule.rule_config
+            dependencies = config.get("depends_on", []) if isinstance(config, dict) else None
+            if (
+                not isinstance(dependencies, list)
+                or any(not isinstance(name, str) or name not in by_name for name in dependencies)
+                or any(sum(r.name == name for r in active) != 1 for name in dependencies)
+            ):
+                result = self._blocked(
+                    rule,
+                    "error",
+                    "INVALID_DEPENDENCY",
+                    "Nieprawidłowa konfiguracja zależności reguły.",
+                )
+            else:
+                prerequisites = [visit(by_name[name]) for name in dependencies]
+                if any(item.outcome == "error" for item in prerequisites):
+                    result = self._blocked(
+                        rule,
+                        "error",
+                        "INVALID_DEPENDENCY",
+                        "Nie można wykonać zależnej reguły z powodu błędu konfiguracji.",
+                    )
+                elif any(item.outcome != "pass" for item in prerequisites):
+                    result = self._blocked(
+                        rule,
+                        "unknown",
+                        "DEPENDENCY_UNRESOLVED",
+                        "Najpierw należy potwierdzić dane wymagane przez tę regułę.",
+                    )
+                else:
+                    result = self._condition(rule, fields) or self._evaluate(rule, fields)
+            visiting.remove(id(rule))
+            results[id(rule)] = result
+            return result
+
+        return [visit(rule) for rule in active]
+
+    @staticmethod
+    def _blocked(rule: ValidationRule, outcome: str, reason: str, message: str) -> RuleResult:
+        snapshot = json.dumps(rule_snapshot(rule), sort_keys=True, ensure_ascii=False)
+        return RuleResult(
+            hashlib.sha256(snapshot.encode()).hexdigest()[:16],
+            rule.name,
+            rule.field_name,
+            outcome,
+            str(rule.severity),
+            reason,
+            message,
+        )
+
+    def _condition(self, rule: ValidationRule, fields: dict[str, Any]) -> RuleResult | None:
+        condition = rule.rule_config.get("when")
+        if condition is None:
+            return None
+        if (
+            not isinstance(condition, dict)
+            or not isinstance(condition.get("field"), str)
+            or set(condition) != {"field", "equals"}
+            or not isinstance(condition["equals"], str | bool | int | float)
+        ):
+            return self._blocked(
+                rule, "error", "INVALID_RULE_CONFIG", "Nieprawidłowy warunek wykonania reguły."
+            )
+        observations = fields.get("observations") or {}
+        if not isinstance(observations, dict):
+            return self._blocked(
+                rule, "error", "INVALID_OBSERVATION", "Nieprawidłowy zapis danych kontroli."
+            )
+        observation = observations.get(condition["field"], {})
+        value = fields.get(condition["field"])
+        if (
+            not isinstance(observation, dict)
+            or observation.get("state") in {"unknown", "masked", "invalid"}
+            or value is None
+        ):
+            return self._blocked(
+                rule,
+                "unknown",
+                "CONDITION_UNRESOLVED",
+                "Nie można ustalić, czy ta kontrola dotyczy dokumentu.",
+            )
+        if value != condition["equals"]:
+            return self._blocked(
+                rule,
+                "not_applicable",
+                "CONDITION_NOT_MET",
+                "Warunek tej kontroli nie dotyczy dokumentu.",
+            )
+        return None
 
     def _evaluate(  # noqa: PLR0911 - explicit outcomes keep uncertain data out of value checks
         self, rule: ValidationRule, fields: dict[str, Any]
@@ -135,11 +233,13 @@ class RuleEngineService:
                 f"Nie udało się wykonać kontroli „{rule.name}”: nieprawidłowa konfiguracja reguły."
             ),
         )
-        if rule.rule_type not in {"required_field", "regex_match", "date_range"}:
+        if rule.rule_type not in {"required_field", "regex_match", "date_range", "compare_fields"}:
             result.reason_code = "UNKNOWN_RULE_TYPE"
             return result
         if not rule.field_name or not isinstance(rule.rule_config, dict):
             return result
+        if rule.rule_type == "compare_fields":
+            return self._compare(rule, fields, result)
         observations = fields.get("observations") or {}
         observation = observations.get(rule.field_name) if isinstance(observations, dict) else None
         if not isinstance(observations, dict) or (
@@ -179,6 +279,81 @@ class RuleEngineService:
             "fail": "wartość nie spełnia wymagania.",
             "unknown": "wartość niedostępna; wymaga weryfikacji.",
         }.get(result.outcome, "błąd wykonania kontroli.")
+        return result
+
+    @staticmethod
+    def _compare(  # noqa: PLR0911, PLR0912 - explicit uncertainty guards for both operands
+        rule: ValidationRule, fields: dict[str, Any], result: RuleResult
+    ) -> RuleResult:
+        config = rule.rule_config
+        operations = {
+            "eq": operator.eq,
+            "ne": operator.ne,
+            "lt": operator.lt,
+            "lte": operator.le,
+            "gt": operator.gt,
+            "gte": operator.ge,
+        }
+        other, op, kind = (
+            config.get("other_field"),
+            config.get("operator"),
+            config.get("value_type"),
+        )
+        if (
+            not isinstance(other, str)
+            or not other
+            or not isinstance(op, str)
+            or op not in operations
+            or not isinstance(kind, str)
+            or kind not in {"date", "number", "text"}
+        ):
+            return result
+        if kind == "text" and op not in {"eq", "ne"}:
+            return result
+        observations = fields.get("observations") or {}
+        if not isinstance(observations, dict):
+            return result
+        values: list[Any] = []
+        for key in (rule.field_name or "", other):
+            observation = observations.get(key, {})
+            if not isinstance(observation, dict):
+                return result
+            result.evidence.extend(observation.get("evidence", []))
+            value = fields.get(key)
+            # Both operands must be confirmed, readable observations.
+            if observation.get("state") != "present" or value is None or isinstance(value, bool):
+                values.append(None)
+            else:
+                values.append(value)
+        if any(value is None for value in values):
+            result.outcome, result.reason_code = "unknown", "COMPARISON_UNAVAILABLE"
+            result.message = (
+                "Nie można porównać pól: dane są niepełne, zamaskowane lub odczyt jest niepewny."
+            )
+            return result
+        left: Any
+        right: Any
+        try:
+            if kind == "date":
+                left, right = (date.fromisoformat(str(value)) for value in values)
+            elif kind == "number":
+                left, right = (Decimal(str(value)) for value in values)
+                if not left.is_finite() or not right.is_finite():
+                    raise ValueError("Non-finite value")
+            else:
+                left, right = (" ".join(str(value).casefold().split()) for value in values)
+            passed = operations[op](left, right)
+        except (ValueError, TypeError, InvalidOperation):
+            result.outcome, result.reason_code = "unknown", "COMPARISON_UNAVAILABLE"
+            result.message = "Nie udało się odczytać wartości potrzebnych do porównania pól."
+            return result
+        result.outcome = "pass" if passed else "fail"
+        result.reason_code = "FIELDS_CONSISTENT" if passed else "FIELDS_INCONSISTENT"
+        result.message = (
+            "Porównane dane są zgodne z regułą."
+            if passed
+            else config.get("message") or "Dane w porównanych polach są niespójne."
+        )
         return result
 
     @staticmethod

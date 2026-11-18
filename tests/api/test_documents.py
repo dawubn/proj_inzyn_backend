@@ -10,8 +10,8 @@ async def _get_auth_headers(
         json={
             "email": email,
             "password": "Str0ngPass!",
-            "full_name": "Doc User",
-            "role": "business_user",
+            "name": "Doc",
+            "surname": "User",
         },
     )
     await client.post(

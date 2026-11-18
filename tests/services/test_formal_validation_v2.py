@@ -170,6 +170,53 @@ def test_signature_always_requires_visual_verification(caption):
     assert result["reason_code"] == "SIGNATURE_REQUIRES_VISUAL_REVIEW"
 
 
+@pytest.mark.parametrize(
+    "caption",
+    [
+        "Podpis mocodawcy: [UTAJNIONO: PODPIS]",
+        "[UTAJNIONO: PODPIS]\n(czytelny podpis)",
+        "Podpis: UTAJNIONO:\nPODPIS]",
+        "[UTAJNIONO: PODPIS]",
+        "[UTAJNIONO; PODPIS]",
+        "UTAJNIONO: PODPIS",
+        "[UTAJNIONO:\nPODPIS]",
+        "Podpis mocodawcy: [UTAJNIONO:\nPODPIS]",
+    ],
+)
+def test_signature_masked_by_redaction_confirms_presence(caption):
+    result = observations(FULL + "\n" + caption)["has_signature"]
+    assert result["state"] == "masked"
+    assert result["reason_code"] == "REDACTED_PRESENCE_CONFIRMED"
+
+
+def test_standalone_signature_mask_passes_required_check_without_caption():
+    text = FULL.replace("Podpis mocodawcy: Jan Kowalski", "[UTAJNIONO: PODPIS]")
+    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.POWER_OF_ATTORNEY).fields
+    result = RuleEngineService().evaluate([rule("has_signature")], fields)[0]
+    assert result.outcome == "pass"
+    assert result.reason_code == "REDACTED_PRESENCE_CONFIRMED"
+    assert [entry["text"] for entry in result.evidence] == ["[UTAJNIONO: PODPIS]"]
+
+
+@pytest.mark.parametrize("mask", ["[UTAJNIONO: IMIE/NAZWISKO]", "[UTAJNIONO: ADRES]"])
+def test_other_masks_do_not_confirm_signature(mask):
+    text = FULL.replace("Podpis mocodawcy: Jan Kowalski", mask)
+    result = observations(text)["has_signature"]
+    assert result["state"] == "unknown"
+
+
+@pytest.mark.parametrize("other_page,distant", [(True, False), (False, True)])
+def test_split_signature_marker_must_be_in_the_same_nearby_box(other_page, distant):
+    raw = azure("Dokument zawiera dodatkową treść umowy.\n[UTAJNIONO:\nPODPIS]")
+    if other_page:
+        first = raw["pages"][0]
+        raw["pages"].append({**first, "pageNumber": 2, "lines": [first["lines"].pop()]})
+    if distant:
+        raw["pages"][0]["lines"][-1]["polygon"] = [10, 600, 500, 600, 500, 620, 10, 620]
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.CONTRACT).fields
+    assert fields["observations"]["has_signature"]["state"] == "unknown"
+
+
 def test_page_counter_is_not_party_identification():
     fields = (
         FormalDocumentExtractor()
@@ -336,14 +383,14 @@ def test_legacy_flags_cannot_silently_pass_new_validation():
     assert result.reason_code == "LEGACY_EXTRACTION"
 
 
-def test_user_type_takes_precedence_and_low_confidence_auto_is_unknown():
+def test_user_type_takes_precedence_and_completeness_uses_returned_type():
     assert (
-        effective_document_type(DocumentType.POWER_OF_ATTORNEY, DocumentType.INVOICE, 0.99)
+        effective_document_type(DocumentType.POWER_OF_ATTORNEY, DocumentType.INVOICE)
         == DocumentType.POWER_OF_ATTORNEY
     )
     assert (
-        effective_document_type(DocumentType.UNKNOWN, DocumentType.CONTRACT, 0.14)
-        == DocumentType.UNKNOWN
+        effective_document_type(DocumentType.UNKNOWN, DocumentType.CONTRACT)
+        == DocumentType.CONTRACT
     )
 
 
@@ -395,6 +442,9 @@ def test_no_attachment_requirement_is_not_applicable():
 def test_reference_alone_does_not_prove_attachment_presence():
     result = observations(FULL + "\nDokument opisano w załączniku nr 1.")["has_attachments_section"]
     assert result["state"] == "unknown"
+    assert [entry["text"] for entry in result["evidence"]] == [
+        "Dokument opisano w załączniku nr 1."
+    ]
 
 
 def test_preview_words_use_azure_coordinates():
