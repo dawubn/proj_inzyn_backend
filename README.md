@@ -507,3 +507,37 @@ Key variables:
    ```
 
 > **Note:** Legal analysis (`POST /api/v1/redactions/legal-analysis`) gracefully degrades if Azure OpenAI is not configured — returns empty results.
+
+## Effectiveness Tests
+
+Generates 100 synthetic PDFs across 7 document types and runs the backend pipeline. Measures missing-field detection (TP, FN, FP, recall, precision), invalid-date outcomes, report consistency, and PDF export availability.
+
+Grammar defects, advisory fields, signatures, and visual elements are not scored. Classification accuracy is not tested.
+
+### Running
+
+From the backend directory:
+
+```powershell
+py -3.12 -m tests.effectiveness.run
+```
+
+Generate documents only:
+
+```powershell
+py -3.12 -m tests.effectiveness.run --generate-only
+```
+
+Requires a running backend and a test account. Credentials are prompted or read from `TEST_ACCESS_TOKEN`, `TEST_EMAIL`, and `TEST_PASSWORD`. Real OCR/LLM calls may incur charges.
+
+### Results
+
+Saved in `tests/effectiveness/result/test-YYYY-MM-DD/`:
+
+- `documents/` — generated PDFs.
+- `reports/` — downloaded PDF reports.
+- `log.json` — execution log.
+- `report_result.json` — detailed results.
+- `chart.png` — detection metrics and report consistency.
+
+Report consistency requires independent summaries via `--reference-summaries`. Without them, reports remain unchecked and execution returns a non-zero exit code. PDF checks verify availability and the header, not full content correctness.
