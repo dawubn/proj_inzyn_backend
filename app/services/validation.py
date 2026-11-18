@@ -25,7 +25,6 @@ _REASON_MESSAGES = {
     "VARIANT_FIELD_REVIEW": (
         "Sprawdź, czy ten element występuje i jest potrzebny w tym rodzaju dokumentu."
     ),
-    "VISUAL_REVIEW_REQUIRED": "Zdjęcie i zabezpieczenia dokumentu wymagają oceny oryginału.",
     "TABLE_CONTENT_UNVERIFIED": (
         "Rozpoznano nagłówki tabeli; sprawdź, czy zawiera także wypełnione pozycje."
     ),

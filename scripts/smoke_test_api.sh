@@ -33,20 +33,14 @@ print(f\"  [{'$label'}] -> {data['document_type']:<22} ({data['confidence']:.2%}
 }
 
 echo ""
-echo "=== Klasy DocLayNet ==="
-classify "Annual report consolidated balance sheet shareholders equity revenue net income earnings per share dividend quarterly" "financial"
-classify "Patent claim invention embodiment prior art assignee field of invention abstract apparatus method" "patent"
-classify "Article section paragraph statute regulation pursuant amendment legislative" "law"
-classify "Installation manual setup procedure warning safety user guide configuration troubleshooting" "manual"
-
-echo ""
-echo "=== Klasy syntetyczne ==="
+echo "=== Kategorie dokumentów ==="
 classify "Faktura VAT FV/2024 NIP netto brutto VAT 23% termin platnosci przelew IBAN" "invoice"
 classify "AGREEMENT party confidential intellectual property termination governing law obligation contractor" "contract"
-classify "DOWOD OSOBISTY PESEL nazwisko obywatelstwo data urodzenia organ wydajacy numer dokumentu" "id_card"
-classify "PASSPORT POL surname nationality machine readable zone passport number date of expiry biometric" "passport"
-classify "Bank statement IBAN opening balance closing balance transaction transfer ATM withdrawal salary card payment" "bank"
-classify "PIT-37 podatnik Urzad Skarbowy podatek dochod zaliczka zwrot ZUS deklaracja podatkowa" "tax"
+classify "Patent claim invention embodiment prior art assignee field of invention abstract apparatus method" "patent"
+classify "POZEW O ZAPLATE Sad Rejonowy powod pozwany wnosze o zasadzenie koszty procesu uzasadnienie" "lawsuit"
+classify "PELNOMOCNICTWO mocodawca pelnomocnik upowazniam do reprezentowania power of attorney principal" "power_of_attorney"
+classify "CURRICULUM VITAE doswiadczenie zawodowe wyksztalcenie umiejetnosci work experience education skills" "application"
+classify "PRZEDSADOWE WEZWANIE DO ZAPLATY wierzyciel dluznik zaleglosc w terminie 7 dni letter before action" "demand_letter"
 
 echo ""
 echo "=== Confidence threshold -> UNKNOWN ==="

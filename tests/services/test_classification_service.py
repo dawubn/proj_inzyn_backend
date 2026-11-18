@@ -11,21 +11,14 @@ from app.enums.document import DocumentType
 
 def _build_test_model(path: str) -> None:
     train_texts = [
-        "balance sheet revenue profit financial report",
-        "quarterly earnings statement assets liabilities",
+        "invoice net amount vat total due",
+        "invoice number seller buyer payment",
         "patent claim invention embodiment prior art",
         "patent filing method system described",
-        "instruction manual installation guide troubleshooting",
-        "user manual setup procedure warning",
+        "agreement between the parties term termination",
+        "contract obligations governing law signature",
     ]
-    train_labels = [
-        "financial_reports",
-        "financial_reports",
-        "patents",
-        "patents",
-        "manuals",
-        "manuals",
-    ]
+    train_labels = ["invoices", "invoices", "patents", "patents", "contracts", "contracts"]
 
     vectorizer = TfidfVectorizer(max_features=200)
     x_train = vectorizer.fit_transform(train_texts)
@@ -91,4 +84,4 @@ def test_classification_service_raises_when_model_missing(
     svc = classification_module.ClassificationService()
 
     with pytest.raises(ClassifierNotReadyError):
-        svc.classify("financial statement")
+        svc.classify("invoice total")

@@ -62,14 +62,11 @@ def test_complete_examples_have_evidence_for_every_textual_check(case):
     result = report(case, fields)
     assert result["validation_profile_available"]
     assert result["validation_status"] == (
-        "indeterminate" if case["type"] == "application" else "complete"
+        "indeterminate" if case["type"] == "demand_letter" else "complete"
     ), result["rule_results"]
-    expected_fields = {key for key, _, _ in case["rows"]}
-    if case["type"] in {"id_card", "passport"}:
-        expected_fields.add("has_document_image")
-    assert {r["field_name"] for r in result["rule_results"]} == expected_fields
+    assert {r["field_name"] for r in result["rule_results"]} == {key for key, _, _ in case["rows"]}
     for item in result["rule_results"]:
-        visual = item["field_name"] in {"has_signature", "has_document_image"}
+        visual = item["field_name"] == "has_signature"
         assert item["outcome"] == ("unknown" if visual else "pass"), item
         if not visual:
             assert item["evidence"] and all(e["source"] == "azure_ocr" for e in item["evidence"])
@@ -115,16 +112,12 @@ def test_local_ocr_cannot_be_used_for_new_profiles(case):
 @pytest.mark.parametrize(
     "dtype,key,mask",
     [
-        ("application", "has_applicant", "IMIE/NAZWISKO"),
+        ("application", "has_candidate", "IMIE/NAZWISKO"),
+        ("application", "has_contact", "TELEFON"),
         ("invoice", "has_seller", "IMIE/NAZWISKO"),
         ("invoice", "has_issue_date", "DATA"),
-        ("id_card", "has_surname", "IMIE/NAZWISKO"),
-        ("id_card", "has_pesel", "PESEL"),
-        ("passport", "has_expiry_date", "DATA"),
-        ("bank_statement", "has_account_holder", "IMIE/NAZWISKO"),
-        ("bank_statement", "has_account_number", "NUMER RACHUNKU"),
-        ("tax_form", "has_tax_identifier", "NIP"),
-        ("scientific_article", "has_authors", "IMIE/NAZWISKO"),
+        ("demand_letter", "has_debtor", "IMIE/NAZWISKO"),
+        ("demand_letter", "has_demand_date", "DATA"),
     ],
 )
 def test_correct_mask_confirms_presence_even_with_low_confidence(dtype, key, mask):
@@ -137,10 +130,8 @@ def test_correct_mask_confirms_presence_even_with_low_confidence(dtype, key, mas
     [
         ("invoice", "has_buyer", "ADRES"),
         ("invoice", "has_invoice_total", "DATA"),
-        ("id_card", "has_pesel", "TELEFON"),
-        ("passport", "has_birth_date", "IMIE/NAZWISKO"),
-        ("bank_statement", "has_account_number", "TELEFON"),
-        ("scientific_article", "has_article_content", "IMIE/NAZWISKO"),
+        ("demand_letter", "has_demand_amount", "IMIE/NAZWISKO"),
+        ("demand_letter", "has_demand_date", "TELEFON"),
     ],
 )
 def test_wrong_mask_does_not_confirm_an_unrelated_value(dtype, key, mask):
@@ -151,7 +142,7 @@ def test_wrong_mask_does_not_confirm_an_unrelated_value(dtype, key, mask):
 @pytest.mark.parametrize("dtype", list(DocumentType))
 def test_every_concrete_classifier_category_has_a_profile(dtype):
     profile = get_mvp_profile_definition(dtype)
-    assert bool(profile) == (dtype not in {DocumentType.UNKNOWN, DocumentType.OTHER})
+    assert bool(profile) == (dtype != DocumentType.UNKNOWN)
     if profile:
         assert profile.rules and len({r.field_name for r in profile.rules}) == len(profile.rules)
 
@@ -165,40 +156,28 @@ def test_worker_loads_builtin_profile_without_database_seed(case):
     assert {r.field_name for r in rules} >= {key for key, _, _ in case["rows"]}
 
 
-def test_zero_balance_and_no_transactions_are_valid_content():
-    fields = extract(BY_TYPE["bank_statement"])["observations"]
-    assert fields["has_opening_balance"]["state"] == "present"
-    assert fields["has_transactions"]["reason_code"] == "EXPLICIT_NO_TRANSACTIONS"
-
-
 def test_explicit_empty_bilingual_caption_is_not_a_name():
-    text = document(BY_TYPE["passport"]).replace(
-        "Nazwisko: Testowski", "Nazwisko / Surname:\nImiona / Given names: Jan"
+    text = document(BY_TYPE["demand_letter"]).replace(
+        "Dłużnik: Jan Testowski", "Dłużnik / Debtor:\nKwota należności / Amount due: 10 zł"
     )
-    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.PASSPORT).fields
-    assert fields["observations"]["has_surname"]["state"] == "empty"
+    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.DEMAND_LETTER).fields
+    assert fields["observations"]["has_debtor"]["state"] == "empty"
 
 
 def test_filled_bilingual_caption_remains_one_field():
-    text = document(BY_TYPE["passport"]).replace(
-        "Nazwisko: Testowski", "Nazwisko / Surname: Testowski"
+    text = document(BY_TYPE["demand_letter"]).replace(
+        "Dłużnik: Jan Testowski", "Dłużnik / Debtor: Jan Testowski"
     )
-    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.PASSPORT).fields
-    assert fields["observations"]["has_surname"]["state"] == "present"
+    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.DEMAND_LETTER).fields
+    assert fields["observations"]["has_debtor"]["state"] == "present"
 
 
-def test_unlabelled_prose_mention_does_not_create_author_field():
-    text = "ARTYKUŁ NAUKOWY\nW tym badaniu autorzy: Jan Testowski byli jedynie uczestnikami."
-    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.SCIENTIFIC_ARTICLE).fields
-    assert fields["observations"]["has_authors"]["state"] == "unknown"
-
-
-def test_mentions_inside_body_are_not_field_labels():
+def test_unlabelled_prose_mention_does_not_create_creditor_field():
     text = (
-        "ARTYKUŁ NAUKOWY\nWyniki: W badaniu autorzy: Jan Testowski uczestniczyli jako ankieterzy."
+        "WEZWANIE DO ZAPŁATY\nW poprzednim piśmie wierzyciel: Jan Testowski był jedynie świadkiem."
     )
-    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.SCIENTIFIC_ARTICLE).fields
-    assert fields["observations"]["has_authors"]["state"] != "present"
+    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.DEMAND_LETTER).fields
+    assert fields["observations"]["has_creditor"]["state"] != "present"
 
 
 def test_date_aliases_with_same_day_do_not_conflict():
@@ -206,13 +185,6 @@ def test_date_aliases_with_same_day_do_not_conflict():
     text = document(case) + "\nIssue date: 2026-10-29"
     fields = FormalDocumentExtractor().extract(azure(text), DocumentType.INVOICE).fields
     assert fields["observations"]["has_issue_date"]["state"] == "present"
-
-
-def test_tax_form_code_can_be_the_document_heading():
-    case = BY_TYPE["tax_form"]
-    text = document(case, omit="has_tax_form").replace(case["title"], "PIT-37")
-    fields = FormalDocumentExtractor().extract(azure(text), DocumentType.TAX_FORM).fields
-    assert fields["observations"]["has_tax_form"]["state"] == "present"
 
 
 @pytest.mark.parametrize(
@@ -233,11 +205,9 @@ def test_invoice_values_are_not_just_nonempty_strings(key, value, expected):
 @pytest.mark.parametrize(
     "dtype,key",
     [
-        ("scientific_article", "has_article_abstract"),
         ("patent", "has_patent_number"),
-        ("financial_report", "has_financial_notes"),
-        ("government_tender", "has_submission_deadline"),
-        ("manual", "has_safety_instructions"),
+        ("application", "has_skills"),
+        ("application", "has_data_consent"),
     ],
 )
 def test_variant_sections_are_advisory_and_do_not_fail_completeness(dtype, key):
@@ -269,12 +239,12 @@ def test_names_in_distant_column_do_not_supply_missing_buyer():
 
 
 def test_same_row_dots_can_confirm_blank_even_when_distant():
-    raw = azure("WYCIĄG BANKOWY\nNumer rachunku:\n...........\nBank: Bank Testowy")
+    raw = azure("FAKTURA VAT\nNumer faktury:\n...........\nSprzedawca: Testowa Firma Alfa")
     lines = raw["pages"][0]["lines"]
     lines[1]["polygon"] = [10, 40, 100, 40, 100, 55, 10, 55]
     lines[2]["polygon"] = [400, 40, 500, 40, 500, 55, 400, 55]
-    fields = FormalDocumentExtractor().extract(raw, DocumentType.BANK_STATEMENT).fields
-    assert fields["observations"]["has_account_number"]["state"] == "empty"
+    fields = FormalDocumentExtractor().extract(raw, DocumentType.INVOICE).fields
+    assert fields["observations"]["has_invoice_number"]["state"] == "empty"
 
 
 CLOUD_CASES = json.loads(

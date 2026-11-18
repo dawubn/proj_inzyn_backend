@@ -66,7 +66,14 @@ _CLASSIFICATION_KEYWORDS: dict[DocumentType, tuple[str, ...]] = {
         "zakres pelnomocnictwa",
     ),
     DocumentType.INVOICE: ("faktura", "nabywca", "sprzedawca", "kwota brutto", "vat"),
-    DocumentType.TAX_FORM: ("deklaracja", "pit", "urzad skarbowy", "nip", "podatek"),
+    DocumentType.DEMAND_LETTER: (
+        "wezwanie do zaplaty",
+        "przedsadowe",
+        "wzywam",
+        "wierzyciel",
+        "dluznik",
+        "zaleglosc",
+    ),
 }
 
 
@@ -766,14 +773,7 @@ _AMOUNT_VALUE = re.compile(
     r"(?:[.,]\d{1,2})?(?:\s*(?:[A-Z]{3}|zl))?",
     re.I,
 )
-_UNSTRUCTURED_TYPES = {
-    DocumentType.SCIENTIFIC_ARTICLE,
-    DocumentType.PATENT,
-    DocumentType.MANUAL,
-    DocumentType.LAW_AND_REGULATION,
-    DocumentType.FINANCIAL_REPORT,
-    DocumentType.GOVERNMENT_TENDER,
-}
+_UNSTRUCTURED_TYPES = {DocumentType.PATENT}
 
 
 def _catalog_context(context: DocumentContext, specs: tuple[FieldSpec, ...]) -> DocumentContext:
@@ -787,8 +787,7 @@ def _catalog_context(context: DocumentContext, specs: tuple[FieldSpec, ...]) -> 
             lines.append(line)
             continue
         if any(
-            spec.kind in {"section", "title", "transactions"} and _catalog_match(spec, line.text)
-            for spec in specs
+            spec.kind in {"section", "title"} and _catalog_match(spec, line.text) for spec in specs
         ):
             lines.append(line)
             continue
@@ -842,15 +841,13 @@ def _catalog_match(spec: FieldSpec, text: str) -> re.Match[str] | None:
     return _label_match(rf"(?:{spec.pattern})(?:\s*/\s*(?:{spec.pattern}))*", text)
 
 
-def _catalog_date(value: str, period: bool = False) -> tuple[str, str]:
+def _catalog_date(value: str) -> tuple[str, str]:
     dates = [_parse_date(match.group()) for match in _DATE_RE.finditer(value)]
     if dates:
         if None in dates:
             return "invalid", "INVALID_DATE"
-        if not period and len(set(dates)) > 1:
+        if len(set(dates)) > 1:
             return "unknown", "CONFLICTING_DATES"
-        return "present", "VALUE_FOUND"
-    if period and re.fullmatch(r"(?:rok\s+)?\d{4}(?:\s*r\.?)?", normalize_text(value)):
         return "present", "VALUE_FOUND"
     return "unknown", "UNRECOGNIZED_DATE"
 
@@ -860,21 +857,17 @@ def _catalog_value(spec: FieldSpec, value: str) -> tuple[str, str]:
     text = normalize_text(value).strip()
     if labels.intersection(spec.masks):
         return "masked", "REDACTED_VALUE"
-    if spec.kind == "transactions" and re.fullmatch(
-        r"(?:brak (?:operacji|transakcji)(?: w (?:tym )?okresie)?|no transactions)[.!]?", text
-    ):
-        return "present", "EXPLICIT_NO_TRANSACTIONS"
     if _empty(value) or re.match(r"^(?:wpisz|podaj|uzupelnij)\b", text):
         return "empty", "EMPTY_FIELD"
-    if labels and spec.kind not in {"section", "text", "title", "transactions"}:
+    if labels and spec.kind not in {"section", "text", "title"}:
         return "unknown", "MASK_TYPE_MISMATCH"
     return _catalog_readable_value(spec, value)
 
 
 def _catalog_readable_value(spec: FieldSpec, value: str) -> tuple[str, str]:
     text = normalize_text(value).strip()
-    if spec.kind in {"date", "period"}:
-        return _catalog_date(value, period=spec.kind == "period")
+    if spec.kind == "date":
+        return _catalog_date(value)
     if spec.kind in {"amount", "tax"}:
         if _AMOUNT_VALUE.fullmatch(text) or (
             spec.kind == "tax"
@@ -882,15 +875,8 @@ def _catalog_readable_value(spec: FieldSpec, value: str) -> tuple[str, str]:
         ):
             return "present", "VALUE_FOUND"
         return "unknown", "UNRECOGNIZED_NUMBER"
-    if spec.kind in {"identifier", "account", "pesel", "tax_id", "form_code"}:
-        patterns = {
-            "identifier": r"(?=.*\d)[\w ./()-]+",
-            "account": r"(?:[A-Z]{2})?\d[\d A-Z-]{13,36}",
-            "pesel": r"\d{11}",
-            "tax_id": r"(?:\d[ -]?){10,11}",
-            "form_code": r"(?:PIT|CIT|VAT|PCC|SD|AKC)[ -]?\d+[A-Z]?(?:\s*\(\d+\))?",
-        }
-        valid = bool(re.fullmatch(patterns[spec.kind], value, re.I))
+    if spec.kind == "identifier":
+        valid = bool(re.fullmatch(r"(?=.*\d)[\w ./()-]+", value, re.I))
         return ("present", "VALUE_FOUND") if valid else ("unknown", "UNRECOGNIZED_IDENTIFIER")
     if spec.key == "has_invoice_items" and re.match(
         r"^(?:ilosc|cena|wartosc netto|quantity|unit price)\b", text
@@ -907,22 +893,12 @@ def _catalog_readable_value(spec: FieldSpec, value: str) -> tuple[str, str]:
 def _catalog_field(
     context: DocumentContext, spec: FieldSpec, specs: tuple[FieldSpec, ...]
 ) -> dict[str, Any]:
-    if spec.kind in {"signature", "visual"}:
-        return _observation(
-            "unknown",
-            (
-                "SIGNATURE_REQUIRES_VISUAL_REVIEW"
-                if spec.kind == "signature"
-                else "VISUAL_REVIEW_REQUIRED"
-            ),
-            [],
-        )
+    if spec.kind == "signature":
+        return _observation("unknown", "SIGNATURE_REQUIRES_VISUAL_REVIEW", [])
     candidates = []
     for index, line in enumerate(context.lines):
         match = _catalog_match(spec, line.text)
         if not match:
-            if spec.kind == "form_code" and _catalog_value(spec, line.text)[0] == "present":
-                candidates.append(_observation("present", "VALUE_FOUND", [line], line.text))
             continue
         value, evidence, uncertain_layout = _catalog_block(context, index, match.end(), specs)
         state, reason = _catalog_value(spec, value)
@@ -984,7 +960,8 @@ def _catalog_fields(context: DocumentContext, dtype: DocumentType) -> dict[str, 
         result = _catalog_field(context, spec, document_spec.fields)
         if result["state"] == "missing" and (spec.advisory or dtype in _UNSTRUCTURED_TYPES):
             result.update(state="unknown", reason_code="VARIANT_FIELD_REVIEW")
-        if spec.key == "has_application_date" and not result["evidence"]:
+        # A letter usually has its date in the heading without a caption.
+        if spec.key == "has_demand_date" and not result["evidence"]:
             result = _dates(context)
         results[spec.key] = result
     return results

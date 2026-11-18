@@ -327,17 +327,17 @@ Polish NER uses [lexedit/herbert-polish-legal-ner-ocr](https://huggingface.co/le
 ## Document Classification
 
 `POST /api/v1/classify` accepts OCR text and returns a predefined document type with confidence.
-Uses a TF-IDF + Logistic Regression pipeline trained on the DocLayNet dataset. The endpoint
+Uses a TF-IDF + Logistic Regression pipeline trained on generated training text. The endpoint
 accepts the normalised payload (`text_content`), Azure-style alias (`content`), or the full raw
 OCR payload (`ocr_raw_result.content`).
 
-Detected types: `invoice`, `contract`, `id_card`, `passport`, `bank_statement`, `tax_form`,
-`financial_report`, `government_tender`, `law_and_regulation`, `manual`, `patent`,
-`scientific_article`, `lawsuit`, `power_of_attorney`, `application`.
+Detected types: `contract`, `invoice`, `patent`, `lawsuit`, `power_of_attorney`,
+`application` (job application or CV) and `demand_letter` (pre-trial demand for payment).
+Anything else is returned as `unknown`.
 
 The same classifier runs automatically after every OCR analysis — its result is stored on the
-analysis (`detected_document_type`, `classification_confidence`) and on the document
-(`document_type`), so the frontend gets the type without an extra call.
+analysis (`detected_document_type`, `classification_confidence`) and suggested on the document
+(`suggested_document_type`), so the frontend gets the type without an extra call.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/classify \
@@ -383,22 +383,25 @@ confirm the type instead of trusting a weak guess.
 
 To add a new document type:
 
-1. Add the value to `DocumentType` in `app/enums/document.py` (e.g. `DEED = "deed"`).
-2. Add a template entry for the new class in `scripts/generate_synthetic_training_data.py`
+1. Add the value to `DocumentType` in `app/enums/document.py` (e.g. `DEED = "deed"`) and a
+   migration that adds it to the `ck_documents_document_type` constraint.
+2. Add a validation profile: a spec in `app/services/formal_catalog.py` or a built-in profile in
+   `app/services/mvp_validation_profiles.py`.
+3. Add a template entry for the new class in `scripts/generate_synthetic_training_data.py`
    (`_CLASS_TEMPLATES` dict — folder name = class label, e.g. `"deeds": {...}`).
-3. Map the folder name to the enum value in `_LABEL_TO_DOCUMENT_TYPE` in
+4. Map the folder name to the enum value in `_LABEL_TO_DOCUMENT_TYPE` in
    `app/services/classification.py` (e.g. `"deeds": DocumentType.DEED`).
-4. Regenerate training data and retrain the model:
+5. Regenerate training data and retrain the model:
    ```bash
    python scripts/generate_synthetic_training_data.py
    python scripts/train_classifier.py
    ```
-5. Restart the API and worker so they pick up the new model:
+6. Restart the API and worker so they pick up the new model:
    ```bash
    docker compose restart api worker
    ```
 
-Labels that exist in the model but are not mapped fall back to `DocumentType.OTHER`.
+Labels that exist in the model but are not mapped fall back to `DocumentType.UNKNOWN`.
 
 ## Project Structure
 

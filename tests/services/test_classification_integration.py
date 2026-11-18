@@ -55,34 +55,29 @@ _CASES: list[tuple[DocumentType, str]] = [
         "the Parties confidentiality intellectual property termination governing law",
     ),
     (
-        DocumentType.ID_CARD,
-        "DOWÓD OSOBISTY RZECZPOSPOLITA POLSKA PESEL nazwisko imiona obywatelstwo "
-        "data urodzenia organ wydający numer dowodu osobistego",
-    ),
-    (
-        DocumentType.PASSPORT,
-        "PASSPORT POL surname given names nationality machine readable zone "
-        "passport number date of expiry biometric",
-    ),
-    (
-        DocumentType.BANK_STATEMENT,
-        "Bank statement IBAN opening balance closing balance transaction "
-        "transfer card payment ATM withdrawal salary",
-    ),
-    (
-        DocumentType.TAX_FORM,
-        "PIT-37 zeznanie podatkowe Urząd Skarbowy podatnik dochód podatek "
-        "zaliczka zwrot składki ZUS",
-    ),
-    (
-        DocumentType.FINANCIAL_REPORT,
-        "Annual report consolidated balance sheet shareholders equity revenue "
-        "net income earnings per share dividend",
-    ),
-    (
         DocumentType.PATENT,
         "Patent claim invention embodiment prior art field of invention "
         "assignee abstract apparatus method",
+    ),
+    (
+        DocumentType.LAWSUIT,
+        "Pozew o zapłatę do Sądu Rejonowego, powód, pozwany, wartość przedmiotu sporu, "
+        "wnoszę o zasądzenie kwoty wraz z kosztami procesu",
+    ),
+    (
+        DocumentType.POWER_OF_ATTORNEY,
+        "Pełnomocnictwo. Mocodawca upoważnia pełnomocnika do reprezentowania go przed sądem "
+        "z prawem udzielania dalszych pełnomocnictw",
+    ),
+    (
+        DocumentType.APPLICATION,
+        "Curriculum Vitae, doświadczenie zawodowe, wykształcenie, umiejętności, "
+        "wyrażam zgodę na przetwarzanie danych w procesie rekrutacji",
+    ),
+    (
+        DocumentType.DEMAND_LETTER,
+        "Przedsądowe wezwanie do zapłaty. Wzywam dłużnika do zapłaty zaległości na rzecz "
+        "wierzyciela w terminie 7 dni, w przeciwnym razie sprawa trafi do sądu",
     ),
 ]
 

@@ -14,8 +14,6 @@ from app.services.formal_context import MIN_WORD_CONFIDENCE, DocumentContext, no
 # These labels identify roles; arbitrary dates in prose are deliberately not compared.
 _DATE_ROLES = {
     DocumentType.CONTRACT: ("rozpoczecia", "zakonczenia", "Okres obowiązywania umowy"),
-    DocumentType.PASSPORT: ("wydania", "waznosci", "Okres ważności paszportu"),
-    DocumentType.ID_CARD: ("wydania", "waznosci", "Okres ważności dowodu osobistego"),
 }
 _DATE = re.compile(r"(?<!\d)(?:\d{4}-\d{2}-\d{2}|\d{1,2}[./-]\d{1,2}[./-]\d{4})(?!\d)")
 
