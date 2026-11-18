@@ -29,17 +29,12 @@ def field(
 CATALOG: Mapping[str, tuple[FieldDefinition, ...]] = MappingProxyType(
     {
         "application": (
-            field("has_applicant", "Wnioskodawca", "identity"),
-            field("has_recipient", "Adresat wniosku", "text"),
-            field("has_request", "Treść wniosku", "section"),
-            field("has_application_date", "Data sporządzenia", "date"),
-            field("has_signature", "Podpis wnioskodawcy", "signature"),
-            field(
-                "has_application_justification",
-                "Uzasadnienie wniosku",
-                "section",
-                advisory=True,
-            ),
+            field("has_candidate", "Imię i nazwisko", "identity"),
+            field("has_contact", "Kontakt", "text"),
+            field("has_experience", "Doświadczenie zawodowe", "section"),
+            field("has_education", "Wykształcenie", "section"),
+            field("has_skills", "Umiejętności", "section", advisory=True),
+            field("has_data_consent", "Klauzula", "section", advisory=True),
         ),
         "invoice": (
             field("has_invoice_number", "Numer faktury", "identifier"),
@@ -49,132 +44,6 @@ CATALOG: Mapping[str, tuple[FieldDefinition, ...]] = MappingProxyType(
             field("has_invoice_items", "Nazwa towaru lub usługi", "section"),
             field("has_invoice_total", "Do zapłaty", "amount"),
             field("has_tax_details", "Stawka VAT", "tax", advisory=True),
-        ),
-        "id_card": (
-            field("has_surname", "Nazwisko", "identity"),
-            field("has_given_names", "Imiona", "identity"),
-            field("has_birth_date", "Data urodzenia", "date"),
-            field("has_document_number", "Numer dokumentu", "identifier"),
-            field("has_expiry_date", "Data ważności", "date"),
-            field("has_issuing_authority", "Organ wydający", "text"),
-            field(
-                "has_document_image",
-                "Zdjęcie i zabezpieczenia dokumentu",
-                "visual",
-                advisory=True,
-            ),
-            field("has_pesel", "Numer PESEL", "pesel"),
-        ),
-        "passport": (
-            field("has_surname", "Nazwisko", "identity"),
-            field("has_given_names", "Imiona", "identity"),
-            field("has_birth_date", "Data urodzenia", "date"),
-            field("has_document_number", "Numer dokumentu", "identifier"),
-            field("has_expiry_date", "Data ważności", "date"),
-            field("has_issuing_authority", "Organ wydający", "text"),
-            field(
-                "has_document_image",
-                "Zdjęcie i zabezpieczenia dokumentu",
-                "visual",
-                advisory=True,
-            ),
-            field("has_nationality", "Obywatelstwo", "text"),
-        ),
-        "bank_statement": (
-            field("has_bank", "Bank", "text"),
-            field("has_account_holder", "Posiadacz rachunku", "identity"),
-            field("has_account_number", "Numer rachunku", "account"),
-            field("has_statement_period", "Okres wyciągu", "period"),
-            field("has_opening_balance", "Saldo początkowe", "amount"),
-            field("has_closing_balance", "Saldo końcowe", "amount"),
-            field("has_transactions", "Historia operacji", "transactions"),
-        ),
-        "tax_form": (
-            field("has_tax_form", "Oznaczenie formularza", "form_code"),
-            field("has_taxpayer", "Podatnik", "identity"),
-            field("has_tax_identifier", "NIP", "tax_id"),
-            field("has_tax_period", "Rok podatkowy", "period"),
-            field("has_tax_office", "Urząd skarbowy", "text"),
-            field("has_tax_values", "Podatek należny", "amount"),
-        ),
-        "financial_report": (
-            field("has_reporting_entity", "Jednostka", "identity"),
-            field("has_reporting_period", "Okres sprawozdawczy", "period"),
-            field("has_financial_data", "Aktywa razem", "amount"),
-            field("has_balance_sheet", "Bilans", "section", advisory=True),
-            field(
-                "has_income_statement",
-                "Rachunek wyników",
-                "section",
-                advisory=True,
-            ),
-            field(
-                "has_financial_notes",
-                "Informacja dodatkowa",
-                "section",
-                advisory=True,
-            ),
-        ),
-        "government_tender": (
-            field("has_contracting_authority", "Zamawiający", "identity"),
-            field("has_tender_subject", "Przedmiot zamówienia", "section"),
-            field(
-                "has_tender_reference",
-                "Numer postępowania",
-                "identifier",
-                advisory=True,
-            ),
-            field(
-                "has_submission_deadline",
-                "Termin składania ofert",
-                "date",
-                advisory=True,
-            ),
-            field(
-                "has_submission_method",
-                "Sposób składania ofert",
-                "section",
-                advisory=True,
-            ),
-            field(
-                "has_award_criteria",
-                "Kryteria oceny ofert",
-                "section",
-                advisory=True,
-            ),
-        ),
-        "law_and_regulation": (
-            field("has_act_title", "Tytuł aktu", "title"),
-            field("has_act_date", "Data aktu", "date"),
-            field("has_provisions", "Przepisy", "section"),
-            field(
-                "has_publication_reference",
-                "Publikacja",
-                "identifier",
-                advisory=True,
-            ),
-            field(
-                "has_effective_date",
-                "Wejście w życie",
-                "section",
-                advisory=True,
-            ),
-        ),
-        "manual": (
-            field("has_manual_subject", "Urządzenie", "title"),
-            field("has_operating_instructions", "Sposób obsługi", "section"),
-            field(
-                "has_safety_instructions",
-                "Informacje o bezpieczeństwie",
-                "section",
-                advisory=True,
-            ),
-            field(
-                "has_manual_version",
-                "Wersja instrukcji",
-                "identifier",
-                advisory=True,
-            ),
         ),
         "patent": (
             field("has_invention_title", "Tytuł wynalazku", "title"),
@@ -198,18 +67,6 @@ CATALOG: Mapping[str, tuple[FieldDefinition, ...]] = MappingProxyType(
                 "identifier",
                 advisory=True,
             ),
-        ),
-        "scientific_article": (
-            field("has_article_title", "Tytuł artykułu", "title"),
-            field("has_authors", "Autorzy", "identity"),
-            field("has_article_content", "Wprowadzenie", "section"),
-            field(
-                "has_article_abstract",
-                "Streszczenie",
-                "section",
-                advisory=True,
-            ),
-            field("has_references", "Bibliografia", "section", advisory=True),
         ),
         "power_of_attorney": (
             field("has_date", "Data sporządzenia", "date"),
@@ -236,27 +93,28 @@ CATALOG: Mapping[str, tuple[FieldDefinition, ...]] = MappingProxyType(
             field("has_justification_section", "Uzasadnienie", "section"),
             field("has_signature", "Podpis", "signature"),
         ),
+        "demand_letter": (
+            field("has_creditor", "Wierzyciel", "identity"),
+            field("has_debtor", "Dłużnik", "identity"),
+            field("has_demand_amount", "Kwota do zapłaty", "amount"),
+            field("has_payment_deadline", "Termin zapłaty", "text"),
+            field("has_demand_date", "Data wezwania", "date"),
+            field("has_signature", "Podpis wierzyciela", "signature"),
+            field("has_demand_basis", "Podstawa roszczenia", "text", advisory=True),
+        ),
     }
 )
 
 
 TITLES: Mapping[str, str] = MappingProxyType(
     {
-        "application": "WNIOSEK O WYDANIE ZAŚWIADCZENIA",
+        "application": "CURRICULUM VITAE",
         "invoice": "FAKTURA VAT",
-        "id_card": "KARTA DANYCH DOWODU OSOBISTEGO — WZÓR TESTOWY",
-        "passport": "KARTA DANYCH PASZPORTU — WZÓR TESTOWY",
-        "bank_statement": "WYCIĄG BANKOWY",
-        "tax_form": "DEKLARACJA PODATKOWA PIT-37 — PRZYKŁAD TESTOWY",
-        "financial_report": "SPRAWOZDANIE FINANSOWE",
-        "government_tender": "OGŁOSZENIE O ZAMÓWIENIU",
-        "law_and_regulation": ("REGULAMIN UDOSTĘPNIANIA SAL — FIKCYJNY AKT NORMATYWNY"),
-        "manual": "INSTRUKCJA OBSŁUGI CZUJNIKA",
         "patent": "OPIS WYNALAZKU — DOKUMENT TESTOWY",
-        "scientific_article": "ARTYKUŁ NAUKOWY",
         "power_of_attorney": "PEŁNOMOCNICTWO",
         "contract": "UMOWA O ŚWIADCZENIE USŁUG",
         "lawsuit": "POZEW O ZAPŁATĘ",
+        "demand_letter": "PRZEDSĄDOWE WEZWANIE DO ZAPŁATY",
     }
 )
 

@@ -34,13 +34,8 @@ BOLD_FONT_NAME = "EffectivenessDejaVuBold"
 # Keep both mutation styles. Removing difficult cases would inflate recall.
 MISSING_STYLES = ("omitted", "blank")
 
-# These optional sections can repeat the primary financial figures.
-DEPENDENT_OPTIONAL_FIELDS: dict[str, tuple[str, ...]] = {
-    "has_financial_data": (
-        "has_balance_sheet",
-        "has_income_statement",
-    ),
-}
+# Optional fields that repeat a primary field and must disappear together with it.
+DEPENDENT_OPTIONAL_FIELDS: dict[str, tuple[str, ...]] = {}
 
 
 def _register_fonts() -> None:
@@ -66,9 +61,6 @@ def _money(grosze: int) -> str:
 
 
 def _document_title(document_type: str) -> str:
-    # The form code belongs only to has_tax_form, never to the heading.
-    if document_type == "tax_form":
-        return "DEKLARACJA PODATKOWA — PRZYKŁAD TESTOWY"
     return get_title(document_type)
 
 
@@ -104,11 +96,14 @@ def _make_values(
             "Powód wykonał uzgodnioną usługę. Pozwany odebrał protokół, "
             "ale nie zapłacił wynagrodzenia."
         ),
-        "has_applicant": person,
-        "has_recipient": "Urząd Miasta Testowo",
-        "has_request": "Wnoszę o wydanie zaświadczenia o udziale w demonstracyjnym szkoleniu.",
-        "has_application_date": issued_text,
-        "has_application_justification": "Dokumentacja jest potrzebna do celów szkoleniowych.",
+        "has_candidate": person,
+        "has_contact": f"{person.split()[0].lower()}@example.invalid, tel. 600 100 200",
+        "has_experience": "Specjalista do spraw pomiarów w Pracowni Modelowej, lata 2021-2025.",
+        "has_education": "Studia magisterskie z automatyki i robotyki, Politechnika Testowa.",
+        "has_skills": "Obsługa aparatury pomiarowej, język angielski B2.",
+        "has_data_consent": (
+            "Wyrażam zgodę na przetwarzanie moich danych osobowych w procesie rekrutacji."
+        ),
         "has_invoice_number": f"TEST/{issued.year}/{index:04d}",
         "has_issue_date": issued_text,
         "has_seller": "Modelowe Usługi spółka z o.o.",
@@ -118,64 +113,6 @@ def _make_values(
         ),
         "has_invoice_total": gross,
         "has_tax_details": "23%",
-        "has_surname": person.split()[-1],
-        "has_given_names": person.split()[0],
-        "has_birth_date": "12.05.1990",
-        "has_document_number": f"TEST{index:06d}",
-        "has_expiry_date": "12.05.2030",
-        "has_issuing_authority": "Organ demonstracyjny Testowo",
-        "has_pesel": "90051212345",
-        "has_nationality": "polskie",
-        "has_bank": "Bank Demonstracyjny",
-        "has_account_holder": person,
-        "has_account_number": "00123456789012345678901234",
-        "has_statement_period": "01.01.2026 - 31.01.2026",
-        "has_opening_balance": "1000,00 PLN",
-        "has_closing_balance": "1500,00 PLN",
-        "has_transactions": "05.01.2026 — Uznanie rachunku: 500,00 PLN",
-        "has_tax_form": "PIT-37",
-        "has_taxpayer": person,
-        "has_tax_identifier": "1234567890",
-        "has_tax_period": "2025",
-        "has_tax_office": "Urząd Skarbowy w Testowie",
-        "has_tax_values": "1200,00 PLN",
-        "has_reporting_entity": "Pracownia Modelowa spółka z o.o.",
-        "has_reporting_period": "01.01.2025 - 31.12.2025",
-        "has_financial_data": "150000,00 PLN",
-        "has_balance_sheet": "Aktywa trwałe: 100000,00 PLN. Aktywa obrotowe: 50000,00 PLN.",
-        "has_income_statement": (
-            "Przychody: 200000,00 PLN. Koszty: 180000,00 PLN. Wynik finansowy: 20000,00 PLN."
-        ),
-        "has_financial_notes": "Zastosowano demonstracyjne zasady rachunkowości.",
-        "has_contracting_authority": "Laboratorium Demonstracyjne w Testowie",
-        "has_tender_subject": (
-            "Dostawa dziesięciu czujników temperatury do laboratorium demonstracyjnego."
-        ),
-        "has_tender_reference": f"TEST/ZAM/{index:04d}",
-        "has_submission_deadline": "30.11.2026",
-        "has_submission_method": (
-            "Oferty należy przesłać elektronicznie na adres "
-            "[przetarg@example.invalid](mailto:przetarg@example.invalid)."
-        ),
-        "has_award_criteria": "Cena: 80%. Termin realizacji: 20%.",
-        "has_act_title": "Regulamin udostępniania sal demonstracyjnych",
-        "has_act_date": issued_text,
-        "has_provisions": (
-            "§ 1. Sale udostępnia się na szkolenia demonstracyjne. "
-            "§ 2. Użytkownik pozostawia salę w stanie uporządkowanym."
-        ),
-        "has_publication_reference": f"TEST/REG/{index:04d}",
-        "has_effective_date": "Regulamin stosuje się od 01.12.2026.",
-        "has_manual_subject": f"Czujnik temperatury TEST-{index:04d}",
-        "has_operating_instructions": (
-            "Podłącz przewód do złącza zasilania. "
-            "Naciśnij przycisk uruchomienia. "
-            "Odczytaj temperaturę z wyświetlacza."
-        ),
-        "has_safety_instructions": (
-            "Ryzyko porażenia prądem elektrycznym. Urządzenie nie jest odporne na działanie wody."
-        ),
-        "has_manual_version": "TEST-1.0",
         "has_invention_title": "Moduł stabilizacji temperatury komory pomiarowej",
         "has_patent_applicant": person,
         "has_invention_description": (
@@ -189,17 +126,12 @@ def _make_values(
         ),
         "has_patent_abstract": "Rozwiązanie ogranicza wahania temperatury w komorze pomiarowej.",
         "has_patent_number": f"TEST/PL/{index:06d}",
-        "has_article_title": "Porównanie stabilności wskazań czujników temperatury",
-        "has_authors": f"{person}, {attorney}",
-        "has_article_content": (
-            "Porównano trzy czujniki w stałych warunkach. "
-            "Każdy pomiar powtórzono dziesięć razy. "
-            "Oceniono rozrzut wskazań względem wartości odniesienia."
-        ),
-        "has_article_abstract": (
-            "Przedstawiono demonstracyjną metodę porównania stabilności pomiaru temperatury."
-        ),
-        "has_references": "Metody pomiarowe, opracowanie demonstracyjne, 2024.",
+        "has_creditor": "Modelowe Usługi spółka z o.o.",
+        "has_debtor": person,
+        "has_demand_amount": gross,
+        "has_payment_deadline": "7 dni od dnia doręczenia wezwania",
+        "has_demand_date": issued_text,
+        "has_demand_basis": f"Faktura nr TEST/{issued.year}/{index:04d}",
     }
 
     if document_type == "contract":
