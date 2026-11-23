@@ -1,6 +1,7 @@
 import structlog
 
-from app.core.exceptions import ConflictError, UnauthorizedError
+from app.core.config import settings
+from app.core.exceptions import ConflictError, EmailNotVerifiedError, UnauthorizedError
 from app.core.security import (
     PASSWORD_VERSION_CLAIM,
     create_access_token,
@@ -35,6 +36,8 @@ class AuthService:
             surname=data.surname,
             company=data.company,
             role=UserRole.USER,
+            # Without required verification the account can be used right away
+            is_verified=not settings.EMAIL_VERIFICATION_REQUIRED,
         )
         return await self._users.create(user)
 
@@ -45,6 +48,10 @@ class AuthService:
 
         if not user.is_active:
             raise UnauthorizedError("Account is deactivated")
+
+        # Checked after the password, so it does not tell anyone which emails are registered
+        if settings.EMAIL_VERIFICATION_REQUIRED and not user.is_verified:
+            raise EmailNotVerifiedError
 
         logger.info("User logged in", user_id=str(user.id))
         return user, self.issue_tokens(user)

@@ -151,6 +151,8 @@ pytest tests/api/test_auth.py -v
 | POST | `/api/v1/auth/refresh` | Refresh access token |
 | POST | `/api/v1/auth/forgot-password` | Send a password reset link by email |
 | POST | `/api/v1/auth/reset-password` | Set a new password with the token from the link |
+| POST | `/api/v1/auth/verify-email` | Confirm the email with the token from the link |
+| POST | `/api/v1/auth/resend-verification` | Send a new email verification link |
 | GET | `/api/v1/users/me` | Get current user profile |
 | PATCH | `/api/v1/users/me` | Update own name, surname and company |
 | POST | `/api/v1/users/me/password` | Change own password (requires the current one) |
@@ -163,6 +165,22 @@ The link is valid for `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (30 by default), wor
 and a newer link replaces the older one. Setting a new password ends all existing sessions
 of the user.
 
+One account gets at most one email a minute (`PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS`) and at
+most `PASSWORD_RESET_MAX_PER_DAY` (5) within 24 hours; further requests get the same `202`
+answer but no email.
+
+#### Email verification (production)
+
+With `EMAIL_VERIFICATION_REQUIRED=true` (set in `docker-compose.prod.yml`, off by default)
+a new account gets a link to `FRONTEND_URL/verify-email?token=...` and cannot log in until
+it is opened. Login then answers `403` with `"code": "email_not_verified"`, and
+`resend-verification` sends a new link (same `202` answer for every email). The link is valid
+for `EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS` (24 by default) and works once. One account gets
+at most one email a minute and `EMAIL_VERIFICATION_MAX_PER_DAY` (5, the registration email
+included) within 24 hours. Completing a
+password reset also confirms the email. Accounts that existed before this feature are
+marked as verified by the migration. Without the setting, new accounts are verified at once.
+
 #### Request limits per IP
 
 The public auth endpoints accept a limited number of requests from one IP address;
@@ -173,8 +191,8 @@ header. The counters are kept in Redis (`REDIS_URL`), so all API workers share t
 |----------|--------------|
 | `login` | 10 a minute |
 | `register` | 5 an hour |
-| `forgot-password` | 10 an hour |
-| `reset-password` | 20 an hour |
+| `forgot-password`, `resend-verification` | 10 an hour |
+| `reset-password`, `verify-email` | 20 an hour |
 | `contact` | 3 a day (`CONTACT_MAX_PER_IP_PER_DAY`) |
 
 The limits are set in `app/api/rate_limit.py` and turned off with `RATE_LIMIT_ENABLED=false`.

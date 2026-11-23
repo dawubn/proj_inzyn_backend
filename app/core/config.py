@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
     # Minimum time between two reset emails for the same account
     PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS: int = 60
+    # Maximum number of reset emails for one account within 24 hours
+    PASSWORD_RESET_MAX_PER_DAY: int = 5
     # Address of the frontend, used to build the link sent in the reset email
     FRONTEND_URL: str = "http://localhost:5173"
 
@@ -71,6 +73,16 @@ class Settings(BaseSettings):
         "2a06:98c0::/29",
         "2c0f:f248::/32",
     ]
+
+    # Email verification: a new account confirms its email with a link before the first
+    # login. Off by default, turned on in production (docker-compose.prod.yml)
+    EMAIL_VERIFICATION_REQUIRED: bool = False
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
+    # Minimum time between two verification emails for the same account
+    EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
+    # Maximum number of verification emails for one account within 24 hours,
+    # the one sent at registration included
+    EMAIL_VERIFICATION_MAX_PER_DAY: int = 5
 
     # Email (SMTP). Without SMTP_HOST no email is sent; outside production the message
     # is written to the log instead

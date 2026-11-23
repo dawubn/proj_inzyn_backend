@@ -38,6 +38,17 @@ class InvalidResetTokenError(AppError):
     detail = "Password reset link is invalid or has expired"
 
 
+class InvalidVerificationTokenError(AppError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Verification link is invalid or has expired"
+
+
+class EmailNotVerifiedError(AppError):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Email address is not verified"
+    code = "email_not_verified"
+
+
 class TooManyRequestsError(AppError):
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
     detail = "Too many requests. Try again later."

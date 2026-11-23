@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.password_reset_token import PasswordResetToken
@@ -28,6 +28,15 @@ class PasswordResetTokenRepository(BaseRepository[PasswordResetToken]):
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def count_created_since(self, user_id: uuid.UUID, since: datetime) -> int:
+        """How many links were created for the user since the given moment."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(PasswordResetToken)
+            .where(PasswordResetToken.user_id == user_id, PasswordResetToken.created_at >= since)
+        )
+        return int(result.scalar_one())
 
     async def invalidate_for_user(self, user_id: uuid.UUID, used_at: datetime) -> None:
         """Mark every unused token of the user as used, so only the newest link works."""
