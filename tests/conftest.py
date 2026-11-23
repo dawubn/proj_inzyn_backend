@@ -21,6 +21,12 @@ from app.db.session import Base, get_db
 
 
 @pytest.fixture(autouse=True)
+def _email_verification_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests do not depend on the local .env; those about verification turn it on."""
+    monkeypatch.setattr(settings, "EMAIL_VERIFICATION_REQUIRED", False)
+
+
+@pytest.fixture(autouse=True)
 def _rate_limit_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tests share one client address; those about request limits turn them on."""
     monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)

@@ -32,7 +32,8 @@ class PasswordResetService:
         """Create a reset token for the account with this email.
 
         Returns the user and the token to send, or None when nothing should be sent
-        (unknown or deactivated account, or a link was requested a moment ago).
+        (unknown or deactivated account, a link was requested a moment ago, or the
+        account already got PASSWORD_RESET_MAX_PER_DAY links within 24 hours).
         """
         user = await self._users.get_by_email(email)
         if not user or not user.is_active:
@@ -42,6 +43,11 @@ class PasswordResetService:
         latest = await self._tokens.get_latest_for_user(user.id)
         cooldown = timedelta(seconds=settings.PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS)
         if latest and now - latest.created_at < cooldown:
+            return None
+
+        sent_today = await self._tokens.count_created_since(user.id, now - timedelta(days=1))
+        if sent_today >= settings.PASSWORD_RESET_MAX_PER_DAY:
+            logger.warning("Daily limit of password reset emails reached", user_id=str(user.id))
             return None
 
         await self._tokens.invalidate_for_user(user.id, now)
@@ -67,6 +73,8 @@ class PasswordResetService:
         if not user or not user.is_active:
             raise InvalidResetTokenError
 
+        # The link came to the account's email, which confirms the address as well
+        user.is_verified = True
         await self._set_password(user, new_password, now)
         logger.info("Password reset completed", user_id=str(user.id))
         return user

@@ -41,6 +41,19 @@ def send_email(to: str, subject: str, body: str) -> None:
         logger.exception("Failed to send email", subject=subject)
 
 
+def send_verification_email(to: str, verification_url: str) -> None:
+    body = (
+        "Hello,\n\n"
+        "Thank you for creating a CerberDoc account.\n"
+        "Open the link below to confirm your email address and activate the account:\n\n"
+        f"{verification_url}\n\n"
+        f"The link is valid for {settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS} hours. "
+        "If it has expired, you can ask for a new one on the login page.\n\n"
+        "If you did not create an account, you can ignore this message.\n"
+    )
+    send_email(to, "Confirm your CerberDoc email address", body)
+
+
 def send_password_reset_email(to: str, reset_url: str) -> None:
     body = (
         "Hello,\n\n"
