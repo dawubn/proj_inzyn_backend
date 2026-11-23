@@ -16,7 +16,15 @@ from main import app
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.core.config import settings
 from app.db.session import Base, get_db
+
+
+@pytest.fixture(autouse=True)
+def _rate_limit_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests share one client address; those about request limits turn them on."""
+    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+
 
 _default_url = "postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test"
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", _default_url)

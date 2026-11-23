@@ -163,6 +163,38 @@ The link is valid for `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` (30 by default), wor
 and a newer link replaces the older one. Setting a new password ends all existing sessions
 of the user.
 
+#### Request limits per IP
+
+The public auth endpoints accept a limited number of requests from one IP address;
+over the limit they answer `429` with `"code": "too_many_requests"` and a `Retry-After`
+header. The counters are kept in Redis (`REDIS_URL`), so all API workers share them.
+
+| Endpoint | Limit per IP |
+|----------|--------------|
+| `login` | 10 a minute |
+| `register` | 5 an hour |
+| `forgot-password` | 10 an hour |
+| `reset-password` | 20 an hour |
+
+The limits are set in `app/api/rate_limit.py` and turned off with `RATE_LIMIT_ENABLED=false`.
+When Redis does not answer, requests are let through and a warning is logged.
+
+Behind a reverse proxy the API sees the proxy's address, and everyone would share one limit.
+The client address is found in two steps:
+
+1. uvicorn takes the address from `X-Forwarded-For` only for proxies listed in
+   `FORWARDED_ALLOW_IPS`. `docker-compose.prod.yml` trusts the private networks, where the
+   Coolify proxy runs (the API is only `expose`d, so nobody else connects from them). Do not
+   use `*`: uvicorn then takes the first address of the header, which the client can fake.
+2. When that address belongs to Cloudflare (`CLOUDFLARE_IP_RANGES`, by default the list from
+   https://www.cloudflare.com/ips/), the client address is read from `CF-Connecting-IP`.
+   From anyone else the header is ignored, so it cannot be faked by connecting to the server
+   directly. Update the list if Cloudflare publishes new ranges.
+
+IPv6 addresses are counted per `/64` network, which one connection usually gets as a whole.
+After a deployment, the `Rate limit exceeded` warnings in the `api` log should show addresses
+of users, not of Cloudflare or of the proxy.
+
 Emails are sent over SMTP (`SMTP_*` variables in `.env`). Without `SMTP_HOST` nothing is
 sent; in development the message with the link is written to the API log, so the flow can
 be tested without a mail server.

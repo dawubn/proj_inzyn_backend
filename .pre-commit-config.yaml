@@ -40,6 +40,8 @@ repos:
           - sqlalchemy>=2.0.36
           - types-passlib
           - types-aiofiles
+          # redis ships its own type hints
+          - redis>=5.2.0
         args: ["--ignore-missing-imports", "--exclude", "alembic/"]
         exclude: ^alembic/
 
