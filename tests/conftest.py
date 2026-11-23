@@ -26,6 +26,12 @@ def _email_verification_off(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "EMAIL_VERIFICATION_REQUIRED", False)
 
 
+@pytest.fixture(autouse=True)
+def _rate_limit_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests share one client address; those about request limits turn them on."""
+    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+
+
 _default_url = "postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test"
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", _default_url)
 

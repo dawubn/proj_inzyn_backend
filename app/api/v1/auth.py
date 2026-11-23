@@ -2,7 +2,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api import rate_limit as limits
 from app.api.cookies import clear_auth_cookies, set_auth_cookies
+from app.api.rate_limit import rate_limit
 from app.db.session import get_db
 from app.repositories.email_verification_token import EmailVerificationTokenRepository
 from app.repositories.password_reset_token import PasswordResetTokenRepository
@@ -38,7 +40,13 @@ def _email_verification_service(db: AsyncSession = Depends(get_db)) -> EmailVeri
     return EmailVerificationService(UserRepository(db), EmailVerificationTokenRepository(db))
 
 
-@router.post("/register", response_model=UserResponse, status_code=201)  # type: ignore[misc]
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=201,
+    responses={429: limits.TOO_MANY_REQUESTS},
+    dependencies=[Depends(rate_limit(limits.REGISTER))],
+)  # type: ignore[misc]
 async def register(
     data: UserCreate,
     background_tasks: BackgroundTasks,
@@ -71,7 +79,9 @@ async def register(
             "description": "Email address not confirmed yet "
             '(`code` is "email_not_verified"); a new link can be requested'
         },
+        429: limits.TOO_MANY_REQUESTS,
     },
+    dependencies=[Depends(rate_limit(limits.LOGIN))],
 )  # type: ignore[misc]
 async def login(data: LoginRequest, svc: AuthService = Depends(_auth_service)) -> Response:
     """Login — returns tokens in JSON body and sets secure HTTP-only cookies.
@@ -127,7 +137,13 @@ async def logout() -> Response:
     return response
 
 
-@router.post("/forgot-password", response_model=MessageResponse, status_code=202)  # type: ignore[misc]
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    status_code=202,
+    responses={429: limits.TOO_MANY_REQUESTS},
+    dependencies=[Depends(rate_limit(limits.FORGOT_PASSWORD))],
+)  # type: ignore[misc]
 async def forgot_password(
     data: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,
@@ -151,7 +167,11 @@ async def forgot_password(
 @router.post(
     "/verify-email",
     status_code=204,
-    responses={400: {"description": "Verification link is invalid, already used or expired"}},
+    responses={
+        400: {"description": "Verification link is invalid, already used or expired"},
+        429: limits.TOO_MANY_REQUESTS,
+    },
+    dependencies=[Depends(rate_limit(limits.VERIFY_EMAIL))],
 )  # type: ignore[misc]
 async def verify_email(
     data: VerifyEmailRequest,
@@ -162,7 +182,13 @@ async def verify_email(
     return Response(status_code=204)
 
 
-@router.post("/resend-verification", response_model=MessageResponse, status_code=202)  # type: ignore[misc]
+@router.post(
+    "/resend-verification",
+    response_model=MessageResponse,
+    status_code=202,
+    responses={429: limits.TOO_MANY_REQUESTS},
+    dependencies=[Depends(rate_limit(limits.RESEND_VERIFICATION))],
+)  # type: ignore[misc]
 async def resend_verification(
     data: ResendVerificationRequest,
     background_tasks: BackgroundTasks,
@@ -188,7 +214,11 @@ async def resend_verification(
 @router.post(
     "/reset-password",
     status_code=204,
-    responses={400: {"description": "Reset link is invalid, already used or expired"}},
+    responses={
+        400: {"description": "Reset link is invalid, already used or expired"},
+        429: limits.TOO_MANY_REQUESTS,
+    },
+    dependencies=[Depends(rate_limit(limits.RESET_PASSWORD))],
 )  # type: ignore[misc]
 async def reset_password(
     data: ResetPasswordRequest,

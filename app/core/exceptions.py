@@ -10,6 +10,7 @@ class AppError(Exception):
 
     def __init__(self, detail: str | None = None) -> None:
         self.detail = detail or self.__class__.detail
+        self.headers: dict[str, str] | None = None
 
 
 class NotFoundError(AppError):
@@ -46,6 +47,16 @@ class EmailNotVerifiedError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
     detail = "Email address is not verified"
     code = "email_not_verified"
+
+
+class TooManyRequestsError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    detail = "Too many requests. Try again later."
+    code = "too_many_requests"
+
+    def __init__(self, retry_after_seconds: int) -> None:
+        super().__init__()
+        self.headers = {"Retry-After": str(retry_after_seconds)}
 
 
 class InvalidPasswordError(AppError):
@@ -89,4 +100,4 @@ def register_exception_handlers(app: FastAPI) -> None:
         content = {"detail": exc.detail}
         if exc.code:
             content["code"] = exc.code
-        return JSONResponse(status_code=exc.status_code, content=content)
+        return JSONResponse(status_code=exc.status_code, content=content, headers=exc.headers)

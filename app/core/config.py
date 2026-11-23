@@ -44,6 +44,36 @@ class Settings(BaseSettings):
     # Address of the frontend, used to build the link sent in the reset email
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # Limits of requests per client IP on the public auth endpoints (counters in Redis).
+    # Behind a proxy the client IP needs FORWARDED_ALLOW_IPS, see README
+    RATE_LIMIT_ENABLED: bool = True
+    # Cloudflare servers (https://www.cloudflare.com/ips/). For requests that come from them
+    # the client address is read from CF-Connecting-IP; empty when not behind Cloudflare
+    CLOUDFLARE_IP_RANGES: list[str] = [
+        "173.245.48.0/20",
+        "103.21.244.0/22",
+        "103.22.200.0/22",
+        "103.31.4.0/22",
+        "141.101.64.0/18",
+        "108.162.192.0/18",
+        "190.93.240.0/20",
+        "188.114.96.0/20",
+        "197.234.240.0/22",
+        "198.41.128.0/17",
+        "162.158.0.0/15",
+        "104.16.0.0/13",
+        "104.24.0.0/14",
+        "172.64.0.0/13",
+        "131.0.72.0/22",
+        "2400:cb00::/32",
+        "2606:4700::/32",
+        "2803:f800::/32",
+        "2405:b500::/32",
+        "2405:8100::/32",
+        "2a06:98c0::/29",
+        "2c0f:f248::/32",
+    ]
+
     # Email verification: a new account confirms its email with a link before the first
     # login. Off by default, turned on in production (docker-compose.prod.yml)
     EMAIL_VERIFICATION_REQUIRED: bool = False

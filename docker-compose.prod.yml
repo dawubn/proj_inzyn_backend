@@ -52,6 +52,11 @@ services:
     restart: unless-stopped
     environment:
       <<: *app-env
+      # Proxies whose X-Forwarded-For uvicorn trusts. The API is reachable only through the
+      # Coolify proxy on a private network; requests from Cloudflare are then recognised by
+      # their address and the client address is read from CF-Connecting-IP (see README)
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
     volumes:
       - backend_storage:/app/storage
     depends_on:
