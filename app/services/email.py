@@ -10,7 +10,7 @@ logger = structlog.get_logger(__name__)
 _SMTP_TIMEOUT_SECONDS = 15
 
 
-def send_email(to: str, subject: str, body: str) -> None:
+def send_email(to: str, subject: str, body: str, reply_to: str | None = None) -> None:
     """Send a plain-text email. Failures are logged, never raised to the caller."""
     if not settings.SMTP_HOST:
         if settings.APP_ENV == "production":
@@ -26,6 +26,8 @@ def send_email(to: str, subject: str, body: str) -> None:
     message["From"] = settings.SMTP_FROM
     message["To"] = to
     message["Subject"] = subject
+    if reply_to:
+        message["Reply-To"] = reply_to
     message.set_content(body)
 
     try:

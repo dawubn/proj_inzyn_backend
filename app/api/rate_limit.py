@@ -37,6 +37,8 @@ RESET_PASSWORD = Limit("reset_password", requests=20, seconds=3600)
 # For the email verification endpoints (verify-email, resend-verification)
 VERIFY_EMAIL = Limit("verify_email", requests=20, seconds=3600)
 RESEND_VERIFICATION = Limit("resend_verification", requests=10, seconds=3600)
+# A person rarely needs more than a couple of messages a day
+CONTACT = Limit("contact", requests=settings.CONTACT_MAX_PER_IP_PER_DAY, seconds=24 * 3600)
 
 # OpenAPI description of the answer to a request over the limit
 TOO_MANY_REQUESTS = {"description": "Too many requests from this IP address; see Retry-After"}

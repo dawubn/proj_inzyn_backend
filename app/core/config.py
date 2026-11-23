@@ -93,6 +93,13 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
     SMTP_FROM: str = "CerberDoc <no-reply@cerberdoc.com>"
 
+    # Contact form: messages go to this address, which is never shown to users.
+    # Without it the form answers 503
+    CONTACT_EMAIL: str | None = None
+    # Messages a day (UTC) from one IP address, and from all senders together
+    CONTACT_MAX_PER_IP_PER_DAY: int = 3
+    CONTACT_MAX_PER_DAY: int = 20
+
     # Azure AI Document Intelligence
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: str
     AZURE_DOCUMENT_INTELLIGENCE_KEY: str

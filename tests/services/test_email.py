@@ -84,3 +84,10 @@ def test_smtp_failure_is_not_raised(fake_smtp: type[_FakeSMTP]) -> None:
     email_service.send_email("user@example.com", "Subject", "Body")
 
     assert fake_smtp.instances[0].messages == []
+
+
+def test_reply_to_is_set_when_given(fake_smtp: type[_FakeSMTP]) -> None:
+    email_service.send_email("team@example.com", "Subject", "Body", reply_to="sender@example.com")
+
+    [message] = fake_smtp.instances[0].messages
+    assert message["Reply-To"] == "sender@example.com"
