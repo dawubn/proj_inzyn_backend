@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 class AppError(Exception):
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
     detail: str = "Internal server error"
+    # Stable name of the error for clients that react to it, sent next to the detail
+    code: str | None = None
 
     def __init__(self, detail: str | None = None) -> None:
         self.detail = detail or self.__class__.detail
@@ -33,6 +35,17 @@ class ConflictError(AppError):
 class InvalidResetTokenError(AppError):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Password reset link is invalid or has expired"
+
+
+class InvalidVerificationTokenError(AppError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Verification link is invalid or has expired"
+
+
+class EmailNotVerifiedError(AppError):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Email address is not verified"
+    code = "email_not_verified"
 
 
 class InvalidPasswordError(AppError):
@@ -73,4 +86,7 @@ class ClassifierNotReadyError(AppError):
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)  # type: ignore[misc]
     async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        content = {"detail": exc.detail}
+        if exc.code:
+            content["code"] = exc.code
+        return JSONResponse(status_code=exc.status_code, content=content)

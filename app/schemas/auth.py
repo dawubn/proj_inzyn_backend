@@ -23,6 +23,14 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=255)
+
+
 class _NewPassword(BaseModel):
     new_password: str = Field(min_length=8)
 

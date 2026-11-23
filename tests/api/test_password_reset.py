@@ -372,3 +372,20 @@ async def test_change_password_requires_login(client: AsyncClient) -> None:
     )
 
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("no_cooldown")
+async def test_daily_limit_of_reset_emails(
+    client: AsyncClient, sent_emails: list[tuple[str, str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "PASSWORD_RESET_MAX_PER_DAY", 2)
+    email = "reset_daily_limit@example.com"
+    await _register(client, email)
+
+    statuses = [
+        (await client.post(FORGOT_URL, json={"email": email})).status_code for _ in range(4)
+    ]
+
+    assert statuses == [202, 202, 202, 202]
+    assert len(sent_emails) == 2
