@@ -175,6 +175,7 @@ header. The counters are kept in Redis (`REDIS_URL`), so all API workers share t
 | `register` | 5 an hour |
 | `forgot-password` | 10 an hour |
 | `reset-password` | 20 an hour |
+| `contact` | 3 a day (`CONTACT_MAX_PER_IP_PER_DAY`) |
 
 The limits are set in `app/api/rate_limit.py` and turned off with `RATE_LIMIT_ENABLED=false`.
 When Redis does not answer, requests are let through and a warning is logged.
@@ -198,6 +199,27 @@ of users, not of Cloudflare or of the proxy.
 Emails are sent over SMTP (`SMTP_*` variables in `.env`). Without `SMTP_HOST` nothing is
 sent; in development the message with the link is written to the API log, so the flow can
 be tested without a mail server.
+
+### Contact form
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| POST | `/api/v1/contact` | Send a message to the team (`202`) | Public |
+
+The message is emailed to `CONTACT_EMAIL` with `Reply-To` set to the sender, so the team
+answers from its mailbox. The address is kept only in the server configuration and never
+reaches the browser; without it the endpoint answers `503` (`"code": "contact_unavailable"`).
+No confirmation goes to the address typed in the form, so the form cannot be used to send
+emails to other people.
+
+Protection against spam and abuse:
+
+- `CONTACT_MAX_PER_IP_PER_DAY` (3) messages a day per IP and `CONTACT_MAX_PER_DAY` (20) a day
+  from everyone together (`429` with `Retry-After`; days are counted in UTC)
+- a hidden `website` field: when a bot fills it, the answer is `202` but nothing is sent
+- name and subject must be a single line (no line breaks that could add email headers)
+- control and invisible characters (e.g. right-to-left override) are removed; the
+  message must have 10 to 5000 characters and at most 3 links; unknown fields are rejected
+- the email is plain text and says that the sender's address has not been verified
 
 ### Documents
 | Method | Path | Description | Access |

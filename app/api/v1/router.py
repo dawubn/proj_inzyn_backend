@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth,
     classifications,
+    contact,
     documents,
     redactions,
     reports,
@@ -27,3 +28,4 @@ api_router.include_router(
 )
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(classifications.router, prefix="/classify", tags=["classifications"])
+api_router.include_router(contact.router, prefix="/contact", tags=["contact"])

@@ -48,6 +48,12 @@ class TooManyRequestsError(AppError):
         self.headers = {"Retry-After": str(retry_after_seconds)}
 
 
+class ContactUnavailableError(AppError):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    detail = "The contact form is not available right now"
+    code = "contact_unavailable"
+
+
 class InvalidPasswordError(AppError):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Current password is incorrect"
