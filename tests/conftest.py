@@ -16,7 +16,15 @@ from main import app
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.core.config import settings
 from app.db.session import Base, get_db
+
+
+@pytest.fixture(autouse=True)
+def _email_verification_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests do not depend on the local .env; those about verification turn it on."""
+    monkeypatch.setattr(settings, "EMAIL_VERIFICATION_REQUIRED", False)
+
 
 _default_url = "postgresql+asyncpg://cerberdoc:cerberdoc@localhost:5432/cerber_doc_test"
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", _default_url)
